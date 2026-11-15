@@ -55,6 +55,7 @@ public sealed class LineCommand : CadCommandBase
     public override string Name => "LINE";
     public override string Prompt => _points.Count == 0
         ? "LINE  Specify first point:"
+        : !Session.ContinuousLines ? "LINE  Specify second point or [Undo]:"
         : _points.Count < 3 ? "LINE  Specify next point or [Undo]:" : "LINE  Specify next point or [Close/Undo]:";
     public override Point2D? LastPoint => _points.Count > 0 ? _points[^1] : null;
     public override IReadOnlyList<string> Options => _points.Count >= 3 ? new[] { "Close", "Undo" } : _points.Count >= 1 ? new[] { "Undo" } : Array.Empty<string>();
@@ -65,13 +66,13 @@ public sealed class LineCommand : CadCommandBase
         {
             case CommandInput.PointInput p:
                 AddPoint(p.Point);
-                return CommandResult.Continue;
+                return AfterPoint();
 
             case CommandInput.NumberInput n:
                 if (_points.Count == 0) return Invalid("Specify a point first (click or type x,y).");
                 if (n.Value <= 0) return Invalid("Distance must be positive.");
                 AddPoint(Session.PointFromDistance(_points[^1], n.Value));
-                return CommandResult.Continue;
+                return AfterPoint();
 
             case CommandInput.KeywordInput k when Matches(k.Keyword, "UNDO"):
                 UndoPoint();
@@ -90,6 +91,17 @@ public sealed class LineCommand : CadCommandBase
             default:
                 return Invalid("Invalid option.");
         }
+    }
+
+    /// <summary>
+    /// By default LINE draws one line and ends at the second point (Enter or Space starts the next one).
+    /// With <see cref="EditorSession.ContinuousLines"/> on it keeps going from point to point until Enter.
+    /// </summary>
+    private CommandResult AfterPoint()
+    {
+        if (Session.ContinuousLines || _segments.Count == 0) return CommandResult.Continue;
+        Commit();
+        return CommandResult.Finished;
     }
 
     private void AddPoint(Point2D point)

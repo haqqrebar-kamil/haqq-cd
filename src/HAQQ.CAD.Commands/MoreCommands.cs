@@ -195,3 +195,27 @@ public sealed class CursorSizeCommand : CadCommandBase
         }
     }
 }
+
+/// <summary>LINEMODE: whether LINE ends at the second point (Single) or keeps drawing connected lines (Continuous).</summary>
+public sealed class LineModeCommand : CadCommandBase
+{
+    public override string Name => "LINEMODE";
+    public override string Prompt => $"LINEMODE  Enter line mode [Single/Continuous] <{(Session.ContinuousLines ? "Continuous" : "Single")}>:";
+    public override IReadOnlyList<string> Options => new[] { "Single", "Continuous" };
+
+    public override CommandResult OnInput(CommandInput input)
+    {
+        if (input is CommandInput.KeywordInput k)
+        {
+            if (Matches(k.Keyword, "SINGLE")) Session.ContinuousLines = false;
+            else if (Matches(k.Keyword, "CONTINUOUS")) Session.ContinuousLines = true;
+            else return Invalid("Enter Single or Continuous.");
+        }
+        else if (input is not CommandInput.EnterInput) return Invalid("Enter Single or Continuous.");
+
+        Session.Post(Session.ContinuousLines
+            ? "LINE now keeps drawing connected lines until Enter."
+            : "LINE now ends at the second point. Press Enter or Space to draw the next line.");
+        return CommandResult.Finished;
+    }
+}

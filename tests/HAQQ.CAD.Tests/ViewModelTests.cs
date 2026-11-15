@@ -36,6 +36,7 @@ public class MainViewModelTests : IDisposable
 
         // --- Session 1: create and modify -------------------------------------------------
         var vm = NewViewModel();
+        vm.Session.ContinuousLines = true;                 // these steps draw a chain of lines (LINEMODE Continuous)
         Type(vm, "LINE", "0,0", "@10',0", "@0,5'-6 1/2\"", "");          // two lines, feet-inch input
         Type(vm, "PLINE", "200,0", "@40,0", "@0,30", "C");                // closed polyline
         Type(vm, "RECTANG", "300,0", "@24,36");                           // rectangle
@@ -122,7 +123,7 @@ public class MainViewModelTests : IDisposable
         Assert.Equal(CadColor.FromRgb(255, 0, 0), doc.FindLayer("REBAR")!.Color);
 
         // --- Continue editing the reopened drawing -----------------------------------------
-        Type(vm2, "LINE", "0,200", "@50,0", "");
+        Type(vm2, "LINE", "0,200", "@50,0");                              // LINE ends at the second point
         vm2.Session.SelectAt(P(400, 12), 0.5);
         Type(vm2, "MOVE", "0,0", "@1000,0");
         Assert.Equal(7, doc.EntityCount);
@@ -247,6 +248,7 @@ public class MainViewModelTests : IDisposable
     public void Properties_panel_shows_and_edits_the_selection()
     {
         var vm = NewViewModel();
+        vm.Session.ContinuousLines = true;                 // these steps draw a chain of lines (LINEMODE Continuous)
         var props = vm.Properties;
         Assert.Equal("No selection", props.Header);
         Assert.False(props.HasSelection);
@@ -328,6 +330,7 @@ public class MainViewModelTests : IDisposable
     public void Dynamic_input_shows_coordinates_then_distance_and_angle_then_typed_text()
     {
         var vm = NewViewModel();
+        vm.Session.ContinuousLines = true;                 // these steps draw a chain of lines (LINEMODE Continuous)
         vm.Session.Snap.Enabled = false;
         Assert.Null(vm.GetDynamicInput());              // idle: nothing beside the crosshair
 

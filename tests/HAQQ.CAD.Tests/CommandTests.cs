@@ -78,6 +78,7 @@ public class DrawCommandTests
     public void Line_from_clicked_points_is_one_undo_step()
     {
         var s = new EditorSession();
+        s.ContinuousLines = true;                 // these steps draw a chain of lines (LINEMODE Continuous)
         Assert.True(s.StartCommand("L"));
         Assert.Equal("LINE", s.ActiveCommand!.Name);
         Assert.Contains("first point", s.Prompt);
@@ -106,6 +107,7 @@ public class DrawCommandTests
     public void Line_from_typed_coordinates_with_close()
     {
         var s = new EditorSession();
+        s.ContinuousLines = true;                 // these steps draw a chain of lines (LINEMODE Continuous)
         s.SubmitText("line");
         s.SubmitText("0,0");
         s.SubmitText("@10,0");
@@ -124,6 +126,7 @@ public class DrawCommandTests
     public void Line_undo_option_removes_the_last_segment()
     {
         var s = new EditorSession();
+        s.ContinuousLines = true;                 // these steps draw a chain of lines (LINEMODE Continuous)
         s.StartCommand("LINE");
         s.SubmitPoint(P(0, 0));
         s.SubmitPoint(P(5, 0));
@@ -156,6 +159,7 @@ public class DrawCommandTests
     public void Direct_distance_entry_follows_the_cursor_and_ortho()
     {
         var s = new EditorSession { OrthoEnabled = true };
+        s.ContinuousLines = true;                 // these steps draw a chain of lines (LINEMODE Continuous)
         s.Snap.Enabled = false;
         s.StartCommand("LINE");
         s.SubmitPoint(P(0, 0));
@@ -201,6 +205,7 @@ public class DrawCommandTests
     public void Cursor_snaps_to_geometry_drawn_earlier_in_the_same_command()
     {
         var s = new EditorSession();
+        s.ContinuousLines = true;                 // these steps draw a chain of lines (LINEMODE Continuous)
         s.StartCommand("LINE");
         s.SubmitPoint(P(0, 0));
         s.SubmitPoint(P(10, 0));

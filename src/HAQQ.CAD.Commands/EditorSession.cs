@@ -103,6 +103,7 @@ public sealed class CommandRegistry
         r.Register("ROTATE", () => new RotateCommand(), "RO");
         r.Register("SCALE", () => new ScaleCommand(), "SC");
         r.Register("MIRROR", () => new MirrorCommand(), "MI");
+        r.Register("LINEMODE", () => new LineModeCommand());
         r.Register("OFFSET", () => new OffsetCommand(), "O");
         r.Register("TRIM", () => new TrimCommand(), "TR");
         r.Register("EXTEND", () => new ExtendCommand(), "EX");
@@ -169,6 +170,12 @@ public sealed class EditorSession
 
     /// <summary>The last point given to any command; <c>@</c> coordinates at a first prompt are relative to it.</summary>
     public Point2D? LastPoint { get; private set; }
+
+    /// <summary>
+    /// LINE behaviour: false (default) = one line per command, ending at the second point;
+    /// true = a chain of lines until Enter, with Close and Undo. Changed with the LINEMODE command.
+    /// </summary>
+    public bool ContinuousLines { get; set; }
 
     /// <summary>True while the active command wants a click on an object rather than a point.</summary>
     public bool PickingObject => ActiveCommand is IObjectPicker { PickingObject: true };

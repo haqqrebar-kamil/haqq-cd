@@ -9,7 +9,7 @@ Last updated: 2026-11-15 · Version 0.2.0-dev · Phase 1 complete, Phase 2 start
 | First release (Phase 1) built on Windows 10/11 with the .NET 10 SDK (10.0.404), including the WPF project | **Passed**, 0 warnings, 0 errors |
 | First release: `dotnet test` with real xUnit on Windows | **160 passed, 0 failed** |
 | Current source: engine and view-model libraries compiled on Linux (.NET 8 SDK) | **Passed**, 0 warnings |
-| Current source: 258 automated tests through `tools/OfflineTestRunner` | **258 passed, 0 failed** |
+| Current source: 260 automated tests through `tools/OfflineTestRunner` | **260 passed, 0 failed** |
 | Build of 14 Nov evening on Windows (.NET 10): solution build and `dotnet test` | **Passed**, 181 tests at that point; the app was seen running (screenshots from the owner) |
 | Current source: WPF project compiled on Windows | **Compiled** by the installer build of 15 Nov 10:38 (all features up to the updater); the self-installer added afterwards is **not compiled yet**. Earlier note: not confirmed for the latest changes (per-section polyline width, rectangle options, the 11 arc methods and the longer Arc drop-down, grip editing, object snaps and their menus, folding Properties panel); no build log read since the 181-test build |
 | Running the application and using it by hand | Owner has run it and sent screenshots of the window, crosshair and input box; no systematic manual test |
@@ -28,7 +28,7 @@ Legend: **Tested** = implemented and covered by executed automated tests ·
 | Professional dark UI | Untested UI | Custom dark theme; scroll bars still use the Windows default look |
 | Vector drawing canvas | Untested UI | Scene logic (culling, clipping, colours, level of detail) is tested through a recording surface |
 | Pan and zoom | Tested (math) / Untested UI (mouse) | Wheel zoom about the cursor, middle-button pan, double-click wheel = extents |
-| LINE | Tested | Chain of segments, Undo/Close options, direct distance entry, one undo step per command |
+| LINE | Tested | Ends at the second point by default (owner's request, 15 Nov); Enter or Space starts the next line. `LINEMODE` switches to Continuous (chain with Undo/Close, as before); the mode is not saved between runs. Direct distance entry |
 | PLINE | Tested | Straight segments, Close/Undo. Arc segments and widths: see below |
 | RECTANG | Tested | Two corners or `@width,height` |
 | CIRCLE | Tested | Radius, diameter, or picked point |

@@ -174,6 +174,7 @@ public class ManualWorkflowTests
     public void Plate_outline_using_every_point_entry_method()
     {
         var s = DecimalInches();
+        s.ContinuousLines = true;                 // these steps draw a chain of lines (LINEMODE Continuous)
         s.StartCommand("LINE");
         s.SubmitText("0,0");                 // absolute
         s.SubmitText("5.5,0");               // absolute
@@ -370,6 +371,7 @@ public class ManualWorkflowTests
     public void Polar_tracking_locks_near_horizontal_and_vertical_without_ortho()
     {
         var s = DecimalInches();
+        s.ContinuousLines = true;                 // these steps draw a chain of lines (LINEMODE Continuous)
         Assert.True(s.PolarEnabled);
         s.StartCommand("LINE");
         s.UpdateCursor(P(5, 0.02), 0.5);
@@ -471,6 +473,7 @@ public class ContextMenuTests : IDisposable
     public void Right_click_menu_follows_the_command_state()
     {
         var vm = NewViewModel();
+        vm.Session.ContinuousLines = true;                 // these steps draw a chain of lines (LINEMODE Continuous)
         Assert.Equal(new[] { "Zoom Extents" }, Labels(vm));                  // nothing to repeat or undo yet
 
         vm.RunCommand("LINE");
@@ -538,6 +541,7 @@ public class ContextMenuTests : IDisposable
     public void Tab_moves_from_distance_to_angle_and_enter_places_the_point()
     {
         var vm = NewViewModel();
+        vm.Session.ContinuousLines = true;                 // these steps draw a chain of lines (LINEMODE Continuous)
         vm.Session.Snap.Enabled = false;
         vm.Session.PolarEnabled = false;
         Assert.False(vm.SwitchInputField());                                 // no command: Tab does nothing here
@@ -2042,6 +2046,7 @@ public class ObjectSnapTests : IDisposable
     public void Right_click_override_draws_a_perpendicular_line_and_lasts_one_point()
     {
         var vm = new MainViewModel(new FakeUi(), new RecoveryStore(_temp.File("recovery")));
+        vm.Session.ContinuousLines = true;                 // these steps draw a chain of lines (LINEMODE Continuous)
         var s = vm.Session;
         s.Document.Settings.Format = LengthFormat.Decimal;
         var target = AddLine(s.Document, 0, 0, 20, 0);
@@ -2588,5 +2593,73 @@ public class EditToolTests
         s.UpdateCursor(P(9.8, 0.1), 0.5);
         Assert.Null(s.CurrentSnap);                         // picking: the click is taken where it is
         s.Cancel();
+    }
+}
+
+public class LineModeTests
+{
+    private static EditorSession Session()
+    {
+        var s = new EditorSession();
+        s.Document.Settings.Format = LengthFormat.Decimal;
+        return s;
+    }
+
+    [Fact]
+    public void Line_ends_at_the_second_point_and_enter_or_space_starts_the_next_one()
+    {
+        var s = Session();
+        Assert.False(s.ContinuousLines);
+        s.StartCommand("LINE");
+        s.SubmitText("0,0");
+        Assert.Contains("second point", s.Prompt);
+        Assert.NotNull(s.ActiveCommand);
+        s.SubmitText("10,0");
+        Assert.Null(s.ActiveCommand);                       // finished without pressing Enter
+        Assert.Equal(1, s.Document.EntityCount);
+
+        s.SubmitEnter();                                    // repeats LINE
+        Assert.Equal("LINE", s.ActiveCommand!.Name);
+        s.SubmitText("@0,5");                               // relative to the end of the previous line
+        s.SubmitText("3");                                  // direct distance also ends the command
+        Assert.Null(s.ActiveCommand);
+        Assert.Equal(2, s.Document.EntityCount);
+        Assert.Equal(P(10, 5), ((LineEntity)s.Document.Entities[1]).Start);
+
+        s.Undo();                                           // each line is its own undo step
+        Assert.Equal(1, s.Document.EntityCount);
+
+        s.StartCommand("LINE");
+        s.SubmitText("0,0");
+        s.SubmitText("0,0");                                // zero length: ignored, still waiting
+        Assert.NotNull(s.ActiveCommand);
+        s.SubmitKeyword("UNDO");                            // takes back the first point
+        Assert.Contains("first point", s.Prompt);
+        s.Cancel();
+        Assert.Equal(1, s.Document.EntityCount);
+    }
+
+    [Fact]
+    public void Linemode_switches_between_single_and_continuous()
+    {
+        var s = Session();
+        s.StartCommand("LINEMODE");
+        Assert.Contains("<Single>", s.Prompt);
+        s.SubmitKeyword("C");
+        Assert.True(s.ContinuousLines);
+        Assert.Null(s.ActiveCommand);
+
+        s.StartCommand("LINE");
+        s.SubmitText("0,0");
+        s.SubmitText("10,0");
+        s.SubmitText("10,10");
+        Assert.NotNull(s.ActiveCommand);                    // keeps going
+        s.SubmitKeyword("CLOSE");
+        Assert.Equal(3, s.Document.EntityCount);
+
+        s.StartCommand("LINEMODE");
+        Assert.Contains("<Continuous>", s.Prompt);
+        s.SubmitKeyword("SINGLE");
+        Assert.False(s.ContinuousLines);
     }
 }
