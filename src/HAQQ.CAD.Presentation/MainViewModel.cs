@@ -86,7 +86,7 @@ public sealed class MainViewModel : ObservableObject
         SetLayerColorCommand = new RelayCommand(p => SetSelectedLayerColor(p as string));
         CycleCoordinateModeCommand = new RelayCommand(CycleCoordinateMode);
 
-        AddHistory("HAQQ CAD ready. Type a command (LINE, PLINE, RECTANG, CIRCLE, ARC, MOVE, COPY, ERASE, UNITS) or use the ribbon.");
+        AddHistory("HAQQ CAD ready. Type a command (LINE, PLINE, RECTANG, CIRCLE, ARC, MOVE, COPY, OFFSET, TRIM, EXTEND, FILLET, ERASE) or use the ribbon.");
         Refresh();
     }
 

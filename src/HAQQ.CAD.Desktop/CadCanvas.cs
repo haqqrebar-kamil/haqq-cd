@@ -266,7 +266,7 @@ public sealed class CadCanvas : FrameworkElement
             // Idle: short cross with a pick box in the middle. Picking a point: cross only.
             // Selecting objects inside a command: pick box only.
             options.CrosshairArmLength = _viewModel.GetCrosshairArmLength(ActualWidth, ActualHeight);
-            options.PickBoxHalfSize = session.WantsPoint ? 0 : PickBoxPixels;
+            options.PickBoxHalfSize = session.WantsPoint && !session.PickingObject ? 0 : PickBoxPixels;
             options.ShowCrosshairArms = session.ActiveCommand is null || session.WantsPoint;
             if (_windowStart is { } start)
             {

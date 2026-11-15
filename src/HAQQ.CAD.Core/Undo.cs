@@ -245,3 +245,37 @@ public sealed class ModifySettingsAction : IUndoableAction
         document.NotifySettingsChanged();
     }
 }
+
+/// <summary>Several actions carried out, and undone, as one step (for example TRIM: change one object and add another).</summary>
+public sealed class CompositeAction : IUndoableAction
+{
+    private readonly IReadOnlyList<IUndoableAction> _actions;
+
+    public CompositeAction(string name, params IUndoableAction[] actions)
+    {
+        Name = name;
+        _actions = actions;
+    }
+
+    public string Name { get; }
+
+    public void Do(DrawingDocument document)
+    {
+        int done = 0;
+        try
+        {
+            for (; done < _actions.Count; done++) _actions[done].Do(document);
+        }
+        catch
+        {
+            // Leave the document as it was if a later part is rejected.
+            for (int i = done - 1; i >= 0; i--) _actions[i].Undo(document);
+            throw;
+        }
+    }
+
+    public void Undo(DrawingDocument document)
+    {
+        for (int i = _actions.Count - 1; i >= 0; i--) _actions[i].Undo(document);
+    }
+}

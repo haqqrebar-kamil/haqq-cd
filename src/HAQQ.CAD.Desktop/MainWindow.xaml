@@ -136,6 +136,13 @@
                     <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconMirror}" Content="Mirror" Command="{Binding RunCommandCommand}" CommandParameter="MIRROR" ToolTip="MIRROR (MI): reflect objects across a line" />
                     <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconScale}" Content="Scale" Command="{Binding RunCommandCommand}" CommandParameter="SCALE" ToolTip="SCALE (SC): enlarge or reduce objects" />
                     <Border Width="1" Margin="6,6" Background="{StaticResource BorderBrush}" />
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconOffset}" Content="Offset" Command="{Binding RunCommandCommand}" CommandParameter="OFFSET" ToolTip="OFFSET (O): parallel copy at a distance" />
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconTrim}" Content="Trim" Command="{Binding RunCommandCommand}" CommandParameter="TRIM" ToolTip="TRIM (TR): click the part to remove; it is cut at the nearest crossings" />
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconExtend}" Content="Extend" Command="{Binding RunCommandCommand}" CommandParameter="EXTEND" ToolTip="EXTEND (EX): click near an end to lengthen it to the next object" />
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconFillet}" Content="Fillet" Command="{Binding RunCommandCommand}" CommandParameter="FILLET" ToolTip="FILLET (F): round the corner between two lines (radius 0 = sharp corner)" />
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconChamfer}" Content="Chamfer" Command="{Binding RunCommandCommand}" CommandParameter="CHAMFER" ToolTip="CHAMFER (CHA): cut the corner between two lines" />
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconExplode}" Content="Explode" Command="{Binding RunCommandCommand}" CommandParameter="EXPLODE" ToolTip="EXPLODE (X): turn polylines into lines and arcs" />
+                    <Border Width="1" Margin="6,6" Background="{StaticResource BorderBrush}" />
                     <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconUndo}" Content="Undo" Command="{Binding UndoCommand}" ToolTip="Undo (Ctrl+Z)" />
                     <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconRedo}" Content="Redo" Command="{Binding RedoCommand}" ToolTip="Redo (Ctrl+Y)" />
                 </StackPanel>

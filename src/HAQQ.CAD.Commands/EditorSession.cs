@@ -49,6 +49,16 @@ public interface IShiftConstraint
     Point2D ConstrainWithShift(Point2D cursor);
 }
 
+/// <summary>
+/// Implemented by commands that ask the user to click on an object (TRIM, OFFSET, FILLET...). While
+/// <see cref="PickingObject"/> is true the click is taken where the cursor is: object snap is not applied
+/// and the pick box is shown at the crosshair.
+/// </summary>
+public interface IObjectPicker
+{
+    bool PickingObject { get; }
+}
+
 /// <summary>An active polar tracking alignment: the cursor is locked onto a ray from <paramref name="From"/>.</summary>
 public readonly record struct PolarTrack(Point2D From, double AngleDegrees, Point2D Point);
 
@@ -93,6 +103,12 @@ public sealed class CommandRegistry
         r.Register("ROTATE", () => new RotateCommand(), "RO");
         r.Register("SCALE", () => new ScaleCommand(), "SC");
         r.Register("MIRROR", () => new MirrorCommand(), "MI");
+        r.Register("OFFSET", () => new OffsetCommand(), "O");
+        r.Register("TRIM", () => new TrimCommand(), "TR");
+        r.Register("EXTEND", () => new ExtendCommand(), "EX");
+        r.Register("FILLET", () => new FilletCommand(), "F");
+        r.Register("CHAMFER", () => new ChamferCommand(), "CHA");
+        r.Register("EXPLODE", () => new ExplodeCommand(), "X");
         r.Register("UNITS", () => new UnitsCommand(), "UN");
         r.Register("SNAP", () => new SpacingCommand(snap: true), "SN");
         r.Register("GRID", () => new SpacingCommand(snap: false));
@@ -154,6 +170,18 @@ public sealed class EditorSession
     /// <summary>The last point given to any command; <c>@</c> coordinates at a first prompt are relative to it.</summary>
     public Point2D? LastPoint { get; private set; }
 
+    /// <summary>True while the active command wants a click on an object rather than a point.</summary>
+    public bool PickingObject => ActiveCommand is IObjectPicker { PickingObject: true };
+
+    /// <summary>Last OFFSET distance, offered as the default next time.</summary>
+    public double? OffsetDistance { get; set; }
+
+    /// <summary>FILLET radius; stays until changed (0 makes a sharp corner).</summary>
+    public double FilletRadius { get; set; }
+
+    /// <summary>CHAMFER distances along the first and second line; stay until changed.</summary>
+    public (double First, double Second) ChamferDistances { get; set; }
+
     /// <summary>Radius of the last circle drawn, offered as the default for the next one.</summary>
     public double? LastCircleRadius { get; set; }
 
@@ -210,6 +238,9 @@ public sealed class EditorSession
         LastPoint = null;
         LastCircleRadius = null;
         ContinueFrom = null;
+        OffsetDistance = null;
+        FilletRadius = 0;
+        ChamferDistances = (0, 0);
         DocumentReplaced?.Invoke(this, EventArgs.Empty);
         RaiseStateChanged();
     }
@@ -223,6 +254,7 @@ public sealed class EditorSession
         Cursor = modelPoint;
         _aperture = aperture;
         var modes = SnapOverride ?? (Snap.Enabled ? Snap.Modes : SnapModes.None);
+        if (PickingObject) modes = SnapModes.None;
         CurrentSnap = WantsPoint && modes != SnapModes.None
             ? SnapEngine.FindSnap(Document, modelPoint, aperture, modes, ActiveCommand?.LastPoint)
             : null;

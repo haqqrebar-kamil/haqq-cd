@@ -2127,3 +2127,466 @@ public class ObjectSnapTests : IDisposable
         Assert.Equal(8, counts.Distinct().Count());
     }
 }
+
+public class EditToolTests
+{
+    private const double Deg = Math.PI / 180.0;
+
+    private static EditorSession Session()
+    {
+        var s = new EditorSession();
+        s.Document.Settings.Format = LengthFormat.Decimal;
+        s.PolarEnabled = false;
+        return s;
+    }
+
+    private static T Add<T>(EditorSession s, T entity) where T : Entity
+    {
+        entity.LayerId = s.Document.CurrentLayerId;
+        s.Document.AddEntity(entity);
+        return entity;
+    }
+
+    private static void Click(EditorSession s, double x, double y)
+    {
+        s.UpdateCursor(P(x, y), 0.5);
+        s.SubmitPoint(s.EffectiveCursor);
+    }
+
+    private static void AssertPoint(Point2D p, double x, double y)
+    {
+        Assert.Equal(x, p.X, 7);
+        Assert.Equal(y, p.Y, 7);
+    }
+
+    // ------------------------------------------------------------------ OFFSET
+
+    [Fact]
+    public void Offset_line_circle_and_arc_to_the_clicked_side_and_remembers_the_distance()
+    {
+        var s = Session();
+        var line = Add(s, new LineEntity(P(0, 0), P(10, 0)));
+        Add(s, new CircleEntity(P(50, 0), 5));
+        Add(s, new ArcEntity(P(100, 0), 10, 0, 90 * Deg));
+
+        s.StartCommand("OFFSET");
+        s.SubmitText("2");
+        Assert.True(s.PickingObject);
+        Click(s, 5, 0);
+        Assert.False(s.PickingObject);                      // now a side is wanted, snaps may help again
+        s.UpdateCursor(P(5, 3), 0.5);
+        Assert.Equal(P(0, 2), Assert.IsType<LineEntity>(Assert.Single(s.GetPreview())).Start);
+        Click(s, 5, 3);
+        var up = (LineEntity)s.Document.Entities[^1];
+        Assert.Equal(P(0, 2), up.Start);
+        Assert.Equal(P(10, 2), up.End);
+        Assert.Equal(line.LayerId, up.LayerId);
+
+        Click(s, 5, 0);                                     // the command keeps going
+        Click(s, 5, -9);
+        Assert.Equal(P(10, -2), ((LineEntity)s.Document.Entities[^1]).End);
+
+        Click(s, 55, 0);
+        Click(s, 50, 1);                                    // inside the circle
+        Assert.Equal(3.0, ((CircleEntity)s.Document.Entities[^1]).Radius, 9);
+        Click(s, 55, 0);
+        Click(s, 70, 0);                                    // outside
+        Assert.Equal(7.0, ((CircleEntity)s.Document.Entities[^1]).Radius, 9);
+
+        Click(s, 100 + 10 * Math.Cos(45 * Deg), 10 * Math.Sin(45 * Deg));
+        Click(s, 120, 20);
+        var arc = (ArcEntity)s.Document.Entities[^1];
+        Assert.Equal(12.0, arc.Radius, 9);
+        Assert.Equal(90 * Deg, arc.Sweep, 9);
+        s.SubmitEnter();
+        Assert.Null(s.ActiveCommand);
+
+        s.StartCommand("O");
+        Assert.Contains("<2.0000>", s.Prompt);              // last distance offered
+        s.SubmitEnter();
+        Click(s, 55, 0);
+        int before = s.Document.EntityCount;
+        var messages = CaptureMessages(s);
+        s.SubmitText("OFFSET");                             // not a point: stays
+        s.Cancel();
+        Assert.Equal(before, s.Document.EntityCount);
+
+        s.Undo();                                           // each offset is its own undo step
+        Assert.Equal(before - 1, s.Document.EntityCount);
+    }
+
+    [Fact]
+    public void Offset_too_large_for_a_circle_is_refused()
+    {
+        var s = Session();
+        Add(s, new CircleEntity(P(0, 0), 5));
+        s.StartCommand("OFFSET");
+        s.SubmitText("5");
+        Click(s, 5, 0);
+        Click(s, 0, 1);
+        Assert.Equal(1, s.Document.EntityCount);
+        Assert.NotNull(s.ActiveCommand);
+        s.Cancel();
+    }
+
+    [Fact]
+    public void Offset_rectangle_inward_and_outward_keeps_corners()
+    {
+        var s = Session();
+        var rect = Add(s, new PolylineEntity(new[] { P(0, 0), P(20, 0), P(20, 10), P(0, 10) }, true));
+        rect.SetSegmentWidth(0, 0.5, 0.5);
+
+        var inner = (PolylineEntity)OffsetCommand.Build(rect, P(5, 1), 2)!;       // click inside
+        Assert.True(inner.IsClosed);
+        AssertPoint(inner.Vertices[0], 2, 2);
+        AssertPoint(inner.Vertices[1], 18, 2);
+        AssertPoint(inner.Vertices[2], 18, 8);
+        AssertPoint(inner.Vertices[3], 2, 8);
+        Assert.Equal((0.5, 0.5), inner.GetSegmentWidth(0));
+        Assert.NotEqual(rect.Id, inner.Id);
+
+        var outer = (PolylineEntity)OffsetCommand.Build(rect, P(5, -3), 2)!;      // click outside
+        AssertPoint(outer.Vertices[0], -2, -2);
+        AssertPoint(outer.Vertices[2], 22, 12);
+
+        // Same rectangle drawn the other way round: inside is still inside.
+        var reversed = new PolylineEntity(new[] { P(0, 0), P(0, 10), P(20, 10), P(20, 0) }, true);
+        var inner2 = (PolylineEntity)OffsetCommand.Build(reversed, P(5, 1), 2)!;
+        AssertPoint(inner2.Vertices[0], 2, 2);
+        AssertPoint(inner2.Vertices[2], 18, 8);
+
+        Assert.Null(OffsetCommand.Build(new PolylineEntity(new[] { P(0, 0), P(10, 0), P(20, 0) }, false), P(5, 5), 0.0 / 0.0));
+    }
+
+    [Fact]
+    public void Offset_filleted_rectangle_changes_the_corner_radius_and_fails_when_the_corner_vanishes()
+    {
+        // 20 x 10 rectangle with radius-2 corners, drawn counter-clockwise.
+        double b = Math.Tan(22.5 * Deg);
+        var rounded = new PolylineEntity(
+            new[] { P(2, 0), P(18, 0), P(20, 2), P(20, 8), P(18, 10), P(2, 10), P(0, 8), P(0, 2) }, true,
+            new[] { 0, b, 0, b, 0, b, 0, b });
+
+        var inner = (PolylineEntity)OffsetCommand.Build(rounded, P(10, 1), 1)!;
+        AssertPoint(inner.Vertices[0], 2, 1);
+        AssertPoint(inner.Vertices[1], 18, 1);
+        AssertPoint(inner.Vertices[2], 19, 2);
+        Assert.True(inner.TryGetArc(1, out var c, out double r, out _, out double sweep));
+        AssertPoint(c, 18, 2);
+        Assert.Equal(1.0, r, 7);
+        Assert.Equal(90 * Deg, sweep, 7);
+
+        var outer = (PolylineEntity)OffsetCommand.Build(rounded, P(10, -1), 1)!;
+        Assert.True(outer.TryGetArc(1, out _, out double r2, out _, out _));
+        Assert.Equal(3.0, r2, 7);
+        AssertPoint(outer.Vertices[0], 2, -1);
+
+        Assert.Null(OffsetCommand.Build(rounded, P(10, 1), 2));                    // corner radius would be zero
+    }
+
+    [Fact]
+    public void Offset_open_polyline_with_a_corner()
+    {
+        var path = new PolylineEntity(new[] { P(0, 0), P(10, 0), P(10, 10) }, false);
+        var left = (PolylineEntity)OffsetCommand.Build(path, P(5, 1), 1)!;
+        AssertPoint(left.Vertices[0], 0, 1);
+        AssertPoint(left.Vertices[1], 9, 1);
+        AssertPoint(left.Vertices[2], 9, 10);
+        var right = (PolylineEntity)OffsetCommand.Build(path, P(5, -1), 1)!;
+        AssertPoint(right.Vertices[1], 11, -1);
+        Assert.False(right.IsClosed);
+    }
+
+    // -------------------------------------------------------------------- TRIM
+
+    [Fact]
+    public void Trim_line_end_middle_and_refuses_when_nothing_crosses()
+    {
+        var s = Session();
+        var line = Add(s, new LineEntity(P(0, 0), P(30, 0)));
+        Add(s, new LineEntity(P(10, -5), P(10, 5)));
+        Add(s, new LineEntity(P(20, -5), P(20, 5)));
+
+        s.StartCommand("TRIM");
+        Assert.True(s.PickingObject);
+        Click(s, 15, 0);                                    // middle: line splits in two
+        Assert.Equal(4, s.Document.EntityCount);
+        var left = (LineEntity)s.Document.GetEntity(line.Id)!;
+        Assert.Equal(P(0, 0), left.Start);
+        AssertPoint(left.End, 10, 0);
+        var right = s.Document.Entities.OfType<LineEntity>().Single(l => l.Start.NearlyEquals(P(20, 0)));
+        Assert.Equal(P(30, 0), right.End);
+        Assert.Equal(line.LayerId, right.LayerId);
+
+        Click(s, 25, 0);                                    // end piece: removed back to x = 20... which leaves nothing of it
+        Assert.Equal(4, s.Document.EntityCount);            // (its only crossing is at its own start, so nothing to trim to)
+
+        s.Undo();                                           // one step undoes the whole split
+        Assert.Equal(3, s.Document.EntityCount);
+        Assert.Equal(P(30, 0), ((LineEntity)s.Document.GetEntity(line.Id)!).End);
+
+        s.StartCommand("TR");
+        Click(s, 27, 0);                                    // right end: cut back to x = 20
+        var cut = (LineEntity)s.Document.GetEntity(line.Id)!;
+        Assert.Equal(P(0, 0), cut.Start);
+        AssertPoint(cut.End, 20, 0);
+        Click(s, 3, 0);                                     // left end: cut back to x = 10
+        cut = (LineEntity)s.Document.GetEntity(line.Id)!;
+        AssertPoint(cut.Start, 10, 0);
+        AssertPoint(cut.End, 20, 0);
+        Assert.Equal(3, s.Document.EntityCount);
+
+        var messages = CaptureMessages(s);
+        Click(s, 15, 0);                                    // now only touches the others at its ends
+        Assert.Contains(messages, m => m.Contains("nothing to trim"));
+        Click(s, 100, 100);                                 // empty space
+        Assert.Contains(messages, m => m.Contains("No object there"));
+        s.SubmitEnter();
+        Assert.Null(s.ActiveCommand);
+    }
+
+    [Fact]
+    public void Trim_circle_between_two_lines_and_arc_at_a_line()
+    {
+        var s = Session();
+        var circle = Add(s, new CircleEntity(P(0, 0), 10));
+        Add(s, new LineEntity(P(-20, 0), P(20, 0)));        // crosses at 0 and 180 degrees
+        s.StartCommand("TRIM");
+        Click(s, 0, 10);                                    // remove the top half
+        var half = Assert.IsType<ArcEntity>(s.Document.GetEntity(circle.Id));
+        Assert.Equal(180 * Deg, half.StartAngle, 7);
+        Assert.Equal(0.0, ArcMath.NormalizeAngle(half.EndAngle + 1e-9), 7);
+        Assert.Equal(0.0, half.DistanceTo(P(0, -10)), 7);
+        s.SubmitEnter();
+        s.Undo();
+        Assert.IsType<CircleEntity>(s.Document.GetEntity(circle.Id));
+
+        var arc = Add(s, new ArcEntity(P(100, 0), 10, 0, 180 * Deg));
+        Add(s, new LineEntity(P(100, 0), P(100, 20)));      // crosses the arc at 90 degrees
+        s.StartCommand("TRIM");
+        Click(s, 100 + 10 * Math.Cos(135 * Deg), 10 * Math.Sin(135 * Deg));
+        var kept = (ArcEntity)s.Document.GetEntity(arc.Id)!;
+        Assert.Equal(0.0, kept.StartAngle, 7);
+        Assert.Equal(90 * Deg, kept.EndAngle, 7);
+
+        var lonely = Add(s, new CircleEntity(P(300, 300), 5));
+        var messages = CaptureMessages(s);
+        Click(s, 305, 300);
+        Assert.Contains(messages, m => m.Contains("two crossings"));
+        Assert.IsType<CircleEntity>(s.Document.GetEntity(lonely.Id));
+        s.Cancel();
+    }
+
+    [Fact]
+    public void Trim_uses_polylines_and_arcs_as_edges_and_points_to_explode_for_polyline_targets()
+    {
+        var s = Session();
+        var rect = Add(s, new PolylineEntity(new[] { P(0, 0), P(10, 0), P(10, 10), P(0, 10) }, true));
+        var line = Add(s, new LineEntity(P(-5, 5), P(15, 5)));
+        s.StartCommand("TRIM");
+        Click(s, 5, 5);                                     // the part inside the rectangle
+        Assert.Equal(3, s.Document.EntityCount);
+        AssertPoint(((LineEntity)s.Document.GetEntity(line.Id)!).End, 0, 5);
+
+        var messages = CaptureMessages(s);
+        Click(s, 5, 0);
+        Assert.Contains(messages, m => m.Contains("EXPLODE"));
+        Assert.NotNull(s.Document.GetEntity(rect.Id));
+        s.Cancel();
+    }
+
+    // ------------------------------------------------------------------ EXTEND
+
+    [Fact]
+    public void Extend_line_and_arc_to_the_first_object_met()
+    {
+        var s = Session();
+        var line = Add(s, new LineEntity(P(0, 0), P(10, 0)));
+        Add(s, new LineEntity(P(15, -5), P(15, 5)));
+        Add(s, new LineEntity(P(25, -5), P(25, 5)));
+        Add(s, new CircleEntity(P(-20, 0), 5));
+
+        s.StartCommand("EXTEND");
+        Click(s, 9, 0);                                     // right end: stops at the first line, not the second
+        AssertPoint(((LineEntity)s.Document.GetEntity(line.Id)!).End, 15, 0);
+        Click(s, 1, 0);                                     // left end: reaches the near side of the circle
+        AssertPoint(((LineEntity)s.Document.GetEntity(line.Id)!).Start, -15, 0);
+        Click(s, 14, 0);                                    // again: on to the next line
+        AssertPoint(((LineEntity)s.Document.GetEntity(line.Id)!).End, 25, 0);
+        var messages = CaptureMessages(s);
+        Click(s, 24, 0);                                    // nothing further
+        Assert.Contains(messages, m => m.Contains("does not meet"));
+        s.SubmitEnter();
+        s.Undo();
+        AssertPoint(((LineEntity)s.Document.GetEntity(line.Id)!).End, 15, 0);
+
+        var arc = Add(s, new ArcEntity(P(100, 0), 10, 0, 90 * Deg));
+        Add(s, new LineEntity(P(80, 0), P(100, 0)));        // meets the circle at 180 degrees
+        Add(s, new LineEntity(P(100, -20), P(100, -5)));    // meets the circle at 270 degrees
+        s.StartCommand("EX");
+        Click(s, 100.5, 10);                                // near the end (90 degrees): grows counter-clockwise to 180
+        var grown = (ArcEntity)s.Document.GetEntity(arc.Id)!;
+        Assert.Equal(0.0, grown.StartAngle, 7);
+        Assert.Equal(180 * Deg, grown.EndAngle, 7);
+        Click(s, 110, 0.5);                                 // near the start (0 degrees): grows clockwise to 270
+        grown = (ArcEntity)s.Document.GetEntity(arc.Id)!;
+        Assert.Equal(270 * Deg, grown.StartAngle, 7);
+        Assert.Equal(180 * Deg, grown.EndAngle, 7);
+        s.Cancel();
+    }
+
+    // ------------------------------------------------------- FILLET / CHAMFER
+
+    [Fact]
+    public void Fillet_with_radius_trims_both_lines_and_adds_a_tangent_arc()
+    {
+        var s = Session();
+        var a = Add(s, new LineEntity(P(0, 0), P(10, 0)));
+        var b = Add(s, new LineEntity(P(10, 0), P(10, 10)));
+        s.StartCommand("FILLET");
+        Assert.Equal(new[] { "Radius" }, s.ActiveCommand!.Options);
+        s.SubmitKeyword("R");
+        Assert.False(s.PickingObject);
+        s.SubmitText("2");
+        Assert.Contains("radius = 2", s.Prompt);
+        Click(s, 5, 0);
+        Click(s, 10, 5);
+        Assert.Null(s.ActiveCommand);
+
+        AssertPoint(((LineEntity)s.Document.GetEntity(a.Id)!).Start, 0, 0);
+        AssertPoint(((LineEntity)s.Document.GetEntity(a.Id)!).End, 8, 0);
+        AssertPoint(((LineEntity)s.Document.GetEntity(b.Id)!).Start, 10, 2);
+        var arc = s.Document.Entities.OfType<ArcEntity>().Single();
+        AssertPoint(arc.Center, 8, 2);
+        Assert.Equal(2.0, arc.Radius, 7);
+        Assert.Equal(90 * Deg, arc.Sweep, 7);
+        Assert.Equal(0.0, arc.DistanceTo(P(8, 0)), 7);
+        Assert.Equal(0.0, arc.DistanceTo(P(10, 2)), 7);
+        Assert.Equal(a.LayerId, arc.LayerId);
+
+        s.Undo();                                           // one step
+        Assert.Equal(2, s.Document.EntityCount);
+        AssertPoint(((LineEntity)s.Document.GetEntity(a.Id)!).End, 10, 0);
+
+        s.StartCommand("F");
+        Assert.Contains("radius = 2", s.Prompt);            // the radius is remembered
+        s.Cancel();
+    }
+
+    [Fact]
+    public void Fillet_radius_zero_makes_a_sharp_corner_by_extending_or_cutting_back()
+    {
+        var s = Session();
+        var a = Add(s, new LineEntity(P(0, 0), P(6, 0)));           // stops short of the corner
+        var b = Add(s, new LineEntity(P(10, -3), P(10, 10)));       // overshoots it
+        s.StartCommand("FILLET");
+        Click(s, 3, 0);
+        Click(s, 10, 6);                                    // keep the upper part
+        AssertPoint(((LineEntity)s.Document.GetEntity(a.Id)!).End, 10, 0);
+        AssertPoint(((LineEntity)s.Document.GetEntity(b.Id)!).Start, 10, 0);
+        AssertPoint(((LineEntity)s.Document.GetEntity(b.Id)!).End, 10, 10);
+        Assert.Equal(2, s.Document.EntityCount);
+    }
+
+    [Fact]
+    public void Fillet_refuses_parallel_lines_too_large_a_radius_the_same_line_and_polylines()
+    {
+        var s = Session();
+        Add(s, new LineEntity(P(0, 0), P(10, 0)));
+        Add(s, new LineEntity(P(0, 5), P(10, 5)));
+        Add(s, new LineEntity(P(20, 0), P(20, 3)));
+        Add(s, new PolylineEntity(new[] { P(50, 0), P(60, 0), P(60, 10) }, false));
+        var messages = CaptureMessages(s);
+
+        s.StartCommand("FILLET");
+        Click(s, 5, 0);
+        Click(s, 6, 0);
+        Assert.Contains(messages, m => m.Contains("different line"));
+        Click(s, 5, 5);
+        Assert.Contains(messages, m => m.Contains("parallel"));
+        s.Cancel();
+
+        s.FilletRadius = 50;
+        s.StartCommand("FILLET");
+        Click(s, 5, 0);
+        Click(s, 20, 2);
+        Assert.Contains(messages, m => m.Contains("too short"));
+        s.Cancel();
+
+        s.StartCommand("FILLET");
+        Click(s, 55, 0);
+        Assert.Contains(messages, m => m.Contains("EXPLODE"));
+        s.Cancel();
+        Assert.Equal(4, s.Document.EntityCount);
+        Assert.False(s.UndoStack.CanUndo);
+    }
+
+    [Fact]
+    public void Chamfer_cuts_the_corner_at_the_two_distances()
+    {
+        var s = Session();
+        var a = Add(s, new LineEntity(P(0, 0), P(10, 0)));
+        var b = Add(s, new LineEntity(P(10, 0), P(10, 10)));
+        s.StartCommand("CHAMFER");
+        s.SubmitKeyword("D");
+        s.SubmitText("2");
+        Assert.Contains("second chamfer distance <2.0000>", s.Prompt);
+        s.SubmitText("3");
+        Click(s, 5, 0);
+        Click(s, 10, 5);
+        AssertPoint(((LineEntity)s.Document.GetEntity(a.Id)!).End, 8, 0);
+        AssertPoint(((LineEntity)s.Document.GetEntity(b.Id)!).Start, 10, 3);
+        var cut = s.Document.Entities.OfType<LineEntity>().Single(l => l.Id != a.Id && l.Id != b.Id);
+        AssertPoint(cut.Start, 8, 0);
+        AssertPoint(cut.End, 10, 3);
+        Assert.Equal((2.0, 3.0), s.ChamferDistances);
+    }
+
+    // ----------------------------------------------------------------- EXPLODE
+
+    [Fact]
+    public void Explode_turns_polylines_into_lines_and_arcs_in_one_undo_step()
+    {
+        var s = Session();
+        double bulge = Math.Tan(22.5 * Deg);
+        var pl = Add(s, new PolylineEntity(new[] { P(0, 0), P(10, 0), P(12, 2), P(12, 10) }, false, new[] { 0, bulge, 0, 0 }));
+        pl.Color = CadColor.FromRgb(255, 0, 0);
+        var line = Add(s, new LineEntity(P(50, 0), P(60, 0)));
+        s.Selection.Add(pl.Id);
+        s.Selection.Add(line.Id);
+
+        s.StartCommand("EXPLODE");
+        Assert.Null(s.ActiveCommand);
+        Assert.Equal(4, s.Document.EntityCount);            // 2 lines + 1 arc from the polyline, plus the untouched line
+        Assert.Null(s.Document.GetEntity(pl.Id));
+        var arc = s.Document.Entities.OfType<ArcEntity>().Single();
+        AssertPoint(arc.Center, 10, 2);
+        Assert.Equal(2.0, arc.Radius, 7);
+        Assert.Equal(CadColor.FromRgb(255, 0, 0), arc.Color);
+        Assert.Equal(0, s.Selection.Count);
+
+        s.Undo();
+        Assert.Equal(2, s.Document.EntityCount);
+        Assert.NotNull(s.Document.GetEntity(pl.Id));
+
+        s.Selection.Add(line.Id);
+        var messages = CaptureMessages(s);
+        s.StartCommand("X");
+        Assert.Contains(messages, m => m.Contains("Nothing to explode"));
+    }
+
+    [Fact]
+    public void Object_snap_is_off_while_picking_an_object()
+    {
+        var s = Session();
+        Add(s, new LineEntity(P(0, 0), P(10, 0)));
+        s.StartCommand("LINE");
+        s.UpdateCursor(P(9.8, 0.1), 0.5);
+        Assert.NotNull(s.CurrentSnap);                      // drawing: the endpoint is acquired
+        s.Cancel();
+        s.StartCommand("TRIM");
+        s.UpdateCursor(P(9.8, 0.1), 0.5);
+        Assert.Null(s.CurrentSnap);                         // picking: the click is taken where it is
+        s.Cancel();
+    }
+}
