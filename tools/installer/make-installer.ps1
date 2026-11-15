@@ -13,6 +13,17 @@ $publish = Join-Path $work 'publish'
 $log     = Join-Path $outDir 'installer.log'
 
 New-Item -ItemType Directory -Force -Path $outDir | Out-Null
+
+# Any error from here on is shown, written to Installer\make-installer-error.txt, and stops the script.
+$errorFile = Join-Path $outDir 'make-installer-error.txt'
+if (Test-Path $errorFile) { Remove-Item -Force $errorFile -ErrorAction SilentlyContinue }
+trap {
+    $message = "ERROR: $($_.Exception.Message)`r`n$($_.InvocationInfo.PositionMessage)"
+    Write-Host ''
+    Write-Host $message -ForegroundColor Red
+    try { Set-Content -Path $errorFile -Value $message -Encoding UTF8 } catch { }
+    exit 1
+}
 if (Test-Path $work) { Remove-Item -Recurse -Force $work }
 New-Item -ItemType Directory -Force -Path $publish | Out-Null
 
@@ -51,7 +62,9 @@ $proc = Start-Process -FilePath 'dotnet' -ArgumentList $publishArgs -NoNewWindow
     -RedirectStandardOutput $log -RedirectStandardError (Join-Path $outDir 'installer-errors.log')
 if (Test-Path $channel) { Remove-Item -Force $channel }      # never leave it for the normal development build
 $exe = Join-Path $publish 'HaqqCad.exe'
-if ($proc.ExitCode -ne 0 -or -not (Test-Path $exe)) {
+# The publish folder was emptied before the build, so the program file being there is the proof of success.
+$buildFailed = (-not (Test-Path $exe)) -or (($null -ne $proc.ExitCode) -and ($proc.ExitCode -ne 0))
+if ($buildFailed) {
     Write-Host ''
     Write-Host "BUILD FAILED. Details are in: $log" -ForegroundColor Red
     exit 1
@@ -83,14 +96,19 @@ Set-Content -Path $readmePath -Value $readme -Encoding UTF8
 
 Write-Host 'Step 2 of 3: portable zip...'
 $zip = Join-Path $outDir "HAQQ-CAD-Portable-$stamp.zip"
-if (Test-Path $zip) { Remove-Item -Force $zip }
-Compress-Archive -Path $exe, $readmePath -DestinationPath $zip
+$zipTemp = Join-Path $work "HAQQ-CAD-Portable-$stamp.zip"
+Compress-Archive -Path $exe, $readmePath -DestinationPath $zipTemp
+try {
+    Copy-Item -Force $zipTemp $zip
+} catch {
+    Write-Host "  The old portable zip is in use (open, or still uploading) and was not replaced: $zip" -ForegroundColor Yellow
+}
 
 Write-Host 'Step 3 of 3: installer...'
 # The program installs itself when its file name starts with HAQQ-CAD-Setup (see SelfInstaller.cs),
 # so the installer is simply a copy of the program under that name.
 $setupName = "HAQQ-CAD-Setup-$stamp.exe"
-Get-ChildItem -Path $outDir -Filter 'HAQQ-CAD-Setup-*.exe' -ErrorAction SilentlyContinue | Remove-Item -Force
+Get-ChildItem -Path $outDir -Filter 'HAQQ-CAD-Setup-*.exe' -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
 Copy-Item -Force $exe (Join-Path $outDir $setupName)
 $setupOk = Test-Path (Join-Path $outDir $setupName)
 Copy-Item -Force $readmePath (Join-Path $outDir 'READ ME.txt')
