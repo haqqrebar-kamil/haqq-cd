@@ -1,6 +1,6 @@
 # Builds the HAQQ CAD test release that can be sent to other people:
 #   1. HaqqCad.exe as ONE self-contained file (the other PC does not need .NET installed)
-#   2. HAQQ-CAD-Setup-<date>.exe    - installer: copies the program, adds Desktop and Start-menu shortcuts
+#   2. HAQQ-CAD-Setup-<date>.exe    - installer: the same program; under this name it installs itself
 #   3. HAQQ-CAD-Portable-<date>.zip - no installation: unzip and double-click HaqqCad.exe
 # Run it through make-installer.cmd. Everything is written to the "Installer" folder next to that file.
 $ErrorActionPreference = 'Stop'
@@ -22,6 +22,8 @@ New-Item -ItemType Directory -Force -Path $publish | Out-Null
 # for a newer build each time it starts. Without it, the build is made without the update check.
 $build     = Get-Date -Format 'yyyyMMddHHmm'
 $urlFile   = Join-Path (Split-Path -Parent $source) 'update-url.txt'
+# Windows hides file extensions, so a file made in Notepad is often really named update-url.txt.txt.
+if (-not (Test-Path $urlFile) -and (Test-Path ($urlFile + '.txt'))) { $urlFile = $urlFile + '.txt' }
 $channel   = Join-Path $source 'src\HAQQ.CAD.Desktop\update-channel.txt'
 $updateUrl = $null
 if (Test-Path $urlFile) {
@@ -85,83 +87,12 @@ if (Test-Path $zip) { Remove-Item -Force $zip }
 Compress-Archive -Path $exe, $readmePath -DestinationPath $zip
 
 Write-Host 'Step 3 of 3: installer...'
-$install = @'
-@echo off
-title HAQQ CAD Setup
-set "DEST=%LOCALAPPDATA%\Programs\HAQQ CAD"
-echo Installing HAQQ CAD to "%DEST%" ...
-taskkill /im HaqqCad.exe 1>NUL 2>NUL
-if not exist "%DEST%" mkdir "%DEST%"
-copy /y "%~dp0HaqqCad.exe" "%DEST%\HaqqCad.exe" 1>NUL
-if errorlevel 1 (
-  echo.
-  echo Could not copy the program. If HAQQ CAD is open, close it and run this setup again.
-  pause
-  exit /b 1
-)
-copy /y "%~dp0READ ME.txt" "%DEST%\READ ME.txt" 1>NUL
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$t = Join-Path $env:LOCALAPPDATA 'Programs\HAQQ CAD'; $s = New-Object -ComObject WScript.Shell; foreach ($f in 'Desktop','Programs') { $l = $s.CreateShortcut((Join-Path ([Environment]::GetFolderPath($f)) 'HAQQ CAD.lnk')); $l.TargetPath = Join-Path $t 'HaqqCad.exe'; $l.WorkingDirectory = $t; $l.Save() }"
-start "" "%DEST%\HaqqCad.exe"
-'@
-Set-Content -Path (Join-Path $publish 'install.cmd') -Value $install -Encoding Ascii
-
+# The program installs itself when its file name starts with HAQQ-CAD-Setup (see SelfInstaller.cs),
+# so the installer is simply a copy of the program under that name.
 $setupName = "HAQQ-CAD-Setup-$stamp.exe"
-$setupTemp = Join-Path $work $setupName
-$sed = @"
-[Version]
-Class=IEXPRESS
-SEDVersion=3
-[Options]
-PackagePurpose=InstallApp
-ShowInstallProgramWindow=1
-HideExtractAnimation=0
-UseLongFileName=1
-InsideCompressed=0
-CAB_FixedSize=0
-CAB_ResvCodeSigning=0
-RebootMode=N
-InstallPrompt=%InstallPrompt%
-DisplayLicense=%DisplayLicense%
-FinishMessage=%FinishMessage%
-TargetName=%TargetName%
-FriendlyName=%FriendlyName%
-AppLaunched=%AppLaunched%
-PostInstallCmd=%PostInstallCmd%
-AdminQuietInstCmd=%AdminQuietInstCmd%
-UserQuietInstCmd=%UserQuietInstCmd%
-SourceFiles=SourceFiles
-[Strings]
-InstallPrompt=Install HAQQ CAD (test build of $stamp) for this Windows user?
-DisplayLicense=
-FinishMessage=
-TargetName=$setupTemp
-FriendlyName=HAQQ CAD Setup
-AppLaunched=cmd /c install.cmd
-PostInstallCmd=<None>
-AdminQuietInstCmd=
-UserQuietInstCmd=
-FILE0="HaqqCad.exe"
-FILE1="install.cmd"
-FILE2="READ ME.txt"
-[SourceFiles]
-SourceFiles0=$publish\
-[SourceFiles0]
-%FILE0%=
-%FILE1%=
-%FILE2%=
-"@
-$sedPath = Join-Path $work 'setup.sed'
-Set-Content -Path $sedPath -Value $sed -Encoding Default
-
-$setupOk = $false
-$iexpress = Join-Path $env:SystemRoot 'System32\iexpress.exe'
-if (Test-Path $iexpress) {
-    $p = Start-Process -FilePath $iexpress -ArgumentList '/N', '/Q', "`"$sedPath`"" -Wait -PassThru
-    if (Test-Path $setupTemp) {
-        Copy-Item -Force $setupTemp (Join-Path $outDir $setupName)
-        $setupOk = $true
-    }
-}
+Get-ChildItem -Path $outDir -Filter 'HAQQ-CAD-Setup-*.exe' -ErrorAction SilentlyContinue | Remove-Item -Force
+Copy-Item -Force $exe (Join-Path $outDir $setupName)
+$setupOk = Test-Path (Join-Path $outDir $setupName)
 Copy-Item -Force $readmePath (Join-Path $outDir 'READ ME.txt')
 
 # Files for the update folder on the web server.
@@ -179,7 +110,7 @@ Write-Host ''
 Write-Host "Done. Files are in: $outDir" -ForegroundColor Green
 Write-Host "  HAQQ-CAD-Portable-$stamp.zip   (unzip and run)"
 if ($setupOk) { Write-Host "  $setupName   (installer)" }
-else { Write-Host '  The installer exe could not be made on this PC (IExpress did not produce it). Send the portable zip instead.' -ForegroundColor Yellow }
+else { Write-Host '  The installer exe could not be copied. Send the portable zip instead.' -ForegroundColor Yellow }
 if ($updateUrl) {
     Write-Host ''
     Write-Host "TO PUBLISH THIS BUILD TO YOUR TESTERS: upload the two files in 'Upload to web folder' to $updateUrl" -ForegroundColor Cyan

@@ -11,6 +11,17 @@ public partial class App : Application
         DispatcherUnhandledException += OnUnhandledException;
         AppDomain.CurrentDomain.UnhandledException += (_, args) => WriteLog(args.ExceptionObject as Exception);
         base.OnStartup(e);
+
+        // The same program file doubles as its installer: a copy named HAQQ-CAD-Setup-*.exe installs
+        // itself for the current Windows user, starts the installed copy and exits.
+        if (SelfInstaller.IsSetupFile(Environment.ProcessPath))
+        {
+            SelfInstaller.Run(Environment.ProcessPath!);
+            Shutdown();
+            return;
+        }
+
+        new MainWindow().Show();
     }
 
     /// <summary>

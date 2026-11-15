@@ -11,7 +11,7 @@ Last updated: 2026-11-15 · Version 0.2.0-dev · Phase 1 complete, Phase 2 start
 | Current source: engine and view-model libraries compiled on Linux (.NET 8 SDK) | **Passed**, 0 warnings |
 | Current source: 243 automated tests through `tools/OfflineTestRunner` | **243 passed, 0 failed** |
 | Build of 14 Nov evening on Windows (.NET 10): solution build and `dotnet test` | **Passed**, 181 tests at that point; the app was seen running (screenshots from the owner) |
-| Current source: WPF project compiled on Windows | **Not confirmed** for the latest changes (per-section polyline width, rectangle options, the 11 arc methods and the longer Arc drop-down, grip editing, object snaps and their menus, folding Properties panel); no build log read since the 181-test build |
+| Current source: WPF project compiled on Windows | **Compiled** by the installer build of 15 Nov 10:38 (all features up to the updater); the self-installer added afterwards is **not compiled yet**. Earlier note: not confirmed for the latest changes (per-section polyline width, rectangle options, the 11 arc methods and the longer Arc drop-down, grip editing, object snaps and their menus, folding Properties panel); no build log read since the 181-test build |
 | Running the application and using it by hand | Owner has run it and sent screenshots of the window, crosshair and input box; no systematic manual test |
 
 "Tested" below means logic exercised by automated tests on real code. Mouse handling, painting and
@@ -79,7 +79,7 @@ Legend: **Tested** = implemented and covered by executed automated tests ·
 | Automatic (running) snap check boxes: right-click OSNAP, or right-click > Object Snap Settings; saved per user | Tested (logic) / Untested UI | Default: Endpoint, Midpoint, Center, Intersection |
 | Properties panel folds away to the right edge (strip with arrow) | Untested UI | Not remembered between runs |
 | New drawings start on "Layer 1" (layer 0 is kept as well); the Properties layer box shows and sets the current layer when nothing is selected; new layers are named "Layer 2", "Layer 3"… | Tested | Drawings saved earlier open with the layers they were saved with |
-| Test release for other PCs: `make-installer.cmd` builds a self-contained single-file `HaqqCad.exe`, a portable zip and an IExpress setup exe (per-user install, shortcuts) | **Not run yet** | Written without being able to execute it; unsigned, so Windows SmartScreen will warn. No uninstaller, no auto-update |
+| Test release for other PCs: `make-installer.cmd` builds a self-contained single-file `HaqqCad.exe`, a portable zip and a setup exe | Build and portable zip **ran on the owner's PC** (15 Nov); setup exe **not run yet** | The setup exe is the program itself under the name `HAQQ-CAD-Setup-*.exe`; under that name it installs itself per user and adds shortcuts (the first attempt with IExpress produced no file and was dropped). Unsigned, so Windows SmartScreen will warn. No uninstaller |
 | Automatic update of test releases (check at every start, https + SHA-256, swap on restart) | Tested (check, download, verify, swap) / **Not run end to end** | Needs an https web folder named in `update-url.txt`; the WPF wiring, the restart and the installer script changes have not been executed |
 | Space bar = Enter, also after a typed command name or option keyword | Untested UI | |
 | Not taken from the chapter yet | Not started | Drawing LIMITS, dotted grid style, Pan command, UCS icon, templates |
