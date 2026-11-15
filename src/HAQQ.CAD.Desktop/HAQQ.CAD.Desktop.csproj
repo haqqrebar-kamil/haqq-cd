@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>$(HaqqTfm)-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <AssemblyName>HaqqCad</AssemblyName>
+    <RootNamespace>HAQQ.CAD.Desktop</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Present only while tools/installer/make-installer.ps1 builds a test release: turns on the update check. -->
+    <EmbeddedResource Include="update-channel.txt" Condition="Exists('update-channel.txt')" LogicalName="update-channel.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\HAQQ.CAD.Presentation\HAQQ.CAD.Presentation.csproj" />
+  </ItemGroup>
+</Project>

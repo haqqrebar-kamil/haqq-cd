@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>$(HaqqTfm)</TargetFramework>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\HAQQ.CAD.Geometry\HAQQ.CAD.Geometry.csproj" />
+  </ItemGroup>
+</Project>

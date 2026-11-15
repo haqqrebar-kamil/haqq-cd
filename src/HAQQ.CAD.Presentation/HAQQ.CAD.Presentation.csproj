@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>$(HaqqTfm)</TargetFramework>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\HAQQ.CAD.Commands\HAQQ.CAD.Commands.csproj" />
+    <ProjectReference Include="..\HAQQ.CAD.Documents\HAQQ.CAD.Documents.csproj" />
+    <ProjectReference Include="..\HAQQ.CAD.Rendering\HAQQ.CAD.Rendering.csproj" />
+  </ItemGroup>
+</Project>

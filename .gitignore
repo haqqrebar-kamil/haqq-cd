@@ -1,0 +1,9 @@
+bin/
+obj/
+.vs/
+*.user
+*.log
+# Written only while a test release is being built; never commit (it would turn on self-update in dev builds).
+src/HAQQ.CAD.Desktop/update-channel.txt
+update-url.txt
+Installer/

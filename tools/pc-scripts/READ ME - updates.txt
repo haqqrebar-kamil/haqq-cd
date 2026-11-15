@@ -1,0 +1,29 @@
+HAQQ CAD - automatic updates for testers
+=========================================
+
+How it works
+  Each test build checks one web folder every time it starts. If the folder holds a newer build,
+  the program downloads it in the background, installs it, and asks the tester to restart.
+
+What you need
+  A web folder that can be reached with an https:// address and that serves files directly
+  (your own website / hosting works; a GitHub "release" also works).
+  Google Drive, OneDrive and Dropbox share links do NOT work for this.
+
+One-time setup
+  1. Create a folder on your website, for example  https://www.your-site.com/haqqcad/
+  2. In this folder (next to make-installer.cmd) create a text file named  update-url.txt
+     containing just that address on one line.
+  3. Run make-installer.cmd and send the testers the new HAQQ-CAD-Setup exe ONCE.
+     (Builds made before update-url.txt existed cannot update themselves.)
+
+Every time you want testers to get a new version
+  1. Run make-installer.cmd
+  2. Upload the two files from  Installer\Upload to web folder  to your web folder,
+     replacing the old ones: HaqqCad.exe first, then haqq-cad-update.json
+  That is all. Testers get it the next time they start HAQQ CAD.
+
+Safety
+  The program only downloads over https and only installs a file whose checksum matches
+  haqq-cad-update.json. Anyone who can write to your web folder can publish an update, so keep
+  the upload password private.

@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>$(HaqqTfm)</TargetFramework>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\HAQQ.CAD.Core\HAQQ.CAD.Core.csproj" />
+    <ProjectReference Include="..\HAQQ.CAD.Snapping\HAQQ.CAD.Snapping.csproj" />
+  </ItemGroup>
+</Project>

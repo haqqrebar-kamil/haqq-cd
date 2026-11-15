@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Runs the xUnit test sources without NuGet access, through a minimal
+       source-compatible shim of the xUnit attributes/asserts the tests use.
+       The canonical way to run the tests is `dotnet test` (real xUnit). -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>$(HaqqTfm)</TargetFramework>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="..\..\tests\HAQQ.CAD.Tests\**\*.cs" Exclude="..\..\tests\HAQQ.CAD.Tests\bin\**;..\..\tests\HAQQ.CAD.Tests\obj\**" LinkBase="Tests" />
+    <ProjectReference Include="..\..\src\HAQQ.CAD.Presentation\HAQQ.CAD.Presentation.csproj" />
+  </ItemGroup>
+</Project>

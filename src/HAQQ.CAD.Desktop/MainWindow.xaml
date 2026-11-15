@@ -1,0 +1,392 @@
+<Window x:Class="HAQQ.CAD.Desktop.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:HAQQ.CAD.Desktop"
+        Title="{Binding Title}"
+        Width="1440" Height="900" MinWidth="900" MinHeight="560"
+        WindowStartupLocation="CenterScreen"
+        Background="{StaticResource WindowBrush}"
+        Foreground="{StaticResource TextBrush}"
+        FontFamily="Segoe UI" FontSize="12"
+        UseLayoutRounding="True"
+        PreviewKeyDown="Window_PreviewKeyDown"
+        PreviewKeyUp="Window_PreviewKeyUp"
+        PreviewTextInput="Window_PreviewTextInput">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- ============================== Ribbon ============================== -->
+        <TabControl Grid.Row="0" SelectedIndex="1">
+            <TabItem Header="FILE">
+                <StackPanel Orientation="Horizontal" Margin="6,0">
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconNew}" Content="New" Command="{Binding NewCommand}" ToolTip="New drawing (Ctrl+N)" />
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconOpen}" Content="Open" Command="{Binding OpenCommand}" ToolTip="Open an HCAD drawing (Ctrl+O)" />
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconSave}" Content="Save" Command="{Binding SaveCommand}" ToolTip="Save (Ctrl+S)" />
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconSaveAs}" Content="Save As" Command="{Binding SaveAsCommand}" ToolTip="Save under a new name" />
+                    <Border Width="1" Margin="6,6" Background="{StaticResource BorderBrush}" />
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconUnits}" Content="Units" Command="{Binding RunCommandCommand}" CommandParameter="UNITS" ToolTip="UNITS: inches, feet, mm, cm or meters, and display precision" />
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconCrosshair}" Content="Crosshair" Command="{Binding RunCommandCommand}" CommandParameter="CURSORSIZE" ToolTip="CURSORSIZE: crosshair size, 1 to 100 percent of the screen" />
+                </StackPanel>
+            </TabItem>
+            <TabItem Header="HOME">
+                <StackPanel Orientation="Horizontal" Margin="6,0">
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconLine}" Content="Line" Command="{Binding RunCommandCommand}" CommandParameter="LINE" ToolTip="LINE (L)" />
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconPolyline}" Content="Polyline" Command="{Binding RunCommandCommand}" CommandParameter="PLINE" ToolTip="PLINE (PL)" />
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconRectangle}" Content="Rectangle" Command="{Binding RunCommandCommand}" CommandParameter="RECTANG" ToolTip="RECTANG (REC)" />
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconCircle}" Content="Circle &#x25BE;" Click="RibbonMenuButton_Click" ToolTip="CIRCLE (C): choose how to define the circle">
+                        <Button.ContextMenu>
+                            <ContextMenu>
+                                <MenuItem Header="Center, Radius" Tag="CIRCLE" Click="RibbonMenuItem_Click" />
+                                <MenuItem Header="Center, Diameter" Tag="CIRCLE D" Click="RibbonMenuItem_Click" />
+                                <Separator />
+                                <MenuItem Header="2-Point" Tag="CIRCLE 2P" Click="RibbonMenuItem_Click" />
+                                <MenuItem Header="3-Point" Tag="CIRCLE 3P" Click="RibbonMenuItem_Click" />
+                                <Separator />
+                                <MenuItem Header="Tan, Tan, Radius" Tag="CIRCLE TTR" Click="RibbonMenuItem_Click" />
+                                <MenuItem Header="Tan, Tan, Tan" Tag="CIRCLE TTT" Click="RibbonMenuItem_Click" />
+                            </ContextMenu>
+                        </Button.ContextMenu>
+                    </Button>
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconArc}" Content="Arc &#x25BE;" Click="RibbonMenuButton_Click" ToolTip="ARC (A): choose how to define the arc">
+                        <Button.ContextMenu>
+                            <ContextMenu>
+                                <MenuItem Header="3-Point" Tag="ARC" Click="RibbonMenuItem_Click" />
+                                <Separator />
+                                <MenuItem Header="Start, Center, End" Tag="ARC SCE" Click="RibbonMenuItem_Click" />
+                                <MenuItem Header="Start, Center, Angle" Tag="ARC SCA" Click="RibbonMenuItem_Click" />
+                                <MenuItem Header="Start, Center, Length" Tag="ARC SCL" Click="RibbonMenuItem_Click" />
+                                <Separator />
+                                <MenuItem Header="Start, End, Angle" Tag="ARC SEA" Click="RibbonMenuItem_Click" />
+                                <MenuItem Header="Start, End, Direction" Tag="ARC SED" Click="RibbonMenuItem_Click" />
+                                <MenuItem Header="Start, End, Radius" Tag="ARC SER" Click="RibbonMenuItem_Click" />
+                                <Separator />
+                                <MenuItem Header="Center, Start, End" Tag="ARC CSE" Click="RibbonMenuItem_Click" />
+                                <MenuItem Header="Center, Start, Angle" Tag="ARC CSA" Click="RibbonMenuItem_Click" />
+                                <MenuItem Header="Center, Start, Length" Tag="ARC CSL" Click="RibbonMenuItem_Click" />
+                                <Separator />
+                                <MenuItem Header="Continue" Tag="ARC CONTINUE" Click="RibbonMenuItem_Click" />
+                            </ContextMenu>
+                        </Button.ContextMenu>
+                    </Button>
+                    <Border Width="1" Margin="6,6" Background="{StaticResource BorderBrush}" />
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconMove}" Content="Move" Command="{Binding RunCommandCommand}" CommandParameter="MOVE" ToolTip="MOVE (M)" />
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconCopy}" Content="Copy" Command="{Binding RunCommandCommand}" CommandParameter="COPY" ToolTip="COPY (CO)" />
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconErase}" Content="Erase" Command="{Binding RunCommandCommand}" CommandParameter="ERASE" ToolTip="ERASE (E, Delete)" />
+                    <Border Width="1" Margin="6,6" Background="{StaticResource BorderBrush}" />
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconUndo}" Content="Undo" Command="{Binding UndoCommand}" ToolTip="Undo (Ctrl+Z)" />
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconRedo}" Content="Redo" Command="{Binding RedoCommand}" ToolTip="Redo (Ctrl+Y)" />
+                    <Border Width="1" Margin="6,6" Background="{StaticResource BorderBrush}" />
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconZoom}" Content="Extents" Command="{Binding ZoomExtentsCommand}" ToolTip="Zoom extents (ZOOM, double-click the wheel)" />
+                </StackPanel>
+            </TabItem>
+            <TabItem Header="DRAW">
+                <StackPanel Orientation="Horizontal" Margin="6,0">
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconLine}" Content="Line" Command="{Binding RunCommandCommand}" CommandParameter="LINE" ToolTip="LINE (L)" />
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconPolyline}" Content="Polyline" Command="{Binding RunCommandCommand}" CommandParameter="PLINE" ToolTip="PLINE (PL)" />
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconRectangle}" Content="Rectangle" Command="{Binding RunCommandCommand}" CommandParameter="RECTANG" ToolTip="RECTANG (REC)" />
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconCircle}" Content="Circle &#x25BE;" Click="RibbonMenuButton_Click" ToolTip="CIRCLE (C): choose how to define the circle">
+                        <Button.ContextMenu>
+                            <ContextMenu>
+                                <MenuItem Header="Center, Radius" Tag="CIRCLE" Click="RibbonMenuItem_Click" />
+                                <MenuItem Header="Center, Diameter" Tag="CIRCLE D" Click="RibbonMenuItem_Click" />
+                                <Separator />
+                                <MenuItem Header="2-Point" Tag="CIRCLE 2P" Click="RibbonMenuItem_Click" />
+                                <MenuItem Header="3-Point" Tag="CIRCLE 3P" Click="RibbonMenuItem_Click" />
+                                <Separator />
+                                <MenuItem Header="Tan, Tan, Radius" Tag="CIRCLE TTR" Click="RibbonMenuItem_Click" />
+                                <MenuItem Header="Tan, Tan, Tan" Tag="CIRCLE TTT" Click="RibbonMenuItem_Click" />
+                            </ContextMenu>
+                        </Button.ContextMenu>
+                    </Button>
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconArc}" Content="Arc &#x25BE;" Click="RibbonMenuButton_Click" ToolTip="ARC (A): choose how to define the arc">
+                        <Button.ContextMenu>
+                            <ContextMenu>
+                                <MenuItem Header="3-Point" Tag="ARC" Click="RibbonMenuItem_Click" />
+                                <Separator />
+                                <MenuItem Header="Start, Center, End" Tag="ARC SCE" Click="RibbonMenuItem_Click" />
+                                <MenuItem Header="Start, Center, Angle" Tag="ARC SCA" Click="RibbonMenuItem_Click" />
+                                <MenuItem Header="Start, Center, Length" Tag="ARC SCL" Click="RibbonMenuItem_Click" />
+                                <Separator />
+                                <MenuItem Header="Start, End, Angle" Tag="ARC SEA" Click="RibbonMenuItem_Click" />
+                                <MenuItem Header="Start, End, Direction" Tag="ARC SED" Click="RibbonMenuItem_Click" />
+                                <MenuItem Header="Start, End, Radius" Tag="ARC SER" Click="RibbonMenuItem_Click" />
+                                <Separator />
+                                <MenuItem Header="Center, Start, End" Tag="ARC CSE" Click="RibbonMenuItem_Click" />
+                                <MenuItem Header="Center, Start, Angle" Tag="ARC CSA" Click="RibbonMenuItem_Click" />
+                                <MenuItem Header="Center, Start, Length" Tag="ARC CSL" Click="RibbonMenuItem_Click" />
+                                <Separator />
+                                <MenuItem Header="Continue" Tag="ARC CONTINUE" Click="RibbonMenuItem_Click" />
+                            </ContextMenu>
+                        </Button.ContextMenu>
+                    </Button>
+                </StackPanel>
+            </TabItem>
+            <TabItem Header="MODIFY">
+                <StackPanel Orientation="Horizontal" Margin="6,0">
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconMove}" Content="Move" Command="{Binding RunCommandCommand}" CommandParameter="MOVE" ToolTip="MOVE (M)" />
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconCopy}" Content="Copy" Command="{Binding RunCommandCommand}" CommandParameter="COPY" ToolTip="COPY (CO)" />
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconErase}" Content="Erase" Command="{Binding RunCommandCommand}" CommandParameter="ERASE" ToolTip="ERASE (E, Delete)" />
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconRotate}" Content="Rotate" Command="{Binding RunCommandCommand}" CommandParameter="ROTATE" ToolTip="ROTATE (RO): turn objects about a base point" />
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconMirror}" Content="Mirror" Command="{Binding RunCommandCommand}" CommandParameter="MIRROR" ToolTip="MIRROR (MI): reflect objects across a line" />
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconScale}" Content="Scale" Command="{Binding RunCommandCommand}" CommandParameter="SCALE" ToolTip="SCALE (SC): enlarge or reduce objects" />
+                    <Border Width="1" Margin="6,6" Background="{StaticResource BorderBrush}" />
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconUndo}" Content="Undo" Command="{Binding UndoCommand}" ToolTip="Undo (Ctrl+Z)" />
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconRedo}" Content="Redo" Command="{Binding RedoCommand}" ToolTip="Redo (Ctrl+Y)" />
+                </StackPanel>
+            </TabItem>
+            <TabItem Header="LAYERS">
+                <StackPanel Orientation="Horizontal" Margin="6,0">
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconLayers}" Content="New Layer" Command="{Binding AddLayerCommand}" ToolTip="Create a layer" />
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconLayers}" Content="Set Current" Command="{Binding SetCurrentLayerCommand}" ToolTip="Make the layer selected in the layer panel current" />
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconErase}" Content="Delete Layer" Command="{Binding DeleteLayerCommand}" ToolTip="Delete the layer selected in the layer panel (it must be empty)" />
+                    <StackPanel VerticalAlignment="Center" Margin="14,0,0,0">
+                        <TextBlock Text="Current layer" Foreground="{StaticResource DimTextBrush}" FontSize="11" />
+                        <TextBlock Text="{Binding CurrentLayerName}" FontWeight="SemiBold" FontSize="14" Margin="0,2,0,0" />
+                    </StackPanel>
+                </StackPanel>
+            </TabItem>
+        </TabControl>
+
+        <!-- ============================ Work area ============================ -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="250" MinWidth="170" />
+                <ColumnDefinition Width="4" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="4" />
+                <ColumnDefinition x:Name="PropertiesColumn" Width="270" MinWidth="170" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <!-- Left panel: explorer + layer manager -->
+            <Border Grid.Column="0" Background="{StaticResource PanelBrush}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Style="{StaticResource PanelHeader}" Text="DRAWING EXPLORER" />
+                    <ListBox Grid.Row="1" Margin="8,0,8,4" ItemsSource="{Binding ExplorerItems}" Focusable="False"
+                             ItemContainerStyle="{StaticResource PlainListItem}" />
+
+                    <TextBlock Grid.Row="2" Style="{StaticResource PanelHeader}" Text="LAYERS" />
+                    <ListBox Grid.Row="3" Margin="8,0,8,0" ItemsSource="{Binding Layers}"
+                             SelectedItem="{Binding SelectedLayer, Mode=TwoWay}" MouseDoubleClick="LayerList_MouseDoubleClick">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="12" />
+                                        <ColumnDefinition Width="18" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock x:Name="CurrentMark" Grid.Column="0" Text="&#x25B8;" Foreground="{StaticResource AccentBrush}"
+                                               VerticalAlignment="Center" Visibility="Hidden" />
+                                    <Border Grid.Column="1" Width="12" Height="12" HorizontalAlignment="Left" VerticalAlignment="Center"
+                                            Background="{Binding ColorHex}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" />
+                                    <TextBlock x:Name="NameText" Grid.Column="2" Text="{Binding Name}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                    <CheckBox Grid.Column="3" Content="On" Margin="6,0,0,0" Focusable="False"
+                                              IsChecked="{Binding IsVisible, Mode=TwoWay}" ToolTip="Show or hide the layer" />
+                                    <CheckBox Grid.Column="4" Content="Lock" Margin="8,0,0,0" Focusable="False"
+                                              IsChecked="{Binding IsLocked, Mode=TwoWay}" ToolTip="Locked layers are visible but cannot be edited" />
+                                </Grid>
+                                <DataTemplate.Triggers>
+                                    <DataTrigger Binding="{Binding IsCurrent}" Value="True">
+                                        <Setter TargetName="CurrentMark" Property="Visibility" Value="Visible" />
+                                        <Setter TargetName="NameText" Property="FontWeight" Value="SemiBold" />
+                                    </DataTrigger>
+                                </DataTemplate.Triggers>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+
+                    <!-- Editor for the layer selected above -->
+                    <StackPanel Grid.Row="4" Margin="8,8,8,10">
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                            <Button Style="{StaticResource PanelButton}" Content="New" Command="{Binding AddLayerCommand}" />
+                            <Button Style="{StaticResource PanelButton}" Content="Set current" Command="{Binding SetCurrentLayerCommand}" />
+                            <Button Style="{StaticResource PanelButton}" Content="Delete" Command="{Binding DeleteLayerCommand}" />
+                        </StackPanel>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <TextBlock Grid.Row="0" Grid.Column="0" Style="{StaticResource FieldLabel}" Text="Name" />
+                            <TextBox Grid.Row="0" Grid.Column="1" Margin="0,0,0,4" KeyDown="EditBox_KeyDown"
+                                     Text="{Binding SelectedLayer.Name, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                            <TextBlock Grid.Row="1" Grid.Column="0" Style="{StaticResource FieldLabel}" Text="Lineweight (mm)" />
+                            <TextBox Grid.Row="1" Grid.Column="1" Margin="0,0,0,4" KeyDown="EditBox_KeyDown"
+                                     Text="{Binding SelectedLayer.LineweightText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                            <TextBlock Grid.Row="2" Grid.Column="0" Style="{StaticResource FieldLabel}" Text="State" />
+                            <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal" Margin="0,2,0,6">
+                                <CheckBox Content="Frozen" Focusable="False" IsChecked="{Binding SelectedLayer.IsFrozen, Mode=TwoWay}"
+                                          ToolTip="Frozen layers are hidden and ignored by snapping" />
+                            </StackPanel>
+                            <TextBlock Grid.Row="3" Grid.Column="0" Style="{StaticResource FieldLabel}" Text="Color" VerticalAlignment="Top" />
+                            <ItemsControl Grid.Row="3" Grid.Column="1" ItemsSource="{Binding LayerColorPalette}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Button Style="{StaticResource SwatchButton}" Background="{Binding}" ToolTip="{Binding}"
+                                                Command="{Binding DataContext.SetLayerColorCommand, RelativeSource={RelativeSource AncestorType={x:Type Window}}}"
+                                                CommandParameter="{Binding}" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </Grid>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <GridSplitter Grid.Column="1" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Focusable="False" />
+
+            <!-- Centre: the CAD canvas -->
+            <Border Grid.Column="2" Background="#21252B" ClipToBounds="True">
+                <local:CadCanvas x:Name="DrawingCanvas" />
+            </Border>
+
+            <GridSplitter x:Name="PropertiesSplitter" Grid.Column="3" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Focusable="False" />
+
+            <!-- Right edge: strip that folds the properties panel away to the right and brings it back -->
+            <Border Grid.Column="5" Width="18" Background="{StaticResource PanelAltBrush}" BorderBrush="{StaticResource BorderBrush}"
+                    BorderThickness="1,0,0,0" Cursor="Hand" MouseLeftButtonDown="PropertiesToggle_Click"
+                    ToolTip="Hide or show the Properties panel">
+                <StackPanel VerticalAlignment="Top" Margin="0,8,0,0">
+                    <TextBlock x:Name="PropertiesToggleArrow" Text="&#x00BB;" FontSize="14" FontWeight="Bold" HorizontalAlignment="Center"
+                               Foreground="{StaticResource TextBrush}" />
+                    <TextBlock x:Name="PropertiesToggleLabel" Text="PROPERTIES" Visibility="Collapsed" Margin="0,10,0,0" FontSize="10"
+                               HorizontalAlignment="Center" Foreground="{StaticResource DimTextBrush}">
+                        <TextBlock.LayoutTransform>
+                            <RotateTransform Angle="90" />
+                        </TextBlock.LayoutTransform>
+                    </TextBlock>
+                </StackPanel>
+            </Border>
+
+            <!-- Right panel: properties -->
+            <Border x:Name="PropertiesPanel" Grid.Column="4" Background="{StaticResource PanelBrush}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Style="{StaticResource PanelHeader}" Text="PROPERTIES" />
+
+                    <StackPanel Grid.Row="1" Margin="8,0,8,6">
+                        <TextBlock Text="{Binding Properties.Header}" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,8" />
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="96" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Style="{StaticResource FieldLabel}" Text="Layer" />
+                            <ComboBox Grid.Column="1" ItemsSource="{Binding Properties.LayerNames}"
+                                      SelectedItem="{Binding Properties.SelectedLayerName, Mode=TwoWay}"
+                                      ToolTip="Layer of the selected objects. With nothing selected: the current layer for new objects." />
+                        </Grid>
+                    </StackPanel>
+
+                    <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
+                        <ItemsControl Margin="8,0,8,8" ItemsSource="{Binding Properties.Rows}" Focusable="False">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,0,0,3">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="96" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Style="{StaticResource FieldLabel}" Text="{Binding Label}" />
+                                        <TextBox x:Name="ValueBox" Grid.Column="1" KeyDown="EditBox_KeyDown"
+                                                 Text="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                                 IsReadOnly="{Binding IsReadOnly, Mode=OneWay}" />
+                                    </Grid>
+                                    <DataTemplate.Triggers>
+                                        <DataTrigger Binding="{Binding IsReadOnly}" Value="True">
+                                            <Setter TargetName="ValueBox" Property="Background" Value="Transparent" />
+                                            <Setter TargetName="ValueBox" Property="BorderBrush" Value="Transparent" />
+                                            <Setter TargetName="ValueBox" Property="Foreground" Value="{StaticResource DimTextBrush}" />
+                                        </DataTrigger>
+                                    </DataTemplate.Triggers>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+
+                    <TextBlock Grid.Row="3" Style="{StaticResource PanelHeader}" Text="OBJECT INFORMATION" />
+                    <TextBlock Grid.Row="4" Margin="8,0,8,10" Text="{Binding StatusText}" TextWrapping="Wrap" />
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- =========================== Command line =========================== -->
+        <Border Grid.Row="2" Background="{StaticResource PanelAltBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="84" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <ListBox x:Name="HistoryList" Grid.Row="0" BorderThickness="0" Background="Transparent" Focusable="False"
+                         FontFamily="Consolas" ItemsSource="{Binding History}" ItemContainerStyle="{StaticResource PlainListItem}" />
+                <Grid Grid.Row="1" Margin="6,2,6,5">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="{Binding Prompt}" FontFamily="Consolas" FontWeight="Bold" VerticalAlignment="Center"
+                               Foreground="{StaticResource AccentBrush}" Margin="2,0,8,0" />
+                    <TextBox x:Name="CommandBox" Grid.Column="1" FontFamily="Consolas"
+                             Text="{Binding CommandText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                </Grid>
+            </Grid>
+        </Border>
+
+        <!-- ============================ Status bar ============================ -->
+        <Border Grid.Row="3" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0">
+            <DockPanel Margin="8,3" LastChildFill="False">
+                <TextBlock DockPanel.Dock="Left" Width="230" VerticalAlignment="Center" FontFamily="Consolas" Text="{Binding CoordinateText}"
+                           Background="Transparent" ToolTip="Click to switch between absolute, distance&lt;angle and off">
+                    <TextBlock.InputBindings>
+                        <MouseBinding MouseAction="LeftClick" Command="{Binding CycleCoordinateModeCommand}" />
+                    </TextBlock.InputBindings>
+                </TextBlock>
+                <ToggleButton DockPanel.Dock="Left" Style="{StaticResource StatusToggle}" Content="SNAP" IsChecked="{Binding SnapOn, Mode=TwoWay}" ToolTip="Grid snap: the cursor jumps to the snap increment (F9). Set it with the SNAP command. For snapping to objects use OSNAP." />
+                <ToggleButton DockPanel.Dock="Left" Style="{StaticResource StatusToggle}" Content="OSNAP" IsChecked="{Binding OsnapOn, Mode=TwoWay}" MouseRightButtonUp="OsnapButton_RightClick" ToolTip="Object snap on/off (F3). Right-click to choose which snaps act automatically." />
+                <ToggleButton DockPanel.Dock="Left" Style="{StaticResource StatusToggle}" Content="ORTHO" IsChecked="{Binding OrthoOn, Mode=TwoWay}" ToolTip="Restrict to horizontal / vertical (F8)" />
+                <ToggleButton DockPanel.Dock="Left" Style="{StaticResource StatusToggle}" Content="POLAR" IsChecked="{Binding PolarOn, Mode=TwoWay}" ToolTip="Polar tracking: lock onto horizontal and vertical when the cursor is close to them (F10)" />
+                <ToggleButton DockPanel.Dock="Left" Style="{StaticResource StatusToggle}" Content="GRID" IsChecked="{Binding GridOn, Mode=TwoWay}" ToolTip="Show the grid (F7)" />
+                <Border DockPanel.Dock="Left" Margin="8,0,2,0" Padding="9,2" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="2">
+                    <TextBlock Text="MODEL" FontWeight="SemiBold" />
+                </Border>
+                <TextBlock DockPanel.Dock="Right" VerticalAlignment="Center" Foreground="{StaticResource DimTextBrush}" Text="{Binding StatusText}" />
+                <TextBlock DockPanel.Dock="Right" VerticalAlignment="Center" Margin="0,0,18,0" Text="{Binding CurrentLayerName, StringFormat='Layer: {0}'}" />
+            </DockPanel>
+        </Border>
+    </Grid>
+</Window>
