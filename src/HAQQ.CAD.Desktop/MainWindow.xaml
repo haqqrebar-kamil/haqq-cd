@@ -377,6 +377,10 @@
         <!-- ============================ Status bar ============================ -->
         <Border Grid.Row="3" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0">
             <DockPanel Margin="8,3" LastChildFill="False">
+                <!-- What the automatic update is doing (test releases only); empty otherwise -->
+                <TextBlock DockPanel.Dock="Right" VerticalAlignment="Center" Margin="12,0,4,0" FontWeight="SemiBold"
+                           Foreground="{StaticResource AccentBrush}" Text="{Binding UpdateStatus}"
+                           ToolTip="Automatic update status. Details are in the command history." />
                 <TextBlock DockPanel.Dock="Left" Width="230" VerticalAlignment="Center" FontFamily="Consolas" Text="{Binding CoordinateText}"
                            Background="Transparent" ToolTip="Click to switch between absolute, distance&lt;angle and off">
                     <TextBlock.InputBindings>

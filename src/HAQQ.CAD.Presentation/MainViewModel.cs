@@ -198,6 +198,15 @@ public sealed class MainViewModel : ObservableObject
         private set => SetProperty(ref _prompt, value);
     }
 
+    private string _updateStatus = "";
+
+    /// <summary>What the automatic update is doing right now ("Downloading update... 40%"); empty when idle. Shown in the status bar.</summary>
+    public string UpdateStatus
+    {
+        get => _updateStatus;
+        set => SetProperty(ref _updateStatus, value);
+    }
+
     public string Title
     {
         get => _title;

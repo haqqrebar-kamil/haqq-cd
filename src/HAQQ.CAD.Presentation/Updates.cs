@@ -97,7 +97,8 @@ public sealed class Updater
     }
 
     /// <summary>Downloads the new program into <paramref name="folder"/> and checks it. Returns the file path, or null.</summary>
-    public async Task<string?> DownloadAsync(UpdateManifest manifest, string folder, CancellationToken cancel = default)
+    /// <param name="progress">Receives the part downloaded so far, 0 to 1 (only when the server states the size).</param>
+    public async Task<string?> DownloadAsync(UpdateManifest manifest, string folder, CancellationToken cancel = default, IProgress<double>? progress = null)
     {
         LastError = null;
         string target = Path.Combine(folder, $"HaqqCad-{manifest.Build}.exe");
@@ -108,8 +109,21 @@ public sealed class Updater
             using (var response = await _http.GetAsync(manifest.Download, HttpCompletionOption.ResponseHeadersRead, cancel).ConfigureAwait(false))
             {
                 response.EnsureSuccessStatusCode();
+                long? total = response.Content.Headers.ContentLength;
                 await using var file = File.Create(partial);
-                await response.Content.CopyToAsync(file, cancel).ConfigureAwait(false);
+                await using var body = await response.Content.ReadAsStreamAsync(cancel).ConfigureAwait(false);
+                var buffer = new byte[1 << 16];
+                long done = 0;
+                int lastPercent = -1;
+                int read;
+                while ((read = await body.ReadAsync(buffer, cancel).ConfigureAwait(false)) > 0)
+                {
+                    await file.WriteAsync(buffer.AsMemory(0, read), cancel).ConfigureAwait(false);
+                    done += read;
+                    if (progress is null || total is not > 0) continue;
+                    int percent = (int)(done * 100 / total.Value);
+                    if (percent != lastPercent) { lastPercent = percent; progress.Report(Math.Min(1.0, done / (double)total.Value)); }
+                }
             }
 
             string actual;

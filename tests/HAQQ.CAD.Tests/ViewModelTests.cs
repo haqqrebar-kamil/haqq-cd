@@ -504,6 +504,13 @@ public class UpdaterTests : IDisposable
         }
     }
 
+    private sealed class SynchronousProgress : IProgress<double>
+    {
+        private readonly Action<double> _report;
+        public SynchronousProgress(Action<double> report) => _report = report;
+        public void Report(double value) => _report(value);
+    }
+
     private const string Base = "https://example.com/haqqcad/";
     private static readonly UpdateChannel Channel = new(202611150900, new Uri(Base + "haqq-cad-update.json"));
 
@@ -547,8 +554,11 @@ public class UpdaterTests : IDisposable
         Assert.Equal(202611151200, manifest!.Build);
 
         string downloads = _temp.File("updates");
-        string? file = await updater.DownloadAsync(manifest, downloads);
+        var reported = new List<double>();
+        string? file = await updater.DownloadAsync(manifest, downloads, default, new SynchronousProgress(reported.Add));
         Assert.NotNull(file);
+        Assert.NotEmpty(reported);
+        Assert.Equal(1.0, reported[^1], 9);                        // progress reaches 100%
         Assert.Equal(newProgram, File.ReadAllBytes(file!));
         Assert.Empty(Directory.GetFiles(downloads, "*.part"));
 

@@ -75,25 +75,42 @@ public partial class MainWindow : Window
             Updater.CleanUp(program, downloads);
 
             var updater = new Updater(channel);
+            _viewModel.UpdateStatus = "Checking for updates...";
             var manifest = await updater.CheckAsync();
             if (manifest is null)
             {
-                if (updater.LastError is { } why) _viewModel.AddHistory("Update check: " + why);
+                if (updater.LastError is { } why)
+                {
+                    _viewModel.AddHistory("Update check: " + why);
+                    _viewModel.UpdateStatus = "Update check failed";
+                }
+                else
+                {
+                    _viewModel.AddHistory("HAQQ CAD is up to date.");
+                    _viewModel.UpdateStatus = $"Up to date (build {channel.Build})";
+                }
                 return;
             }
 
-            _viewModel.AddHistory($"A newer build ({manifest.Build}) is being downloaded in the background...");
-            string? file = await updater.DownloadAsync(manifest, downloads);
+            _viewModel.AddHistory($"A newer build ({manifest.Build}) is being downloaded in the background. You can keep working.");
+            _viewModel.UpdateStatus = $"Downloading update {manifest.Build}...";
+            var progress = new Progress<double>(part =>
+                _viewModel.UpdateStatus = $"Downloading update {manifest.Build}... {part * 100:0}%");
+            string? file = await updater.DownloadAsync(manifest, downloads, default, progress);
             if (file is null)
             {
                 _viewModel.AddHistory("Update: " + (updater.LastError ?? "the download failed."));
+                _viewModel.UpdateStatus = "Update failed";
                 return;
             }
+            _viewModel.UpdateStatus = "Installing update...";
             if (!Updater.Apply(file, program, out string? error))
             {
                 _viewModel.AddHistory("Update: " + error);
+                _viewModel.UpdateStatus = "Update failed";
                 return;
             }
+            _viewModel.UpdateStatus = $"Update {manifest.Build} installed - restart to use it";
 
             _viewModel.AddHistory($"Build {manifest.Build} is installed and will be used the next time HAQQ CAD starts.");
             if (MessageBox.Show(this,
@@ -106,6 +123,7 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             _viewModel.AddHistory("Update check failed: " + ex.Message);
+            _viewModel.UpdateStatus = "Update check failed";
         }
     }
 
