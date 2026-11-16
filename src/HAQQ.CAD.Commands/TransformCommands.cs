@@ -104,15 +104,25 @@ public sealed class RotateCommand : TransformCommandBase
     }
 }
 
-/// <summary>SCALE: enlarges or reduces the selection about a base point by a typed factor.</summary>
+/// <summary>
+/// SCALE: enlarges or reduces the selection about a base point. After the base point the scaled result
+/// follows the cursor: the size is 1:1 when the cursor is as far from the base point as the farthest corner
+/// of the selection, bigger further out and smaller closer in. Click to accept, or type a factor.
+/// </summary>
 public sealed class ScaleCommand : TransformCommandBase
 {
     private Point2D? _base;
+    private double _reference = 1.0;
 
     public override string Name => "SCALE";
     public override Point2D? LastPoint => _base;
     public override string Prompt => Selecting ? SelectPrompt
-        : _base is null ? "SCALE  Specify base point:" : "SCALE  Specify scale factor (2 doubles the size, 0.5 halves it):";
+        : _base is null ? "SCALE  Specify base point:"
+        : "SCALE  Move the cursor and click, or type a scale factor (2 doubles the size, 0.5 halves it):";
+
+    /// <summary>The scale factor a click at <paramref name="cursor"/> would give, or null before the base point is set.</summary>
+    public double? FactorAt(Point2D cursor) =>
+        _base is { } origin ? origin.DistanceTo(cursor) / _reference : null;
 
     protected override CommandResult OnInputAfterSelection(CommandInput input)
     {
@@ -120,7 +130,15 @@ public sealed class ScaleCommand : TransformCommandBase
         {
             case CommandInput.PointInput p when _base is null:
                 _base = p.Point;
+                _reference = ReferenceLength(p.Point);
                 return CommandResult.Continue;
+
+            case CommandInput.PointInput p:
+                double picked = FactorAt(p.Point) ?? 0;
+                if (!(picked > 1e-6) || !double.IsFinite(picked)) return Invalid("Click away from the base point, or type a scale factor.");
+                ApplyTransform(Transform2D.Scaling(picked, _base!.Value));
+                Session.Post($"Scaled by {picked:0.####}.");
+                return CommandResult.Finished;
 
             case CommandInput.NumberInput n when _base is not null:
                 if (!(n.Value > GeoMath.Epsilon) || !double.IsFinite(n.Value)) return Invalid("The scale factor must be positive.");
@@ -131,8 +149,29 @@ public sealed class ScaleCommand : TransformCommandBase
                 return CommandResult.Finished;
 
             default:
-                return Invalid(_base is null ? "Specify the base point." : "Type a scale factor.");
+                return Invalid(_base is null ? "Specify the base point." : "Click a point or type a scale factor.");
         }
+    }
+
+    /// <summary>Distance from the base point to the farthest corner of the selection: the cursor distance that means "same size".</summary>
+    private double ReferenceLength(Point2D origin)
+    {
+        double farthest = 0;
+        foreach (var target in Targets)
+        {
+            if (Document.GetEntity(target.Id) is not { } live) continue;
+            var box = live.Bounds;
+            foreach (var corner in new[] { new Point2D(box.MinX, box.MinY), new Point2D(box.MaxX, box.MinY), new Point2D(box.MaxX, box.MaxY), new Point2D(box.MinX, box.MaxY) })
+                farthest = Math.Max(farthest, origin.DistanceTo(corner));
+        }
+        return farthest > 1e-9 && double.IsFinite(farthest) ? farthest : 1.0;
+    }
+
+    public override IReadOnlyList<Entity> GetPreview(Point2D cursor)
+    {
+        if (_base is not { } origin || FactorAt(cursor) is not { } factor || !(factor > 1e-6) || !double.IsFinite(factor))
+            return Array.Empty<Entity>();
+        return PreviewOf(Transform2D.Scaling(factor, origin), new LineEntity(origin, cursor));
     }
 }
 

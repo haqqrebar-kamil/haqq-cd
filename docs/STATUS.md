@@ -9,7 +9,7 @@ Last updated: 2026-11-15 · Version 0.2.0-dev · Phase 1 complete, Phase 2 start
 | First release (Phase 1) built on Windows 10/11 with the .NET 10 SDK (10.0.404), including the WPF project | **Passed**, 0 warnings, 0 errors |
 | First release: `dotnet test` with real xUnit on Windows | **160 passed, 0 failed** |
 | Current source: engine and view-model libraries compiled on Linux (.NET 8 SDK) | **Passed**, 0 warnings |
-| Current source: 260 automated tests through `tools/OfflineTestRunner` | **260 passed, 0 failed** |
+| Current source: 263 automated tests through `tools/OfflineTestRunner` | **263 passed, 0 failed** |
 | Build of 14 Nov evening on Windows (.NET 10): solution build and `dotnet test` | **Passed**, 181 tests at that point; the app was seen running (screenshots from the owner) |
 | Current source: WPF project compiled on Windows | **Compiled** by the installer build of 15 Nov 10:38 (all features up to the updater); the self-installer added afterwards is **not compiled yet**. Earlier note: not confirmed for the latest changes (per-section polyline width, rectangle options, the 11 arc methods and the longer Arc drop-down, grip editing, object snaps and their menus, folding Properties panel); no build log read since the 181-test build |
 | Running the application and using it by hand | Owner has run it and sent screenshots of the window, crosshair and input box; no systematic manual test |
@@ -69,7 +69,7 @@ Legend: **Tested** = implemented and covered by executed automated tests ·
 | Length and angle shown on the rubber-band line | Tested (values) / Untested UI | Angle is 0-360 counter-clockwise |
 | Tab between distance and angle boxes (X and Y for a first point) | Tested (logic) | Preview is not yet constrained to a locked value |
 | Crosshair: short cross with centre square; CURSORSIZE setting saved per user | Tested | |
-| ROTATE, SCALE, MIRROR | Tested | |
+| ROTATE, SCALE, MIRROR | Tested | SCALE shows the scaled result while the cursor moves and a click accepts it (same size when the cursor is as far from the base point as the farthest corner of the selection); a typed factor still works. No Reference or Copy options |
 | PLINE options: Arc, Line, Close, Halfwidth, Length, Undo, Width | Tested | Arcs are tangent to the previous segment. Width and Halfwidth apply to the segments drawn after them and can taper (starting and ending width). HCAD schema 3 |
 | RECTANG options: Area, Dimensions, Rotation; Chamfer, Fillet, Width | Tested | Elevation and Thickness (3D) are not offered |
 | RECTANG: Shift makes a square; ORTHO/POLAR no longer flatten rectangles | Tested | |

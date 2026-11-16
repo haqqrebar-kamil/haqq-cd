@@ -2663,3 +2663,79 @@ public class LineModeTests
         Assert.False(s.ContinuousLines);
     }
 }
+
+public class ScalePreviewTests
+{
+    private static EditorSession Session(out PolylineEntity rect)
+    {
+        var s = new EditorSession();
+        s.Document.Settings.Format = LengthFormat.Decimal;
+        s.PolarEnabled = false;
+        rect = new PolylineEntity(new[] { P(0, 0), P(40, 0), P(40, 30), P(0, 30) }, true) { LayerId = s.Document.CurrentLayerId };
+        s.Document.AddEntity(rect);
+        s.Selection.Add(rect.Id);
+        return s;
+    }
+
+    [Fact]
+    public void Scaled_result_follows_the_cursor_and_a_click_accepts_it()
+    {
+        var s = Session(out var rect);
+        s.StartCommand("SCALE");
+        Assert.Empty(s.GetPreview());                       // no base point yet
+        s.SubmitPoint(P(0, 0));                             // farthest corner is 40,30: 50 away = same size
+
+        s.UpdateCursor(P(40, 30), 0.1);
+        var same = Assert.IsType<PolylineEntity>(s.GetPreview()[0]);
+        Assert.Equal(P(40, 30), same.Vertices[2]);
+        Assert.IsType<LineEntity>(s.GetPreview()[1]);       // rubber band from the base point
+
+        s.UpdateCursor(P(100, 0), 0.1);                     // 100 away: twice the size, whatever the direction
+        var bigger = (PolylineEntity)s.GetPreview()[0];
+        Assert.Equal(80.0, bigger.Vertices[2].X, 9);
+        Assert.Equal(60.0, bigger.Vertices[2].Y, 9);
+        Assert.Equal(P(40, 30), ((PolylineEntity)s.Document.GetEntity(rect.Id)!).Vertices[2]);   // nothing changed yet
+
+        s.UpdateCursor(P(0, 25), 0.1);                      // 25 away: half size
+        Assert.Equal(20.0, ((PolylineEntity)s.GetPreview()[0]).Vertices[2].X, 9);
+
+        var messages = CaptureMessages(s);
+        s.SubmitPoint(P(0, 25));
+        Assert.Null(s.ActiveCommand);
+        var result = (PolylineEntity)s.Document.GetEntity(rect.Id)!;
+        Assert.Equal(20.0, result.Vertices[2].X, 9);
+        Assert.Equal(15.0, result.Vertices[2].Y, 9);
+        Assert.Contains(messages, m => m.Contains("Scaled by 0.5"));
+
+        s.Undo();
+        Assert.Equal(P(40, 30), ((PolylineEntity)s.Document.GetEntity(rect.Id)!).Vertices[2]);
+    }
+
+    [Fact]
+    public void A_typed_factor_still_works_and_a_click_on_the_base_point_is_refused()
+    {
+        var s = Session(out var rect);
+        s.StartCommand("SCALE");
+        s.SubmitPoint(P(0, 0));
+        s.UpdateCursor(P(0, 0), 0.1);
+        Assert.Empty(s.GetPreview());
+        s.SubmitPoint(P(0, 0));
+        Assert.NotNull(s.ActiveCommand);                    // refused, still asking
+        s.SubmitText("3");
+        Assert.Null(s.ActiveCommand);
+        Assert.Equal(P(120, 90), ((PolylineEntity)s.Document.GetEntity(rect.Id)!).Vertices[2]);
+    }
+
+    [Fact]
+    public void Base_point_away_from_the_object_uses_its_farthest_corner_as_the_same_size_distance()
+    {
+        var s = Session(out var rect);
+        s.StartCommand("SCALE");
+        s.SubmitPoint(P(-10, 0));                           // farthest corner 40,30 is sqrt(2500+900) away
+        double reference = Math.Sqrt(50 * 50 + 30 * 30);
+        var scale = (ScaleCommand)s.ActiveCommand!;
+        Assert.Equal(1.0, scale.FactorAt(P(40, 30))!.Value, 9);
+        Assert.Equal(2.0, scale.FactorAt(P(-10 + 2 * reference, 0))!.Value, 9);
+        s.Cancel();
+    }
+}
