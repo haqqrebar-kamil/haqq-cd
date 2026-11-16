@@ -142,6 +142,7 @@
                     <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconFillet}" Content="Fillet" Command="{Binding RunCommandCommand}" CommandParameter="FILLET" ToolTip="FILLET (F): round the corner between two lines (radius 0 = sharp corner)" />
                     <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconChamfer}" Content="Chamfer" Command="{Binding RunCommandCommand}" CommandParameter="CHAMFER" ToolTip="CHAMFER (CHA): cut the corner between two lines" />
                     <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconExplode}" Content="Explode" Command="{Binding RunCommandCommand}" CommandParameter="EXPLODE" ToolTip="EXPLODE (X): turn polylines into lines and arcs" />
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconJoin}" Content="Join" Command="{Binding RunCommandCommand}" CommandParameter="JOIN" ToolTip="JOIN (J): connect selected lines, arcs and open polylines that touch end to end into one polyline" />
                     <Border Width="1" Margin="6,6" Background="{StaticResource BorderBrush}" />
                     <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconUndo}" Content="Undo" Command="{Binding UndoCommand}" ToolTip="Undo (Ctrl+Z)" />
                     <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconRedo}" Content="Redo" Command="{Binding RedoCommand}" ToolTip="Redo (Ctrl+Y)" />

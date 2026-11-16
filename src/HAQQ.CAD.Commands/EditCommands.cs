@@ -622,3 +622,148 @@ public sealed class ExplodeCommand : SelectionCommandBase
 
     protected override CommandResult OnInputAfterSelection(CommandInput input) => CommandResult.Finished;
 }
+
+/// <summary>
+/// JOIN: connects the selected lines, arcs and open polylines that touch end to end into polylines.
+/// Objects that touch nothing else are left as they are. One undo step.
+/// </summary>
+public sealed class JoinCommand : SelectionCommandBase
+{
+    /// <summary>Ends closer than this (model units) count as touching.</summary>
+    private const double Tolerance = 1e-6;
+
+    private sealed class Path
+    {
+        public List<Point2D> Vertices = new();
+        public List<double> Bulges = new();                       // one per segment
+        public List<(double Start, double End)> Widths = new();   // one per segment
+        public List<Entity> Sources = new();
+
+        public Point2D First => Vertices[0];
+        public Point2D Last => Vertices[^1];
+
+        public void Reverse()
+        {
+            Vertices.Reverse();
+            Bulges.Reverse();
+            for (int i = 0; i < Bulges.Count; i++) Bulges[i] = -Bulges[i];       // the arc now runs the other way
+            Widths.Reverse();
+            for (int i = 0; i < Widths.Count; i++) Widths[i] = (Widths[i].End, Widths[i].Start);
+        }
+
+        /// <summary>Adds <paramref name="next"/> (which starts where this path ends) to the end of this path.</summary>
+        public void Append(Path next)
+        {
+            Vertices.AddRange(next.Vertices.Skip(1));
+            Bulges.AddRange(next.Bulges);
+            Widths.AddRange(next.Widths);
+            Sources.AddRange(next.Sources);
+        }
+    }
+
+    public override string Name => "JOIN";
+    public override string Prompt => SelectPrompt;
+
+    private static Path? PathOf(Entity entity)
+    {
+        var path = new Path();
+        path.Sources.Add(entity);
+        switch (entity)
+        {
+            case LineEntity line:
+                path.Vertices.AddRange(new[] { line.Start, line.End });
+                path.Bulges.Add(0);
+                path.Widths.Add((0, 0));
+                return path;
+            case ArcEntity arc:
+                path.Vertices.AddRange(new[] { arc.StartPoint, arc.EndPoint });
+                path.Bulges.Add(Math.Tan(arc.Sweep / 4.0));
+                path.Widths.Add((0, 0));
+                return path;
+            case PolylineEntity { IsClosed: false } polyline when polyline.SegmentCount > 0:
+                path.Vertices.AddRange(polyline.Vertices);
+                for (int i = 0; i < polyline.SegmentCount; i++)
+                {
+                    path.Bulges.Add(polyline.GetBulge(i));
+                    path.Widths.Add(polyline.GetSegmentWidth(i));
+                }
+                return path;
+            default:
+                return null;                                      // circles, closed polylines: nothing to join onto
+        }
+    }
+
+    private static bool Touch(Point2D a, Point2D b) => a.DistanceTo(b) <= Tolerance;
+
+    protected override CommandResult OnSelectionReady()
+    {
+        var open = Session.GetSelectedEntities().Select(PathOf).Where(p => p is not null).Select(p => p!).ToList();
+        var finished = new List<Path>();
+
+        while (open.Count > 0)
+        {
+            var current = open[0];
+            open.RemoveAt(0);
+            bool grew = true;
+            while (grew && !Touch(current.First, current.Last))   // stop once it has closed on itself
+            {
+                grew = false;
+                for (int i = 0; i < open.Count; i++)
+                {
+                    var other = open[i];
+                    if (Touch(current.Last, other.First)) { current.Append(other); }
+                    else if (Touch(current.Last, other.Last)) { other.Reverse(); current.Append(other); }
+                    else if (Touch(current.First, other.Last)) { other.Append(current); current = other; }
+                    else if (Touch(current.First, other.First)) { other.Reverse(); other.Append(current); current = other; }
+                    else continue;
+                    open.RemoveAt(i);
+                    grew = true;
+                    break;
+                }
+            }
+            if (current.Sources.Count > 1) finished.Add(current);
+        }
+
+        if (finished.Count == 0)
+        {
+            Session.Post("Nothing to join: select lines, arcs or open polylines whose ends touch.");
+            return CommandResult.Finished;
+        }
+
+        var joined = new List<Entity>();
+        foreach (var path in finished)
+        {
+            bool closed = path.Vertices.Count > 3 && Touch(path.First, path.Last);
+            var vertices = closed ? path.Vertices.Take(path.Vertices.Count - 1).ToList() : path.Vertices;
+            var bulges = new double[vertices.Count];
+            for (int i = 0; i < path.Bulges.Count && i < bulges.Length; i++) bulges[i] = path.Bulges[i];
+
+            var first = path.Sources[0];
+            var polyline = new PolylineEntity(vertices, closed, bulges)
+            {
+                LayerId = first.LayerId,
+                Color = first.Color,
+                Linetype = first.Linetype,
+                LineweightMm = first.LineweightMm,
+            };
+            for (int i = 0; i < path.Widths.Count && i < polyline.SegmentCount; i++)
+                if (path.Widths[i].Start != 0 || path.Widths[i].End != 0)
+                    polyline.SetSegmentWidth(i, path.Widths[i].Start, path.Widths[i].End);
+            if (polyline.IsValid) joined.Add(polyline);
+        }
+
+        var used = finished.SelectMany(p => p.Sources).Select(e => e.Id).ToList();
+        if (joined.Count == finished.Count && Session.Execute(new CompositeAction("JOIN",
+                new RemoveEntitiesAction("JOIN", used),
+                new AddEntitiesAction("JOIN", joined))))
+        {
+            Session.ClearSelection();
+            foreach (var polyline in joined) Session.Selection.Add(polyline.Id);
+            Session.Post($"{used.Count} objects joined into {joined.Count} polyline(s).");
+        }
+        else Session.Post("Those objects could not be joined.");
+        return CommandResult.Finished;
+    }
+
+    protected override CommandResult OnInputAfterSelection(CommandInput input) => CommandResult.Finished;
+}

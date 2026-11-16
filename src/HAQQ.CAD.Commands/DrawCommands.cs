@@ -47,10 +47,16 @@ public abstract class CadCommandBase : ICadCommand
 }
 
 /// <summary>LINE: a chain of independent line segments. The whole chain is one undo step.</summary>
-public sealed class LineCommand : CadCommandBase
+public sealed class LineCommand : CadCommandBase, ITangentAware
 {
     private readonly List<Point2D> _points = new();
     private readonly List<LineEntity> _segments = new();
+
+    // A first point taken with the Tangent snap: the circle is known, the exact start is not until the other end is.
+    private HAQQ.CAD.Snapping.TangentTarget? _startTangent;
+    private Point2D _startPick;
+
+    public bool WantsDeferredTangent => _points.Count == 0 || _startTangent is not null;
 
     public override string Name => "LINE";
     public override string Prompt => _points.Count == 0
@@ -64,15 +70,20 @@ public sealed class LineCommand : CadCommandBase
     {
         switch (input)
         {
+            case CommandInput.PointInput p when _points.Count == 0 && p.Tangent is { } circle:
+                _startTangent = circle;                    // "tangent to this circle": resolved with the next point
+                _startPick = p.Point;
+                _points.Add(p.Point);
+                return CommandResult.Continue;
+
             case CommandInput.PointInput p:
-                AddPoint(p.Point);
-                return AfterPoint();
+                return _startTangent is null ? Add(p.Point) : AddTangent(p.Point, p.Tangent);
 
             case CommandInput.NumberInput n:
                 if (_points.Count == 0) return Invalid("Specify a point first (click or type x,y).");
                 if (n.Value <= 0) return Invalid("Distance must be positive.");
-                AddPoint(Session.PointFromDistance(_points[^1], n.Value));
-                return AfterPoint();
+                var byDistance = Session.PointFromDistance(_points[^1], n.Value);
+                return _startTangent is null ? Add(byDistance) : AddTangent(byDistance, null);
 
             case CommandInput.KeywordInput k when Matches(k.Keyword, "UNDO"):
                 UndoPoint();
@@ -91,6 +102,56 @@ public sealed class LineCommand : CadCommandBase
             default:
                 return Invalid("Invalid option.");
         }
+    }
+
+    private CommandResult Add(Point2D point)
+    {
+        AddPoint(point);
+        return AfterPoint();
+    }
+
+    /// <summary>Second point of a line whose first point was "tangent to a circle".</summary>
+    private CommandResult AddTangent(Point2D end, HAQQ.CAD.Snapping.TangentTarget? endCircle)
+    {
+        if (!TryResolveTangent(_startTangent!.Value, _startPick, end, endCircle, out var start, out var finish))
+            return Invalid(endCircle is null
+                ? "No tangent from that point: it is inside the circle, or the tangent point is not on the arc."
+                : "No line is tangent to both of those where you clicked.");
+        _points[0] = start;
+        _startTangent = null;
+        return Add(finish);
+    }
+
+    /// <summary>
+    /// The line from a tangent point on <paramref name="first"/> to <paramref name="end"/>, or, when the end was
+    /// also taken with the Tangent snap, the line tangent to both circles. Of the possible lines, the one whose
+    /// touching points are nearest to where the circles were clicked is used.
+    /// </summary>
+    public static bool TryResolveTangent(HAQQ.CAD.Snapping.TangentTarget first, Point2D firstPick, Point2D end,
+        HAQQ.CAD.Snapping.TangentTarget? second, out Point2D start, out Point2D finish)
+    {
+        start = finish = default;
+        double best = double.PositiveInfinity;
+
+        if (second is { } other)
+        {
+            foreach (var (a, b) in HAQQ.CAD.Snapping.TangentMath.Common(first.Center, first.Radius, other.Center, other.Radius))
+            {
+                if (!first.Contains(a) || !other.Contains(b) || a.NearlyEquals(b)) continue;
+                double score = a.DistanceTo(firstPick) + b.DistanceTo(end);
+                if (score < best) { best = score; start = a; finish = b; }
+            }
+        }
+        else
+        {
+            foreach (var a in HAQQ.CAD.Snapping.TangentMath.FromPoint(first.Center, first.Radius, end))
+            {
+                if (!first.Contains(a)) continue;
+                double score = a.DistanceTo(firstPick);
+                if (score < best) { best = score; start = a; finish = end; }
+            }
+        }
+        return best < double.PositiveInfinity;
     }
 
     /// <summary>
@@ -128,6 +189,7 @@ public sealed class LineCommand : CadCommandBase
             _segments.RemoveAt(_segments.Count - 1);
         }
         _points.RemoveAt(_points.Count - 1);
+        if (_points.Count == 0) _startTangent = null;
     }
 
     private void Commit()
@@ -142,6 +204,16 @@ public sealed class LineCommand : CadCommandBase
     public override IReadOnlyList<Entity> GetPreview(Point2D cursor)
     {
         if (_points.Count == 0 || cursor.NearlyEquals(_points[^1])) return Array.Empty<Entity>();
+        if (_startTangent is { } circle)
+        {
+            // The start slides round the circle so that the line stays tangent while the cursor moves.
+            var endCircle = Session.CurrentSnap is { Mode: HAQQ.CAD.Snapping.SnapModes.Tangent, Tangent: { } t } snap && snap.Point.NearlyEquals(cursor)
+                ? t
+                : (HAQQ.CAD.Snapping.TangentTarget?)null;
+            return TryResolveTangent(circle, _startPick, cursor, endCircle, out var start, out var finish)
+                ? new Entity[] { new LineEntity(start, finish) }
+                : Array.Empty<Entity>();
+        }
         return new Entity[] { new LineEntity(_points[^1], cursor) };
     }
 }

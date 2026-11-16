@@ -8,7 +8,8 @@ namespace HAQQ.CAD.Commands;
 public abstract record CommandInput
 {
     /// <summary>A model-space point (clicked, snapped or typed as coordinates).</summary>
-    public sealed record PointInput(Point2D Point) : CommandInput;
+    /// <param name="Tangent">Set when the point was taken with the Tangent snap: the circle or arc that was clicked.</param>
+    public sealed record PointInput(Point2D Point, HAQQ.CAD.Snapping.TangentTarget? Tangent = null) : CommandInput;
 
     /// <summary>A bare number typed on the command line (a distance, radius...), in model units.</summary>
     public sealed record NumberInput(double Value) : CommandInput;

@@ -17,8 +17,62 @@ public enum SnapModes
     Nearest = 128,
 }
 
+/// <summary>The circle or arc a Tangent snap was taken on.</summary>
+public readonly record struct TangentTarget(Point2D Center, double Radius, double Start, double Sweep)
+{
+    /// <summary>True when <paramref name="point"/> (on the circle) lies on the part that exists.</summary>
+    public bool Contains(Point2D point) => ArcMath.ContainsAngle(Start, Sweep, (point - Center).Angle, 1e-7);
+}
+
 /// <summary>A resolved object snap.</summary>
-public readonly record struct SnapResult(Point2D Point, SnapModes Mode, Guid EntityId);
+/// <param name="Tangent">For a Tangent snap: the circle or arc it was taken on.</param>
+/// <param name="Deferred">
+/// True for a Tangent snap taken before the line has another point to be tangent from (the first point of a line).
+/// <paramref name="Point"/> is then only where the circle was clicked; the real tangent point is worked out by the
+/// command once the other end is known.
+/// </param>
+public readonly record struct SnapResult(Point2D Point, SnapModes Mode, Guid EntityId, TangentTarget? Tangent = null, bool Deferred = false);
+
+/// <summary>Tangent lines to circles.</summary>
+public static class TangentMath
+{
+    /// <summary>The (up to two) points where lines from <paramref name="from"/> touch the circle; none from inside it.</summary>
+    public static IEnumerable<Point2D> FromPoint(Point2D center, double radius, Point2D from)
+    {
+        var v = from - center;
+        double d = v.Length;
+        if (!(radius > 0) || d <= radius * (1 + 1e-9)) yield break;
+        double spread = Math.Acos(radius / d);
+        yield return ArcMath.PointAt(center, radius, v.Angle + spread);
+        yield return ArcMath.PointAt(center, radius, v.Angle - spread);
+    }
+
+    /// <summary>
+    /// The (up to four) lines tangent to both circles, each as its touching point on the first and on the second
+    /// circle: two outer tangents, and two crossing ones when the circles are apart.
+    /// </summary>
+    public static IEnumerable<(Point2D OnFirst, Point2D OnSecond)> Common(Point2D c1, double r1, Point2D c2, double r2)
+    {
+        var d = c2 - c1;
+        double distance = d.Length;
+        if (distance <= GeoMath.Epsilon || !(r1 > 0) || !(r2 > 0)) yield break;
+        var u = d / distance;
+        var side = new Vector2D(-u.Y, u.X);
+
+        // A tangent line has a unit normal n with signed distances r1 and +-r2 from the centres (same side = outer).
+        foreach (double sign in new[] { 1.0, -1.0 })
+        {
+            double q = (r2 * sign - r1) / distance;
+            if (Math.Abs(q) > 1 + 1e-12) continue;                   // one circle inside the other / overlapping too much
+            double h = Math.Sqrt(Math.Max(0.0, 1 - q * q));
+            foreach (double turn in h > 1e-12 ? new[] { 1.0, -1.0 } : new[] { 1.0 })
+            {
+                var n = u * q + side * (h * turn);
+                yield return (c1 - n * r1, c2 - n * (r2 * sign));
+            }
+        }
+    }
+}
 
 public sealed class SnapSettings
 {
@@ -73,7 +127,11 @@ public static class SnapEngine
     /// perpendicular or tangent point of that object as seen from <paramref name="from"/> (the previous point of the
     /// command); then the nearest point on the object.</para>
     /// </summary>
-    public static SnapResult? FindSnap(DrawingDocument document, Point2D cursor, double aperture, SnapModes modes, Point2D? from = null)
+    /// <param name="deferTangent">
+    /// The command can work out a tangent itself once both ends are known (LINE). A Tangent snap then only
+    /// records which circle was clicked, and works for a first point too.
+    /// </param>
+    public static SnapResult? FindSnap(DrawingDocument document, Point2D cursor, double aperture, SnapModes modes, Point2D? from = null, bool deferTangent = false)
     {
         if (modes == SnapModes.None || aperture <= 0) return null;
 
@@ -118,14 +176,22 @@ public static class SnapEngine
         if (best is not null || pieces is null || pieces.Count == 0) return best;
 
         // The cursor is on an object but not near one of its definite points.
+        if (deferTangent && modes.HasFlag(SnapModes.Tangent))
+        {
+            foreach (var piece in pieces)
+                if (piece.IsArc)
+                    OfferObject(piece.ClosestPoint(cursor), SnapModes.Tangent, piece.EntityId, TargetOf(piece), true);
+            if (best is not null) return best;
+        }
+
         if (from is { } origin)
         {
             foreach (var piece in pieces)
             {
                 if (modes.HasFlag(SnapModes.Perpendicular))
                     foreach (var point in PerpendicularPoints(piece, origin)) OfferObject(point, SnapModes.Perpendicular, piece.EntityId);
-                if (modes.HasFlag(SnapModes.Tangent))
-                    foreach (var point in TangentPoints(piece, origin)) OfferObject(point, SnapModes.Tangent, piece.EntityId);
+                if (modes.HasFlag(SnapModes.Tangent) && !deferTangent)
+                    foreach (var point in TangentPoints(piece, origin)) OfferObject(point, SnapModes.Tangent, piece.EntityId, TargetOf(piece));
             }
             if (best is not null) return best;
         }
@@ -135,16 +201,18 @@ public static class SnapEngine
         return best;
 
         // Object-type snaps may lie far from the cursor (the foot of a perpendicular); the closest one to the cursor wins.
-        void OfferObject(Point2D point, SnapModes mode, Guid id)
+        void OfferObject(Point2D point, SnapModes mode, Guid id, TangentTarget? tangent = null, bool deferred = false)
         {
             if (!point.IsFinite) return;
             double d = point.DistanceTo(cursor);
             if (d < bestDistance - GeoMath.Epsilon)
             {
                 bestDistance = d;
-                best = new SnapResult(point, mode, id);
+                best = new SnapResult(point, mode, id, tangent, deferred);
             }
         }
+
+        static TangentTarget TargetOf(Piece piece) => new(piece.Center, piece.Radius, piece.Start, piece.Sweep);
     }
 
     private static IEnumerable<Piece> GetPieces(Entity entity)

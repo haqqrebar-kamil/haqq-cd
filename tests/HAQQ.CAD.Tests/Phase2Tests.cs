@@ -2739,3 +2739,261 @@ public class ScalePreviewTests
         s.Cancel();
     }
 }
+
+public class TangentLineTests
+{
+    private static EditorSession Session(params Entity[] entities)
+    {
+        var s = new EditorSession();
+        s.Document.Settings.Format = LengthFormat.Decimal;
+        s.PolarEnabled = false;
+        s.Snap.Modes = SnapModes.Tangent;
+        foreach (var e in entities)
+        {
+            e.LayerId = s.Document.CurrentLayerId;
+            s.Document.AddEntity(e);
+        }
+        return s;
+    }
+
+    private static void Click(EditorSession s, double x, double y)
+    {
+        s.UpdateCursor(P(x, y), 0.5);
+        s.SubmitPoint(s.EffectiveCursor);
+    }
+
+    private static LineEntity LastLine(EditorSession s) => s.Document.Entities.OfType<LineEntity>().Last();
+
+    private static void AssertTangent(LineEntity line, Point2D center, double radius)
+    {
+        Assert.Equal(radius, SegmentMath.DistanceToPoint(line.Start, line.End, center), 6);     // touches, does not cross
+    }
+
+    [Fact]
+    public void Tangent_snap_works_on_the_first_point_of_a_line()
+    {
+        var s = Session(new CircleEntity(P(0, 0), 5));
+        s.StartCommand("LINE");
+        s.UpdateCursor(P(0.2, 5.1), 0.5);                   // hovering the top of the circle, no previous point
+        var snap = s.CurrentSnap!.Value;
+        Assert.Equal(SnapModes.Tangent, snap.Mode);
+        Assert.True(snap.Deferred);
+        Click(s, 0.2, 5.1);
+        Assert.NotNull(s.ActiveCommand);
+        Assert.Equal(0, s.Document.Entities.OfType<LineEntity>().Count());
+
+        s.UpdateCursor(P(20, 5), 0.5);                      // the preview already starts on the tangent point
+        var preview = Assert.IsType<LineEntity>(Assert.Single(s.GetPreview()));
+        AssertTangent(preview, P(0, 0), 5);
+
+        s.SubmitText("20,5");                               // from 20,5 the upper tangent point is 0,5
+        Assert.Null(s.ActiveCommand);
+        var line = LastLine(s);
+        Assert.Equal(0.0, line.Start.X, 6);
+        Assert.Equal(5.0, line.Start.Y, 6);
+        Assert.Equal(P(20, 5), line.End);
+        AssertTangent(line, P(0, 0), 5);
+    }
+
+    [Fact]
+    public void The_side_of_the_circle_that_was_clicked_decides_which_tangent_is_used()
+    {
+        var s = Session(new CircleEntity(P(0, 0), 5));
+        s.StartCommand("LINE");
+        Click(s, 0.2, -5.1);                                // bottom of the circle
+        s.SubmitText("20,0");
+        var line = LastLine(s);
+        Assert.True(line.Start.Y < 0);                      // the lower of the two tangents from 20,0
+        AssertTangent(line, P(0, 0), 5);
+
+        var messages = CaptureMessages(s);
+        s.StartCommand("LINE");
+        Click(s, 5.1, 0.1);
+        s.SubmitText("1,1");                                // inside the circle: no tangent exists
+        Assert.NotNull(s.ActiveCommand);
+        Assert.Contains(messages, m => m.Contains("No tangent"));
+        s.SubmitKeyword("UNDO");                            // back to a normal first point
+        s.SubmitText("50,50");
+        s.SubmitText("60,50");
+        Assert.Equal(P(50, 50), LastLine(s).Start);
+    }
+
+    [Fact]
+    public void Line_tangent_to_two_circles_outer_and_crossing()
+    {
+        var s = Session(new CircleEntity(P(0, 0), 5), new CircleEntity(P(30, 0), 5));
+        s.StartCommand("LINE");
+        Click(s, 0, 5.2);                                   // top of the first
+        Click(s, 30, 5.2);                                  // top of the second: the outer tangent along y = 5
+        var top = LastLine(s);
+        Assert.Equal(5.0, top.Start.Y, 6);
+        Assert.Equal(5.0, top.End.Y, 6);
+        Assert.Equal(0.0, top.Start.X, 6);
+        Assert.Equal(30.0, top.End.X, 6);
+
+        s.StartCommand("LINE");
+        Click(s, 0.5, 5.1);                                 // top of the first
+        Click(s, 29.5, -5.1);                               // bottom of the second: the crossing tangent
+        var cross = LastLine(s);
+        AssertTangent(cross, P(0, 0), 5);
+        AssertTangent(cross, P(30, 0), 5);
+        Assert.True(cross.Start.Y > 0 && cross.End.Y < 0);
+        Assert.Equal(2, s.Document.Entities.OfType<LineEntity>().Count());
+    }
+
+    [Fact]
+    public void Tangent_as_the_second_point_still_works_and_other_commands_are_not_offered_a_first_point_tangent()
+    {
+        var s = Session(new CircleEntity(P(0, 0), 5));
+        s.StartCommand("LINE");
+        s.SubmitText("0,10");
+        Click(s, 4.4, 2.6);                                 // near the right-hand tangent point (60 degrees either side of up)
+        var line = LastLine(s);
+        Assert.Equal(P(0, 10), line.Start);
+        Assert.Equal(5 * Math.Sin(Math.PI / 3), line.End.X, 6);
+        Assert.Equal(2.5, line.End.Y, 6);
+
+        s.StartCommand("CIRCLE");
+        s.UpdateCursor(P(0.2, 5.1), 0.5);
+        Assert.Null(s.CurrentSnap);                         // a circle's centre cannot be "tangent" to anything
+        s.Cancel();
+    }
+
+    [Fact]
+    public void Common_tangents_of_two_circles()
+    {
+        Assert.Equal(4, TangentMath.Common(P(0, 0), 5, P(30, 0), 3).Count());       // apart: two outer, two crossing
+        Assert.Equal(2, TangentMath.Common(P(0, 0), 5, P(6, 0), 3).Count());        // overlapping: outer only
+        Assert.Empty(TangentMath.Common(P(0, 0), 5, P(1, 0), 2));                   // one inside the other
+        Assert.Empty(TangentMath.Common(P(0, 0), 5, P(0, 0), 5));
+        foreach (var (a, b) in TangentMath.Common(P(0, 0), 5, P(30, 10), 3))
+        {
+            Assert.Equal(5.0, a.DistanceTo(P(0, 0)), 9);
+            Assert.Equal(3.0, b.DistanceTo(P(30, 10)), 9);
+            Assert.Equal(0.0, (b - a).Dot(a - P(0, 0)), 7);                          // perpendicular to both radii
+            Assert.Equal(0.0, (b - a).Dot(b - P(30, 10)), 7);
+        }
+        Assert.Empty(TangentMath.FromPoint(P(0, 0), 5, P(1, 1)));
+        Assert.Equal(2, TangentMath.FromPoint(P(0, 0), 5, P(10, 0)).Count());
+    }
+}
+
+public class JoinTests
+{
+    private const double Deg = Math.PI / 180.0;
+
+    private static EditorSession Session()
+    {
+        var s = new EditorSession();
+        s.Document.Settings.Format = LengthFormat.Decimal;
+        return s;
+    }
+
+    private static T Add<T>(EditorSession s, T entity) where T : Entity
+    {
+        entity.LayerId = s.Document.CurrentLayerId;
+        s.Document.AddEntity(entity);
+        s.Selection.Add(entity.Id);
+        return entity;
+    }
+
+    [Fact]
+    public void Lines_drawn_in_any_order_and_direction_join_into_one_polyline()
+    {
+        var s = Session();
+        Add(s, new LineEntity(P(10, 0), P(10, 10)));        // middle
+        Add(s, new LineEntity(P(0, 0), P(10, 0)));          // first
+        Add(s, new LineEntity(P(20, 10), P(10, 10)));       // last, drawn backwards
+        var apart = Add(s, new LineEntity(P(100, 100), P(110, 100)));
+
+        s.StartCommand("JOIN");
+        Assert.Null(s.ActiveCommand);
+        Assert.Equal(2, s.Document.EntityCount);            // the polyline and the line that touches nothing
+        var pl = s.Document.Entities.OfType<PolylineEntity>().Single();
+        Assert.False(pl.IsClosed);
+        Assert.Equal(4, pl.Vertices.Count);
+        Assert.Equal(30.0, pl.Length, 9);
+        var ends = new[] { pl.Vertices[0], pl.Vertices[^1] };
+        Assert.Contains(P(0, 0), ends);
+        Assert.Contains(P(20, 10), ends);
+        Assert.NotNull(s.Document.GetEntity(apart.Id));
+        Assert.True(s.Selection.Contains(pl.Id));           // the result is selected
+        Assert.Equal(1, s.Selection.Count);
+
+        s.Undo();                                           // one step
+        Assert.Equal(4, s.Document.EntityCount);
+        Assert.Empty(s.Document.Entities.OfType<PolylineEntity>());
+    }
+
+    [Fact]
+    public void Four_lines_forming_a_rectangle_become_a_closed_polyline()
+    {
+        var s = Session();
+        Add(s, new LineEntity(P(0, 0), P(20, 0)));
+        Add(s, new LineEntity(P(20, 0), P(20, 10)));
+        Add(s, new LineEntity(P(0, 10), P(20, 10)));
+        Add(s, new LineEntity(P(0, 10), P(0, 0)));
+        s.StartCommand("J");
+        var pl = Assert.IsType<PolylineEntity>(Assert.Single(s.Document.Entities));
+        Assert.True(pl.IsClosed);
+        Assert.Equal(4, pl.Vertices.Count);
+        Assert.Equal(60.0, pl.Length, 9);
+        Assert.Equal(200.0, Math.Abs(pl.Area), 9);
+    }
+
+    [Fact]
+    public void Arcs_and_polylines_join_too_and_keep_their_curve_and_width()
+    {
+        var s = Session();
+        Add(s, new LineEntity(P(0, 0), P(10, 0)));
+        Add(s, new ArcEntity(P(10, 5), 5, 270 * Deg, 90 * Deg));           // half circle from 10,0 round to 10,10
+        var wide = new PolylineEntity(new[] { P(0, 10), P(10, 10) }, false);   // meets the arc with its END
+        wide.SetSegmentWidth(0, 1, 2);
+        Add(s, wide);
+
+        s.StartCommand("JOIN");
+        var pl = Assert.IsType<PolylineEntity>(Assert.Single(s.Document.Entities));
+        Assert.Equal(4, pl.Vertices.Count);
+        Assert.Equal(10 + 5 * Math.PI + 10, pl.Length, 7);
+        int arcIndex = Enumerable.Range(0, pl.SegmentCount).Single(i => pl.TryGetArc(i, out _, out _, out _, out _));
+        Assert.True(pl.TryGetArc(arcIndex, out var c, out double r, out _, out double sweep));
+        Assert.Equal(10.0, c.X, 7);
+        Assert.Equal(5.0, c.Y, 7);
+        Assert.Equal(5.0, r, 7);
+        Assert.Equal(180 * Deg, sweep, 7);
+        Assert.Equal(0.0, pl.DistanceTo(P(15, 5)), 7);                     // bulges the right way
+        // The wide piece was reversed to fit, so its taper is reversed with it.
+        int wideIndex = Enumerable.Range(0, pl.SegmentCount).Single(i => pl.GetSegmentWidth(i) != (0.0, 0.0));
+        var (a, b) = pl.GetSegment(wideIndex);
+        var (ws, we) = pl.GetSegmentWidth(wideIndex);
+        Assert.Equal(a.X < b.X ? (1.0, 2.0) : (2.0, 1.0), (ws, we));
+    }
+
+    [Fact]
+    public void Nothing_joins_when_ends_do_not_touch()
+    {
+        var s = Session();
+        Add(s, new LineEntity(P(0, 0), P(10, 0)));
+        Add(s, new LineEntity(P(10.5, 0), P(20, 0)));       // a gap
+        Add(s, new LineEntity(P(5, -5), P(5, 5)));          // crosses, but not at an end
+        Add(s, new CircleEntity(P(0, 0), 3));
+        var messages = CaptureMessages(s);
+        s.StartCommand("JOIN");
+        Assert.Equal(4, s.Document.EntityCount);
+        Assert.Contains(messages, m => m.Contains("Nothing to join"));
+        Assert.False(s.UndoStack.CanUndo);
+    }
+
+    [Fact]
+    public void Two_separate_chains_give_two_polylines()
+    {
+        var s = Session();
+        Add(s, new LineEntity(P(0, 0), P(10, 0)));
+        Add(s, new LineEntity(P(10, 0), P(10, 10)));
+        Add(s, new LineEntity(P(100, 0), P(110, 0)));
+        Add(s, new LineEntity(P(110, 0), P(110, 10)));
+        s.StartCommand("JOIN");
+        Assert.Equal(2, s.Document.Entities.OfType<PolylineEntity>().Count());
+        Assert.Equal(2, s.Document.EntityCount);
+    }
+}

@@ -50,6 +50,15 @@ public interface IShiftConstraint
 }
 
 /// <summary>
+/// Implemented by commands that can make a line tangent to a circle themselves once both ends are known
+/// (LINE). While <see cref="WantsDeferredTangent"/> is true the Tangent snap works on a first point too.
+/// </summary>
+public interface ITangentAware
+{
+    bool WantsDeferredTangent { get; }
+}
+
+/// <summary>
 /// Implemented by commands that ask the user to click on an object (TRIM, OFFSET, FILLET...). While
 /// <see cref="PickingObject"/> is true the click is taken where the cursor is: object snap is not applied
 /// and the pick box is shown at the crosshair.
@@ -110,6 +119,7 @@ public sealed class CommandRegistry
         r.Register("FILLET", () => new FilletCommand(), "F");
         r.Register("CHAMFER", () => new ChamferCommand(), "CHA");
         r.Register("EXPLODE", () => new ExplodeCommand(), "X");
+        r.Register("JOIN", () => new JoinCommand(), "J");
         r.Register("UNITS", () => new UnitsCommand(), "UN");
         r.Register("SNAP", () => new SpacingCommand(snap: true), "SN");
         r.Register("GRID", () => new SpacingCommand(snap: false));
@@ -263,7 +273,8 @@ public sealed class EditorSession
         var modes = SnapOverride ?? (Snap.Enabled ? Snap.Modes : SnapModes.None);
         if (PickingObject) modes = SnapModes.None;
         CurrentSnap = WantsPoint && modes != SnapModes.None
-            ? SnapEngine.FindSnap(Document, modelPoint, aperture, modes, ActiveCommand?.LastPoint)
+            ? SnapEngine.FindSnap(Document, modelPoint, aperture, modes, ActiveCommand?.LastPoint,
+                ActiveCommand is ITangentAware { WantsDeferredTangent: true })
             : null;
     }
 
@@ -447,7 +458,11 @@ public sealed class EditorSession
         if (ActiveCommand is not { } command) return;
         LastPoint = point;
         SnapOverride = null;
-        Complete(command.OnInput(new CommandInput.PointInput(point)));
+        // A point taken with the Tangent snap carries the circle it was taken on.
+        var tangent = CurrentSnap is { Mode: SnapModes.Tangent, Tangent: { } target } snap && snap.Point.NearlyEquals(point)
+            ? target
+            : (TangentTarget?)null;
+        Complete(command.OnInput(new CommandInput.PointInput(point, tangent)));
     }
 
     /// <summary>Chooses one of the active command's options (for example from the right-click menu).</summary>
