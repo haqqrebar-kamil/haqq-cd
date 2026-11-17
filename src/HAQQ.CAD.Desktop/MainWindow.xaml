@@ -165,40 +165,21 @@
         <!-- ============================ Work area ============================ -->
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="250" MinWidth="170" />
-                <ColumnDefinition Width="4" />
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="4" />
                 <ColumnDefinition x:Name="PropertiesColumn" Width="270" MinWidth="170" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
-            <!-- Left panel: drawing explorer. Layers are in their own window (LAYER command). -->
-            <Border Grid.Column="0" Background="{StaticResource PanelBrush}">
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="*" />
-                    </Grid.RowDefinitions>
-
-                    <TextBlock Grid.Row="0" Style="{StaticResource PanelHeader}" Text="DRAWING EXPLORER" />
-                    <ListBox Grid.Row="1" Margin="8,0,8,4" VerticalAlignment="Top" ItemsSource="{Binding ExplorerItems}" Focusable="False"
-                             ItemContainerStyle="{StaticResource PlainListItem}" />
-
-                </Grid>
-            </Border>
-
-            <GridSplitter Grid.Column="1" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Focusable="False" />
-
             <!-- Centre: the CAD canvas -->
-            <Border Grid.Column="2" Background="#21252B" ClipToBounds="True">
+            <Border Grid.Column="0" Background="#21252B" ClipToBounds="True">
                 <local:CadCanvas x:Name="DrawingCanvas" />
             </Border>
 
-            <GridSplitter x:Name="PropertiesSplitter" Grid.Column="3" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Focusable="False" />
+            <GridSplitter x:Name="PropertiesSplitter" Grid.Column="1" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Focusable="False" />
 
             <!-- Right edge: strip that folds the properties panel away to the right and brings it back -->
-            <Border Grid.Column="5" Width="18" Background="{StaticResource PanelAltBrush}" BorderBrush="{StaticResource BorderBrush}"
+            <Border Grid.Column="3" Width="18" Background="{StaticResource PanelAltBrush}" BorderBrush="{StaticResource BorderBrush}"
                     BorderThickness="1,0,0,0" Cursor="Hand" MouseLeftButtonDown="PropertiesToggle_Click"
                     ToolTip="Hide or show the Properties panel">
                 <StackPanel VerticalAlignment="Top" Margin="0,8,0,0">
@@ -214,7 +195,7 @@
             </Border>
 
             <!-- Right panel: properties -->
-            <Border x:Name="PropertiesPanel" Grid.Column="4" Background="{StaticResource PanelBrush}">
+            <Border x:Name="PropertiesPanel" Grid.Column="2" Background="{StaticResource PanelBrush}">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />

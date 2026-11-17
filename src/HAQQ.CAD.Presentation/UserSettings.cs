@@ -12,6 +12,9 @@ public sealed class UserSettings
 
     /// <summary>The object snaps that act automatically while OSNAP is on, as <c>SnapModes</c> flags; null = program default.</summary>
     public int? SnapModes { get; set; }
+
+    /// <summary>Whether the Properties panel starts folded away at the right edge.</summary>
+    public bool PropertiesCollapsed { get; set; } = true;
 }
 
 /// <summary>Loads and saves <see cref="UserSettings"/>. Without a path the settings live only in memory.</summary>
@@ -38,6 +41,10 @@ public sealed class UserSettingsStore
             if (json.RootElement.ValueKind == JsonValueKind.Object &&
                 json.RootElement.TryGetProperty("snapModes", out var m) && m.TryGetInt32(out int modes) && modes >= 0 && modes <= 255)
                 settings.SnapModes = modes;
+            if (json.RootElement.ValueKind == JsonValueKind.Object &&
+                json.RootElement.TryGetProperty("propertiesCollapsed", out var pc) &&
+                pc.ValueKind is JsonValueKind.True or JsonValueKind.False)
+                settings.PropertiesCollapsed = pc.GetBoolean();
         }
         catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException) { }
         return settings;
@@ -51,7 +58,8 @@ public sealed class UserSettingsStore
         {
             Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(_path))!);
             string snap = settings.SnapModes is { } modes ? ",\n  \"snapModes\": " + modes : "";
-            File.WriteAllText(_path, "{\n  \"crosshairPercent\": " + settings.CrosshairPercent + snap + "\n}\n");
+            string panel = ",\n  \"propertiesCollapsed\": " + (settings.PropertiesCollapsed ? "true" : "false");
+            File.WriteAllText(_path, "{\n  \"crosshairPercent\": " + settings.CrosshairPercent + snap + panel + "\n}\n");
             return true;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)

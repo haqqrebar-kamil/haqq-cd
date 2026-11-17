@@ -666,6 +666,21 @@ public class LayerTableTests : IDisposable
     }
 
     [Fact]
+    public void Properties_panel_starts_folded_and_the_choice_is_remembered()
+    {
+        string path = _temp.File("settings.json");
+        var vm = new MainViewModel(new FakeUi(), new RecoveryStore(_temp.File("r1")), new UserSettingsStore(path));
+        Assert.True(vm.PropertiesCollapsed);                // default
+        vm.PropertiesCollapsed = false;
+        vm.SetRunningSnap(HAQQ.CAD.Snapping.SnapModes.Nearest, true);     // other settings share the file
+
+        var again = new MainViewModel(new FakeUi(), new RecoveryStore(_temp.File("r2")), new UserSettingsStore(path));
+        Assert.False(again.PropertiesCollapsed);
+        Assert.True(again.IsRunningSnap(HAQQ.CAD.Snapping.SnapModes.Nearest));
+        Assert.Equal(UserSettings.DefaultCrosshairPercent, again.Session.CrosshairSizePercent);
+    }
+
+    [Fact]
     public void Remove_unused_deletes_empty_layers_in_one_undo_step_and_keeps_used_current_and_layer_0()
     {
         var vm = NewViewModel();

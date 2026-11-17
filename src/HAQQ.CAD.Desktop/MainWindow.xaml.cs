@@ -28,6 +28,7 @@ public partial class MainWindow : Window
         // Property edits rebuild the properties panel; run them after the edit box has finished updating.
         _viewModel.Properties.Dispatch = action => Dispatcher.BeginInvoke(action);
         DataContext = _viewModel;
+        SetPropertiesCollapsed(_viewModel.PropertiesCollapsed);   // folded away unless the user left it open last time
 
         DrawingCanvas.Attach(_viewModel);
         _viewModel.CloseRequested += (_, _) => Close();
@@ -181,13 +182,21 @@ public partial class MainWindow : Window
 
     private GridLength _propertiesWidth = new(270);
 
-    /// <summary>Folds the Properties panel away to the right edge, or brings it back at its previous width.</summary>
+    /// <summary>Click on the strip at the right edge: folds the Properties panel away, or brings it back.</summary>
     private void PropertiesToggle_Click(object sender, MouseButtonEventArgs e)
     {
         bool hide = PropertiesPanel.Visibility == Visibility.Visible;
+        SetPropertiesCollapsed(hide);
+        _viewModel.PropertiesCollapsed = hide;          // remembered for the next start
+        DrawingCanvas.Focus();
+        e.Handled = true;
+    }
+
+    private void SetPropertiesCollapsed(bool hide)
+    {
         if (hide)
         {
-            _propertiesWidth = PropertiesColumn.Width;
+            if (PropertiesColumn.Width.Value >= 170) _propertiesWidth = PropertiesColumn.Width;
             PropertiesColumn.MinWidth = 0;
             PropertiesColumn.Width = new GridLength(0);
         }
@@ -200,8 +209,6 @@ public partial class MainWindow : Window
         PropertiesSplitter.Visibility = hide ? Visibility.Collapsed : Visibility.Visible;
         PropertiesToggleArrow.Text = hide ? "\u00AB" : "\u00BB";
         PropertiesToggleLabel.Visibility = hide ? Visibility.Visible : Visibility.Collapsed;
-        DrawingCanvas.Focus();
-        e.Handled = true;
     }
 
     /// <summary>Right-click on OSNAP: check boxes for the snaps that act automatically.</summary>

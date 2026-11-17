@@ -204,6 +204,19 @@ public sealed class MainViewModel : ObservableObject
         private set => SetProperty(ref _prompt, value);
     }
 
+    /// <summary>Whether the Properties panel is folded away; starts folded, and the choice is remembered per user.</summary>
+    public bool PropertiesCollapsed
+    {
+        get => _userSettings.PropertiesCollapsed;
+        set
+        {
+            if (_userSettings.PropertiesCollapsed == value) return;
+            _userSettings.PropertiesCollapsed = value;
+            _settingsStore.Save(_userSettings);
+            OnPropertyChanged();
+        }
+    }
+
     private string _updateStatus = "";
 
     /// <summary>What the automatic update is doing right now ("Downloading update... 40%"); empty when idle. Shown in the status bar.</summary>
