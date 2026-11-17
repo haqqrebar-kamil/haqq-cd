@@ -16,7 +16,7 @@ The reader and writer live in `src/HAQQ.CAD.Documents/HcadSerializer.cs`.
 ```json
 {
   "format": "HCAD",
-  "schemaVersion": 6,
+  "schemaVersion": 7,
   "minReaderVersion": 1,
   "generator": "HAQQ CAD 0.1.0",
   "recovery": { "originalPath": "C:\\Jobs\\footing.hcad", "savedUtc": "2026-11-14T06:30:00.000Z" },
@@ -179,4 +179,17 @@ rebar objects, bar marks and schedules, revision records, and a compressed conta
   writes either field.
 - A missing or unusable field of a style keeps its standard value; a style that is still not usable is skipped
   with a warning.
+
+## Groups, grid lines and text (schema 7)
+
+- Every entity may have `groupId` (a GUID string). Entities with the same `groupId` belong together (the lines
+  of one grid system). Omitted when the entity is in no group.
+- Entity type `gridline`: a grid line with its label. Straight: `"start": [x, y], "end": [x, y]`. Along an arc:
+  `"center": [x, y], "radius", "startAngle", "endAngle"` (radians, counter-clockwise from start to end).
+  Both: `"label"` (may be empty), `"bubbleDiameter"` (diameter of the label circle, drawing units),
+  `"labelAtStart"`, `"labelAtEnd"` (booleans). The label circle sits just past the end it belongs to, in line
+  with the grid line; it is not stored. The linetype of a grid line applies to the line only.
+- Entity type `text`: one line of text. `"position": [x, y]` (the centre of the text), `"height"` (of a capital
+  letter, drawing units), `"angle"` (radians, counter-clockwise), `"text"`.
+- `minReaderVersion` stays 1: older readers keep these entities as unsupported objects and write them back.
 

@@ -230,6 +230,8 @@ public sealed class CommandRegistry
         r.Register("RECTANG", "Draw a rectangle", () => new RectangleCommand(), "REC", "RECTANGLE");
         r.Register("CIRCLE", "Draw a circle", () => new CircleCommand(), "C");
         r.Register("ARC", "Draw an arc", () => new ArcCommand(), "A");
+        r.Register("GRIDLINES", "Grid line wizard: rectangular or sector, with labels", null, "GL", "GRIDWIZARD");
+        r.Register("GRIDADD", "Add a grid line beside an existing one", () => new AddGridLineCommand(), "GA");
         // Modify
         r.Register("MOVE", "Move objects", () => new MoveCommand(), "M");
         r.Register("COPY", "Copy objects", () => new CopyCommand(), "CO", "CP");
@@ -814,6 +816,10 @@ public sealed class EditorSession
                 Post("Command: DIMSTYLE");
                 ViewCommandRequested?.Invoke("DimensionStyles");
                 return true;
+            case "GRIDLINES":
+                Post("Command: GRIDLINES");
+                ViewCommandRequested?.Invoke("GridLines");
+                return true;
             case "SHORTCUTS":
                 Post("Command: SHORTCUTS");
                 ViewCommandRequested?.Invoke("Shortcuts");
@@ -999,9 +1005,45 @@ public sealed class EditorSession
     {
         var entity = SelectionService.PickAt(Document, point, tolerance);
         if (entity is null) return false;
-        if (toggle && Selection.Contains(entity.Id)) Selection.Remove(entity.Id);
-        else Selection.Add(entity.Id);
+        // An object in a group (a grid system) brings the whole group with it.
+        var picked = GroupOf(entity);
+        if (toggle && Selection.Contains(entity.Id)) foreach (var e in picked) Selection.Remove(e.Id);
+        else foreach (var e in picked) Selection.Add(e.Id);
         return true;
+    }
+
+    /// <summary>Double-click: selects only the object under the click, also when it belongs to a group.</summary>
+    public bool SelectSingleAt(Point2D point, double tolerance)
+    {
+        var entity = SelectionService.PickAt(Document, point, tolerance);
+        if (entity is null) return false;
+        Selection.Clear();
+        Selection.Add(entity.Id);
+        return true;
+    }
+
+    /// <summary>The selectable objects in the same group as <paramref name="entity"/> (just itself when it is in no group).</summary>
+    public IReadOnlyList<Entity> GroupOf(Entity entity)
+    {
+        if (entity.GroupId is not Guid group) return new[] { entity };
+        return Document.EntitiesUnordered
+            .Where(e => e.GroupId == group && SelectionService.IsSelectable(Document, e))
+            .ToList();
+    }
+
+    /// <summary>
+    /// Gives copies made in one go their own groups: copies of objects that were grouped together stay grouped
+    /// with each other, not with the originals.
+    /// </summary>
+    public static void RegroupCopies(IEnumerable<Entity> copies)
+    {
+        var map = new Dictionary<Guid, Guid>();
+        foreach (var copy in copies)
+        {
+            if (copy.GroupId is not Guid old) continue;
+            if (!map.TryGetValue(old, out Guid fresh)) map[old] = fresh = Guid.NewGuid();
+            copy.GroupId = fresh;
+        }
     }
 
     /// <summary>Most selected entities whose grips are searched for a grip click (matches the number drawn).</summary>
@@ -1138,6 +1180,54 @@ public sealed class EditorSession
 
     /// <summary>The dimension placed last in this session: DIMCHAIN and DIMSTACK carry on from it.</summary>
     public Guid? LastDimensionId { get; set; }
+
+    // ----------------------------------------------------------- grid lines
+
+    /// <summary>A name for the next grid system that no layer has yet: "Grid 1", "Grid 2"...</summary>
+    public string NextGridName()
+    {
+        for (int i = 1; ; i++)
+        {
+            string name = "Grid " + i.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            if (Document.FindLayer(name) is null) return name;
+        }
+    }
+
+    /// <summary>
+    /// Adds the objects of a grid system to the drawing on the layer named after the system. The layer is made
+    /// here, with <paramref name="linetype"/>, when it is not there yet. One undo step.
+    /// </summary>
+    public bool CreateGrid(string name, string linetype, IReadOnlyList<Entity> entities)
+    {
+        name = (name ?? "").Trim();
+        if (name.Length == 0 || name.Length > 64 || name.Any(char.IsControl)) { Post("Give the grid system a name (up to 64 characters)."); return false; }
+        if (entities.Count == 0) { Post("That grid has no lines."); return false; }
+
+        Guid layerId;
+        IUndoableAction? layerAction = null;
+        if (Document.FindLayer(name) is { } existing) layerId = existing.Id;
+        else
+        {
+            var layer = new Layer(Guid.NewGuid(), name) { Linetype = Document.FindLinetype(linetype)?.Name ?? Linetypes.Solid };
+            layerId = layer.Id;
+            layerAction = new AddLayerAction(layer);
+        }
+        foreach (var entity in entities) entity.LayerId = layerId;
+
+        var add = new AddEntitiesAction("Grid lines", entities);
+        if (!Execute(layerAction is null ? add : new CompositeAction(add.Name, layerAction, add))) return false;
+        Post($"Grid \"{name}\": {entities.Count} grid lines on layer \"{name}\".");
+        return true;
+    }
+
+    /// <summary>Starts placing a grid by a click: it follows the cursor until its origin is given.</summary>
+    public void BeginGridPlacement(string name, string linetype, Func<Point2D, List<Entity>> build)
+    {
+        if (ActiveCommand is not null) Cancel();
+        _lastCommandName = "GRIDLINES";
+        ActiveCommand = new PlaceGridCommand(name, linetype, build);
+        Complete(ActiveCommand.Start(this));
+    }
 
     // ------------------------------------------------------ dimension styles
 

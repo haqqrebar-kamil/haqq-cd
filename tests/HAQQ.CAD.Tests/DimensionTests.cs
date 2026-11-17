@@ -617,7 +617,7 @@ public class DimensionStyleTests : IDisposable
         var d = doc.Entities.OfType<DimensionEntity>().Single();
         Assert.Equal(s.Document.FindDimensionStyle("Rebar"), d.Style);
         Assert.Equal("(2')", d.GetText(doc.Settings));
-        Assert.Equal(6, HcadSerializer.SchemaVersion);
+        Assert.True(HcadSerializer.SchemaVersion >= 6);
 
         // A schema 5 file: a text height on the dimension and in the units, and no styles.
         string json = System.Text.Encoding.UTF8.GetString(bytes);

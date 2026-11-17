@@ -40,7 +40,7 @@ public static class HcadSerializer
     public const string FormatName = "HCAD";
 
     /// <summary>Schema version written by this build.</summary>
-    public const int SchemaVersion = 6;
+    public const int SchemaVersion = 7;
 
     /// <summary>
     /// Oldest reader that can safely open files written by this build. A file whose
@@ -172,6 +172,7 @@ public static class HcadSerializer
         w.WriteString("linetype", entity.Linetype);
         if (entity.LinetypeScale != 1.0) w.WriteNumber("linetypeScale", entity.LinetypeScale);
         if (entity.LineweightMm is double lw) w.WriteNumber("lineweightMm", lw); else w.WriteNull("lineweightMm");
+        if (entity.GroupId is Guid group) w.WriteString("groupId", group);
         if (entity.CustomProperties.Count > 0) WriteProperties(w, "properties", entity.CustomProperties);
 
         switch (entity)
@@ -189,6 +190,30 @@ public static class HcadSerializer
                 w.WriteNumber("radius", arc.Radius);
                 w.WriteNumber("startAngle", arc.StartAngle);
                 w.WriteNumber("endAngle", arc.EndAngle);
+                break;
+            case GridLineEntity grid:
+                if (grid.IsArc)
+                {
+                    WritePoint(w, "center", grid.Center);
+                    w.WriteNumber("radius", grid.Radius);
+                    w.WriteNumber("startAngle", grid.StartAngle);
+                    w.WriteNumber("endAngle", grid.EndAngle);
+                }
+                else
+                {
+                    WritePoint(w, "start", grid.Start);
+                    WritePoint(w, "end", grid.End);
+                }
+                w.WriteString("label", grid.Label);
+                w.WriteNumber("bubbleDiameter", grid.BubbleDiameter);
+                w.WriteBoolean("labelAtStart", grid.LabelAtStart);
+                w.WriteBoolean("labelAtEnd", grid.LabelAtEnd);
+                break;
+            case TextEntity text:
+                WritePoint(w, "position", text.Position);
+                w.WriteNumber("height", text.Height);
+                w.WriteNumber("angle", text.Angle);
+                w.WriteString("text", text.Text);
                 break;
             case DimensionEntity dimension:
                 w.WriteString("kind", dimension.Kind.ToString());
@@ -524,6 +549,25 @@ public static class HcadSerializer
                 entity = new ArcEntity(ReadId(e), ReadPoint(e.GetProperty("center")), e.GetProperty("radius").GetDouble(),
                     e.GetProperty("startAngle").GetDouble(), e.GetProperty("endAngle").GetDouble());
                 break;
+            case GridLineEntity.Type:
+            {
+                var grid = e.TryGetProperty("center", out var gridCenter)
+                    ? new GridLineEntity(ReadId(e), ReadPoint(gridCenter), e.GetProperty("radius").GetDouble(),
+                        e.GetProperty("startAngle").GetDouble(), e.GetProperty("endAngle").GetDouble())
+                    : new GridLineEntity(ReadId(e), ReadPoint(e.GetProperty("start")), ReadPoint(e.GetProperty("end")));
+                grid.Label = GetString(e, "label");
+                if (e.TryGetProperty("bubbleDiameter", out var bubble) && bubble.ValueKind == JsonValueKind.Number) grid.BubbleDiameter = bubble.GetDouble();
+                grid.LabelAtStart = GetBool(e, "labelAtStart", false);
+                grid.LabelAtEnd = GetBool(e, "labelAtEnd", true);
+                entity = grid;
+                break;
+            }
+            case TextEntity.Type:
+                entity = new TextEntity(ReadId(e), ReadPoint(e.GetProperty("position")), e.GetProperty("height").GetDouble(), GetString(e, "text"))
+                {
+                    Angle = e.TryGetProperty("angle", out var textAngle) && textAngle.ValueKind == JsonValueKind.Number ? textAngle.GetDouble() : 0,
+                };
+                break;
             case DimensionEntity.Type:
                 if (!Enum.TryParse(GetString(e, "kind"), ignoreCase: true, out DimensionKind kind) || !Enum.IsDefined(kind))
                     throw new FormatException("unknown kind of dimension");
@@ -578,6 +622,7 @@ public static class HcadSerializer
         if (e.TryGetProperty("linetypeScale", out var els) && els.ValueKind == JsonValueKind.Number &&
             els.GetDouble() > 0 && double.IsFinite(els.GetDouble())) entity.LinetypeScale = els.GetDouble();
         if (e.TryGetProperty("lineweightMm", out var lw) && lw.ValueKind == JsonValueKind.Number) entity.LineweightMm = lw.GetDouble();
+        if (e.TryGetProperty("groupId", out var gid) && gid.ValueKind == JsonValueKind.String && gid.TryGetGuid(out var groupId)) entity.GroupId = groupId;
         ReadProperties(e, "properties", entity.CustomProperties);
         return entity;
     }

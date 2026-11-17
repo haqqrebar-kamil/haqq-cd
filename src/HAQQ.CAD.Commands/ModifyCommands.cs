@@ -173,6 +173,7 @@ public sealed class CopyCommand : DisplaceCommandBase
             copy.Transform(transform);
             copies.Add(copy);
         }
+        EditorSession.RegroupCopies(copies);
         Session.Execute(new AddEntitiesAction("COPY", copies));
         return CommandResult.Continue;
     }

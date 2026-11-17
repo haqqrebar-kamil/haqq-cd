@@ -296,6 +296,42 @@ public sealed class SceneRenderer
             case DimensionEntity dimension:
                 DrawDimension(surface, view, dimension, style);
                 break;
+
+            case GridLineEntity grid:
+            {
+                if (grid.IsArc) DrawArc(surface, view, new ArcEntity(grid.Center, grid.Radius, grid.StartAngle, grid.EndAngle), style);
+                else DrawSegment(surface, view, view.WorldToScreen(grid.Start), view.WorldToScreen(grid.End), style);
+
+                // The label circles and the label are solid whatever the linetype of the line.
+                var solid = style with { Pattern = null };
+                var plain = solid with { Dashed = false, Width = 1.0 };
+                double radius = grid.BubbleDiameter / 2.0 * view.Scale, textPixels = grid.TextHeight * view.Scale;
+                foreach (var center in grid.BubbleCenters)
+                {
+                    var c = view.WorldToScreen(center);
+                    if (Math.Abs(c.X) > SafeCoordinate || Math.Abs(c.Y) > SafeCoordinate || radius > SafeCoordinate) continue;
+                    if (radius >= 1.0) surface.DrawCircle(c.X, c.Y, radius, solid);
+                    if (textPixels >= MinTextPixels) surface.DrawText(grid.Label, c.X, c.Y, textPixels, 0, plain);
+                }
+                break;
+            }
+
+            case TextEntity text:
+            {
+                var at = view.WorldToScreen(text.Position);
+                if (Math.Abs(at.X) > SafeCoordinate || Math.Abs(at.Y) > SafeCoordinate) break;
+                double pixels = text.Height * view.Scale;
+                var plain = style with { Pattern = null, Dashed = false, Width = 1.0 };
+                if (pixels >= MinTextPixels) surface.DrawText(text.Text, at.X, at.Y, pixels, text.Angle, plain);
+                else
+                {
+                    // Too small to read: a short stroke where the text is.
+                    double half = Math.Max(0.3 * pixels * text.Text.Length, 0.5);
+                    surface.DrawLine(at.X - half * Math.Cos(text.Angle), at.Y + half * Math.Sin(text.Angle),
+                        at.X + half * Math.Cos(text.Angle), at.Y - half * Math.Sin(text.Angle), plain);
+                }
+                break;
+            }
         }
     }
 

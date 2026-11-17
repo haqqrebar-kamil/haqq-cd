@@ -34,6 +34,11 @@ public static class EntityGrips
                 };
             case DimensionEntity dimension:
                 return DimensionGrips(dimension);
+            case TextEntity text:
+                return new[] { text.Position };
+            case GridLineEntity grid:
+                // Start, middle, end. Stretching an end takes its label circle along.
+                return new[] { grid.StartPoint, grid.MidPoint, grid.EndPoint };
             default:
                 return Array.Empty<Point2D>();
         }
@@ -91,8 +96,51 @@ public static class EntityGrips
                 return false;
             case DimensionEntity dimension:
                 return StretchDimension(dimension, gripIndex, target);
+            case TextEntity text:
+                if (gripIndex != 0) return false;
+                text.Position = target;
+                return true;
+            case GridLineEntity grid:
+                return StretchGridLine(grid, gripIndex, target);
         }
         return false;
+    }
+
+    /// <summary>
+    /// Straight: an end goes to the target, the middle moves the whole line. Arc: an end turns to the direction of
+    /// the target (the radius stays), the middle changes the radius.
+    /// </summary>
+    private static bool StretchGridLine(GridLineEntity grid, int gripIndex, Point2D target)
+    {
+        if (!grid.IsArc)
+        {
+            switch (gripIndex)
+            {
+                case 0:
+                    if (target.NearlyEquals(grid.End)) return false;
+                    grid.Start = target;
+                    return true;
+                case 1:
+                    grid.Transform(Transform2D.Translation(target - grid.MidPoint));
+                    return true;
+                case 2:
+                    if (target.NearlyEquals(grid.Start)) return false;
+                    grid.End = target;
+                    return true;
+            }
+            return false;
+        }
+
+        var toward = target - grid.Center;
+        if (toward.Length <= GeoMath.Epsilon) return false;
+        double start = grid.StartAngle, end = grid.EndAngle, radius = grid.Radius;
+        if (gripIndex == 0) start = ArcMath.NormalizeAngle(toward.Angle);
+        else if (gripIndex == 2) end = ArcMath.NormalizeAngle(toward.Angle);
+        else if (gripIndex == 1) radius = toward.Length;
+        else return false;
+        if (ArcMath.Sweep(start, end) <= 1e-9) return false;
+        (grid.StartAngle, grid.EndAngle, grid.Radius) = (start, end, radius);
+        return true;
     }
 
     // Dimension grips.

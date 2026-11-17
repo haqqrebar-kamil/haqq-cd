@@ -37,6 +37,7 @@ public partial class MainWindow : Window
         _viewModel.LinetypesRequested += (_, _) => Dispatcher.BeginInvoke(new Action(ShowLinetypes));
         _viewModel.ShortcutsRequested += (_, _) => Dispatcher.BeginInvoke(new Action(ShowShortcuts));
         _viewModel.DimensionStylesRequested += (_, _) => Dispatcher.BeginInvoke(new Action(ShowDimensionStyles));
+        _viewModel.GridLinesRequested += (_, _) => Dispatcher.BeginInvoke(new Action(ShowGridWizard));
         // Scroll after the list itself has taken in the new line. Scrolling from inside the change
         // notification forces a layout while the list is still one line behind, which WPF rejects.
         _viewModel.History.CollectionChanged += (_, _) =>
@@ -251,6 +252,24 @@ public partial class MainWindow : Window
         _layersWindow = new LayersWindow(_viewModel) { Owner = this };
         _layersWindow.Closed += (_, _) => _layersWindow = null;
         _layersWindow.Show();
+    }
+
+    private bool _gridWizardOpen;
+
+    /// <summary>Shows the grid line wizard as a dialog over the drawing.</summary>
+    private void ShowGridWizard()
+    {
+        if (_gridWizardOpen) return;
+        _gridWizardOpen = true;
+        try
+        {
+            new GridWizardWindow(new GridWizardViewModel(_viewModel.Session)) { Owner = this }.ShowDialog();
+        }
+        finally
+        {
+            _gridWizardOpen = false;
+            DrawingCanvas.Focus();
+        }
     }
 
     private bool _dimensionStylesOpen;

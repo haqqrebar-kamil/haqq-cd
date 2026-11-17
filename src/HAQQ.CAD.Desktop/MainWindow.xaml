@@ -203,6 +203,9 @@
                             </ContextMenu>
                         </Button.ContextMenu>
                     </Button>
+                    <Border Width="1" Margin="6,6" Background="{StaticResource BorderBrush}" />
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconGridLines}" Content="Grid Lines" Command="{Binding RunCommandCommand}" CommandParameter="GRIDLINES" ToolTip="GRIDLINES (GL): grid line wizard - a rectangular or a sector grid with labels, on its own layer" />
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconGridAdd}" Content="Add Grid Line" Command="{Binding RunCommandCommand}" CommandParameter="GRIDADD" ToolTip="GRIDADD (GA): one more grid line beside an existing one - between two lines or past either end" />
                 </StackPanel>
             </TabItem>
             <TabItem Header="MODIFY">

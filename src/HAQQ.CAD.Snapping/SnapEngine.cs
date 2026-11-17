@@ -228,6 +228,12 @@ public static class SnapEngine
             case ArcEntity arc:
                 yield return Piece.Arc(arc.Id, arc.Center, arc.Radius, arc.StartAngle, arc.Sweep);
                 break;
+            case GridLineEntity grid:
+                // Grid lines snap like lines and arcs (ends, middles, and above all their crossings).
+                yield return grid.IsArc
+                    ? Piece.Arc(grid.Id, grid.Center, grid.Radius, grid.StartAngle, grid.Sweep)
+                    : Piece.Segment(grid.Id, grid.Start, grid.End);
+                break;
             case PolylineEntity polyline:
                 for (int i = 0; i < polyline.SegmentCount; i++)
                 {
@@ -374,6 +380,16 @@ public static class SnapEngine
                 if (modes.HasFlag(SnapModes.Center)) yield return (circle.Center, SnapModes.Center);
                 if (modes.HasFlag(SnapModes.Quadrant))
                     foreach (var q in Quadrants(circle.Center, circle.Radius, 0, 2.0 * Math.PI)) yield return q;
+                break;
+
+            case GridLineEntity grid:
+                if (modes.HasFlag(SnapModes.Endpoint))
+                {
+                    yield return (grid.StartPoint, SnapModes.Endpoint);
+                    yield return (grid.EndPoint, SnapModes.Endpoint);
+                }
+                if (modes.HasFlag(SnapModes.Midpoint)) yield return (grid.MidPoint, SnapModes.Midpoint);
+                if (grid.IsArc && modes.HasFlag(SnapModes.Center)) yield return (grid.Center, SnapModes.Center);
                 break;
 
             case ArcEntity arc:

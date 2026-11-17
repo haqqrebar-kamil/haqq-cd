@@ -404,6 +404,36 @@ public sealed class PropertiesViewModel : ObservableObject
                 Rows.Add(new PropertyRow("Length", F(arc.Length)));
                 break;
 
+            case GridLineEntity grid:
+                Rows.Add(Editable("Label", grid.Label, text =>
+                    _session.ModifyEntities(new[] { id }, e => ((GridLineEntity)e).Label = text.Trim(), "Edit grid label")));
+                Rows.Add(Editable("Label at", grid.LabelAtStart && grid.LabelAtEnd ? "Both" : grid.LabelAtStart ? "Start" : grid.LabelAtEnd ? "End" : "None", text =>
+                {
+                    string where = text.Trim().ToUpperInvariant();
+                    if (where is not ("START" or "END" or "BOTH" or "NONE"))
+                    {
+                        _session.Post("Type Start, End, Both or None.");
+                        return false;
+                    }
+                    return _session.ModifyEntities(new[] { id }, e =>
+                    {
+                        ((GridLineEntity)e).LabelAtStart = where is "START" or "BOTH";
+                        ((GridLineEntity)e).LabelAtEnd = where is "END" or "BOTH";
+                    }, "Move grid label");
+                }));
+                Rows.Add(Length("Circle size", grid.BubbleDiameter, id, (e, v) => ((GridLineEntity)e).BubbleDiameter = v));
+                Rows.Add(new PropertyRow("Length", F(grid.IsArc ? grid.Radius * grid.Sweep : grid.Start.DistanceTo(grid.End))));
+                if (grid.IsArc) Rows.Add(Length("Radius", grid.Radius, id, (e, v) => ((GridLineEntity)e).Radius = v));
+                break;
+
+            case TextEntity label:
+                Rows.Add(Editable("Text", label.Text, text =>
+                    _session.ModifyEntities(new[] { id }, e => ((TextEntity)e).Text = text.Trim(), "Edit text")));
+                Rows.Add(Length("Height", label.Height, id, (e, v) => ((TextEntity)e).Height = v));
+                Rows.Add(Length("Position X", label.Position.X, id, (e, v) => ((TextEntity)e).Position = new Point2D(v, ((TextEntity)e).Position.Y)));
+                Rows.Add(Length("Position Y", label.Position.Y, id, (e, v) => ((TextEntity)e).Position = new Point2D(((TextEntity)e).Position.X, v)));
+                break;
+
             case DimensionEntity dimension:
                 Rows.Add(new PropertyRow("Measures", dimension.Kind switch
                 {

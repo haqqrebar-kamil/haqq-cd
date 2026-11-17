@@ -43,6 +43,7 @@ public abstract class TransformCommandBase : SelectionCommandBase
             copy.Transform(transform);
             copies.Add(copy);
         }
+        EditorSession.RegroupCopies(copies);
         if (copies.Count > 0) Session.Execute(new AddEntitiesAction(Name, copies));
     }
 

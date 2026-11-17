@@ -78,6 +78,7 @@ public sealed class MainViewModel : ObservableObject
             if (name == "Linetypes") LinetypesRequested?.Invoke(this, EventArgs.Empty);
             if (name == "Shortcuts") ShortcutsRequested?.Invoke(this, EventArgs.Empty);
             if (name == "DimensionStyles") DimensionStylesRequested?.Invoke(this, EventArgs.Empty);
+            if (name == "GridLines") GridLinesRequested?.Invoke(this, EventArgs.Empty);
         };
 
         RunCommandCommand = new RelayCommand(p => RunCommand(p as string ?? ""));
@@ -124,6 +125,9 @@ public sealed class MainViewModel : ObservableObject
 
     /// <summary>The dimension style strip of the ribbon.</summary>
     public DimensionBarViewModel DimensionBar { get; }
+
+    /// <summary>The GRIDLINES command asked the shell to show the grid line wizard.</summary>
+    public event EventHandler? GridLinesRequested;
 
     /// <summary>The DIMSTYLE command asked the shell to show the dimension settings.</summary>
     public event EventHandler? DimensionStylesRequested;

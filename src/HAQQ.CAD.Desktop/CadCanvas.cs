@@ -372,6 +372,14 @@ public sealed class CadCanvas : FrameworkElement
                 break;
 
             case MouseButton.Left:
+                // Double-click with no command running: only the object under the cursor, even inside a group.
+                if (e.ClickCount == 2 && !_viewModel.Session.WantsPoint && _viewModel.Session.ActiveCommand is null &&
+                    _viewModel.Session.SelectSingleAt(ToModel(position), _view.PixelsToWorld(PickBoxPixels)))
+                {
+                    _windowStart = null;
+                    _gripDown = null;
+                    break;
+                }
                 OnLeftClick(position);
                 break;
 

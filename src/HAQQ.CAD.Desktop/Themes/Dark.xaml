@@ -59,6 +59,9 @@
     <Geometry x:Key="GlyphNoPlot">M6,7 L6,3 L14,3 L14,7 M4,7 L16,7 L16,14 L14,14 M6,14 L4,14 L4,7 M6,12 L14,12 L14,17 L6,17 Z M2,2 L18,18</Geometry>
     <Geometry x:Key="IconShortcuts">M2,5 L18,5 L18,15 L2,15 Z M5,8 L6,8 M8.5,8 L9.5,8 M12,8 L13,8 M15,8 L15.5,8 M5,10.5 L6,10.5 M8.5,10.5 L9.5,10.5 M12,10.5 L13,10.5 M6,13 L14,13</Geometry>
     <Geometry x:Key="IconDimSettings">M3,5 L11,5 M15,5 L17,5 M13,3.2 A1.8,1.8 0 1 1 13,6.8 A1.8,1.8 0 1 1 13,3.2 M3,10 L5,10 M9,10 L17,10 M7,8.2 A1.8,1.8 0 1 1 7,11.8 A1.8,1.8 0 1 1 7,8.2 M3,15 L10,15 M14,15 L17,15 M12,13.2 A1.8,1.8 0 1 1 12,16.8 A1.8,1.8 0 1 1 12,13.2</Geometry>
+    <!-- Grid lines: lines with label circles; and one more line being added -->
+    <Geometry x:Key="IconGridLines">M6,6 L6,18 M12,6 L12,18 M2,10 L18,10 M2,15 L18,15 M4.2,4 A1.8,1.8 0 1 1 7.8,4 A1.8,1.8 0 1 1 4.2,4 M10.2,4 A1.8,1.8 0 1 1 13.8,4 A1.8,1.8 0 1 1 10.2,4</Geometry>
+    <Geometry x:Key="IconGridAdd">M4,6 L4,18 M16,6 L16,18 M10,9 L10,18 M2.2,4 A1.8,1.8 0 1 1 5.8,4 A1.8,1.8 0 1 1 2.2,4 M14.2,4 A1.8,1.8 0 1 1 17.8,4 A1.8,1.8 0 1 1 14.2,4 M10,2 L10,7 M7.5,4.5 L12.5,4.5</Geometry>
     <Geometry x:Key="IconArrowDown">M0,0 L4,4 L8,0</Geometry>
 
     <!-- Ribbon button: glyph above caption. Tag carries the glyph geometry. -->
