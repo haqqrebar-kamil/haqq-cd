@@ -142,6 +142,13 @@ public sealed class DrawingDocument
         return null;
     }
 
+    /// <summary>
+    /// A linetype name read from a file, brought up to date: a name this drawing defines is kept; otherwise a
+    /// built-in name from an earlier build becomes the current one.
+    /// </summary>
+    public string CurrentLinetypeName(string name) =>
+        Linetypes.IsReserved(name) || FindLinetype(name) is not null ? name : Linetypes.FromEarlierName(name);
+
     /// <summary>Adds a linetype defined by the user. The name must be new and not ByLayer / ByBlock.</summary>
     public void AddLinetype(LinetypeDefinition linetype, int? index = null)
     {
@@ -198,7 +205,7 @@ public sealed class DrawingDocument
     {
         string name = entity.Linetype;
         if (string.Equals(name, Linetypes.ByLayer, StringComparison.OrdinalIgnoreCase))
-            name = GetLayer(entity.LayerId)?.Linetype ?? Linetypes.Continuous;
+            name = GetLayer(entity.LayerId)?.Linetype ?? Linetypes.Solid;
         return FindLinetype(name) ?? _linetypes[0];
     }
 

@@ -212,7 +212,7 @@ public class DocumentTests
         {
             Color = CadColor.FromRgb(1, 2, 3),
             LineweightMm = 0.5,
-            Linetype = "Hidden",
+            Linetype = "Short Dash",
         };
         poly.CustomProperties["mark"] = "A1";
 
@@ -228,7 +228,7 @@ public class DocumentTests
         Assert.NotEqual(poly.Id, copy.Id);
         Assert.Equal(CadColor.FromRgb(1, 2, 3), copy.Color);
         Assert.Equal(0.5, copy.LineweightMm);
-        Assert.Equal("Hidden", copy.Linetype);
+        Assert.Equal("Short Dash", copy.Linetype);
         Assert.True(copy.IsClosed);
         Assert.Equal(12.0, poly.Length, 12);
         Assert.Equal(6.0, poly.Area, 12);

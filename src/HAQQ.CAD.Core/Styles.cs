@@ -61,14 +61,15 @@ public static class Linetypes
     /// </summary>
     public const string ByBlock = "ByBlock";
 
-    public const string Continuous = "Continuous";
-    public const string Dashed = "Dashed";
-    public const string Center = "Center";
-    public const string Hidden = "Hidden";
-    public const string Phantom = "Phantom";
-    public const string DashDot = "DashDot";
-    public const string Dot = "Dot";
-    public const string Border = "Border";
+    // The names are HAQQ CAD's own: they say what the line looks like.
+    public const string Solid = "Solid";
+    public const string Dash = "Dash";
+    public const string ShortDash = "Short Dash";
+    public const string LongShort = "Long Short";
+    public const string LongShortShort = "Long Short Short";
+    public const string DashDot = "Dash Dot";
+    public const string Dotted = "Dotted";
+    public const string DashDashDot = "Dash Dash Dot";
 
     public static bool IsReserved(string? name) =>
         string.Equals(name, ByLayer, StringComparison.OrdinalIgnoreCase) ||
@@ -77,15 +78,29 @@ public static class Linetypes
     /// <summary>The linetypes every drawing has. Lengths are in drawing units.</summary>
     public static IReadOnlyList<LinetypeDefinition> BuiltIn { get; } = new[]
     {
-        new LinetypeDefinition(Continuous, "Solid line", Array.Empty<double>()),
-        new LinetypeDefinition(Dashed, "Dashed __ __ __ __ __", new[] { 0.5, 0.25 }),
-        new LinetypeDefinition(Center, "Center ____ _ ____ _ ____", new[] { 1.25, 0.25, 0.25, 0.25 }),
-        new LinetypeDefinition(Hidden, "Hidden _ _ _ _ _ _ _ _ (short dashes)", new[] { 0.25, 0.125 }),
-        new LinetypeDefinition(Phantom, "Phantom ____ _ _ ____ _ _ (center line with 2 short dashes)", new[] { 1.25, 0.25, 0.25, 0.25, 0.25, 0.25 }),
-        new LinetypeDefinition(DashDot, "Dash dot __ . __ . __ .", new[] { 0.5, 0.25, 0.0, 0.25 }),
-        new LinetypeDefinition(Dot, "Dotted . . . . . . . .", new[] { 0.0, 0.25 }),
-        new LinetypeDefinition(Border, "Border __ __ . __ __ .", new[] { 0.5, 0.25, 0.5, 0.25, 0.0, 0.25 }),
+        new LinetypeDefinition(Solid, "Unbroken line", Array.Empty<double>()),
+        new LinetypeDefinition(Dash, "Even dashes", new[] { 0.5, 0.25 }),
+        new LinetypeDefinition(ShortDash, "Short dashes, for edges that are out of sight", new[] { 0.25, 0.125 }),
+        new LinetypeDefinition(LongShort, "Long dash, short dash, for centerlines", new[] { 1.25, 0.25, 0.25, 0.25 }),
+        new LinetypeDefinition(LongShortShort, "Long dash, two short dashes", new[] { 1.25, 0.25, 0.25, 0.25, 0.25, 0.25 }),
+        new LinetypeDefinition(DashDot, "Dash, dot", new[] { 0.5, 0.25, 0.0, 0.25 }),
+        new LinetypeDefinition(Dotted, "Dots", new[] { 0.0, 0.25 }),
+        new LinetypeDefinition(DashDashDot, "Two dashes, dot", new[] { 0.5, 0.25, 0.5, 0.25, 0.0, 0.25 }),
     };
+
+    /// <summary>
+    /// Names the built-in linetypes had in development builds before 17 Nov 2026 (and "Continuous", which every
+    /// earlier drawing stores for its layers), with the name used now. Applied when a drawing is opened.
+    /// </summary>
+    private static readonly Dictionary<string, string> EarlierNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["Continuous"] = Solid, ["Dashed"] = Dash, ["Hidden"] = ShortDash, ["Center"] = LongShort,
+        ["Phantom"] = LongShortShort, ["DashDot"] = DashDot, ["Dot"] = Dotted, ["Border"] = DashDashDot,
+    };
+
+    /// <summary>The current name for a linetype name read from a drawing saved by an earlier build.</summary>
+    public static string FromEarlierName(string name) =>
+        EarlierNames.TryGetValue(name.Trim(), out string? current) ? current : name;
 
     public static bool IsBuiltIn(string? name) =>
         BuiltIn.Any(l => string.Equals(l.Name, name, StringComparison.OrdinalIgnoreCase));
@@ -181,7 +196,7 @@ public sealed class Layer
 
     /// <summary>Layer colour. Always an explicit RGB colour.</summary>
     public CadColor Color { get; set; } = CadColor.White;
-    public string Linetype { get; set; } = Linetypes.Continuous;
+    public string Linetype { get; set; } = Linetypes.Solid;
     public double LineweightMm { get; set; } = DefaultLineweightMm;
 
     /// <summary>On/off switch. Hidden layers are not drawn or selectable.</summary>

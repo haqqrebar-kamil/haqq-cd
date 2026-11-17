@@ -383,7 +383,7 @@ public static class HcadSerializer
                 var layer = new Layer(layerId, name);
                 if (CadColor.TryParse(GetString(le, "color"), out var color) && color.IsExplicit) layer.Color = color;
                 string linetype = GetString(le, "linetype");
-                if (linetype.Length > 0) layer.Linetype = linetype;
+                if (linetype.Length > 0) layer.Linetype = document.CurrentLinetypeName(linetype);
                 if (le.TryGetProperty("lineweightMm", out var lw) && lw.ValueKind == JsonValueKind.Number) layer.LineweightMm = lw.GetDouble();
                 layer.IsVisible = GetBool(le, "visible", true);
                 layer.IsLocked = GetBool(le, "locked", false);
@@ -418,6 +418,7 @@ public static class HcadSerializer
                 try
                 {
                     entity = ReadEntity(ee, type, out problem);
+                    if (entity is not null) entity.Linetype = document.CurrentLinetypeName(entity.Linetype);
                 }
                 catch (Exception ex) when (ex is InvalidOperationException or FormatException or KeyNotFoundException or ArgumentException)
                 {

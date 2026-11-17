@@ -27,7 +27,7 @@ public class HcadSerializationTests
         var rebar = new Layer(Guid.NewGuid(), "REBAR")
         {
             Color = CadColor.FromRgb(255, 0, 0),
-            Linetype = "Hidden",
+            Linetype = "Short Dash",
             LineweightMm = 0.5,
             IsLocked = true,
         };
@@ -40,7 +40,7 @@ public class HcadSerializationTests
         {
             LayerId = rebar.Id,
             Color = CadColor.FromRgb(10, 20, 30),
-            Linetype = "Center",
+            Linetype = "Long Short",
             LineweightMm = 0.35,
         };
         line.CustomProperties["barMark"] = "A1";
