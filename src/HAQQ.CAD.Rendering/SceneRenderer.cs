@@ -28,6 +28,12 @@ public interface IRenderSurface
 
     /// <summary>Draws a rectangle outline, optionally filled with the stroke colour at <paramref name="fillAlpha"/> (0-255).</summary>
     void DrawRectangle(double x, double y, double width, double height, in RenderStyle style, byte fillAlpha);
+
+    /// <summary>
+    /// Draws one line of text centred on (<paramref name="cx"/>, <paramref name="cy"/>). <paramref name="height"/> is the
+    /// height of a capital letter in pixels; <paramref name="angle"/> is counter-clockwise in radians (0 = left to right).
+    /// </summary>
+    void DrawText(string text, double cx, double cy, double height, double angle, in RenderStyle style);
 }
 
 public static class RenderTheme
@@ -85,9 +91,11 @@ public sealed class SceneRenderer
     private const int MaxGrips = 2000;
 
     private readonly List<ScreenPoint> _buffer = new();
+    private DrawingSettings _settings = new();
 
     public RenderStats Render(IRenderSurface surface, DrawingDocument document, ViewTransform view, RenderOptions options)
     {
+        _settings = document.Settings;
         if (options.ShowGrid) DrawGrid(surface, document, view);
 
         // Viewport culling through the spatial index: only entities near the view are visited.
@@ -260,7 +268,50 @@ public sealed class SceneRenderer
             case ArcEntity arc:
                 DrawArc(surface, view, arc, style);
                 break;
+
+            case DimensionEntity dimension:
+                DrawDimension(surface, view, dimension, style);
+                break;
         }
+    }
+
+    /// <summary>Text smaller than this many pixels is left out (it could not be read anyway).</summary>
+    public const double MinTextPixels = 3.0;
+
+    private void DrawDimension(IRenderSurface surface, ViewTransform view, DimensionEntity dimension, in RenderStyle style)
+    {
+        // Dimensions are always drawn with solid lines, whatever the linetype of their layer.
+        var solid = style with { Pattern = null };
+        var g = dimension.BuildGeometry();
+
+        foreach (var (a, b) in g.Lines)
+            DrawSegment(surface, view, view.WorldToScreen(a), view.WorldToScreen(b), solid);
+
+        foreach (var arc in g.Arcs)
+        {
+            if (arc.Sweep >= 2.0 * Math.PI - 1e-9)
+                DrawCircle(surface, view, new CircleEntity(arc.Center, arc.Radius), solid);
+            else
+                DrawArc(surface, view, new ArcEntity(arc.Center, arc.Radius, arc.StartAngle, arc.StartAngle + arc.Sweep), solid);
+        }
+
+        double height = dimension.TextHeight * view.Scale;          // pixels
+        if (height < MinTextPixels) return;                        // arrows and text too small to see
+
+        double length = dimension.TextHeight, half = length / 6.0;
+        var fill = solid with { Dashed = false, Width = 1.0 };
+        foreach (var (tip, direction) in g.Arrows)
+        {
+            var back = tip - direction * length;
+            var side = new Vector2D(-direction.Y, direction.X) * half;
+            var points = new[] { view.WorldToScreen(tip), view.WorldToScreen(back + side), view.WorldToScreen(back - side) };
+            if (points.All(p => Math.Abs(p.X) <= SafeCoordinate && Math.Abs(p.Y) <= SafeCoordinate))
+                surface.FillPolygon(points, fill);
+        }
+
+        var at = view.WorldToScreen(g.TextCenter);
+        if (Math.Abs(at.X) <= SafeCoordinate && Math.Abs(at.Y) <= SafeCoordinate)
+            surface.DrawText(dimension.GetText(_settings), at.X, at.Y, height, g.TextAngle, fill);
     }
 
     private void DrawArc(IRenderSurface surface, ViewTransform view, ArcEntity arc, in RenderStyle style)

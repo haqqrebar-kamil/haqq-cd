@@ -16,7 +16,7 @@ The reader and writer live in `src/HAQQ.CAD.Documents/HcadSerializer.cs`.
 ```json
 {
   "format": "HCAD",
-  "schemaVersion": 4,
+  "schemaVersion": 5,
   "minReaderVersion": 1,
   "generator": "HAQQ CAD 0.1.0",
   "recovery": { "originalPath": "C:\\Jobs\\footing.hcad", "savedUtc": "2026-11-14T06:30:00.000Z" },
@@ -142,3 +142,22 @@ Reserved for later phases; each will follow the versioning rules above:
 ellipses, splines, text, dimensions, hatches, blocks and block references, layouts and viewports,
 rebar objects, bar marks and schedules, revision records, and a compressed container
 (ZIP with `document.json`, thumbnails and embedded resources).
+
+## Dimensions (schema 5)
+
+- Entity type `dimension`:
+  `{ "type": "dimension", "kind", "p1": [x, y], "p2": [x, y], "center": [x, y], "linePoint": [x, y], "angle", "textHeight", "text" }`
+  plus the common entity fields (id, layerId, color, linetype, lineweightMm).
+- `kind`: `Linear` (distance between `p1` and `p2` measured along the direction `angle`, in radians; 0 = horizontal),
+  `Aligned` (true distance between `p1` and `p2`), `Radius` and `Diameter` (`center`, and `p1` on the circle where
+  the arrow touches), `Angle` (angle at `center` between the rays to `p1` and `p2`, on the side of `linePoint`),
+  `ArcLength` (length along the arc about `center` from `p1` counter-clockwise to `p2`).
+- `linePoint`: a point the dimension line, or dimension arc, passes through.
+- `textHeight`: height of the text in drawing units; arrowheads and gaps are sized from it.
+- `text`: empty to show the measured value; otherwise the text to show, in which `<>` stands for the measured value.
+- The measured value is **not stored**: a reader works it out from the points. Fields a kind does not use are
+  still written (as written by the program, normally `[0, 0]` or `0`).
+- `document.units.dimensionTextHeight`: text height given to new dimensions (default 4).
+- `minReaderVersion` stays 1: a reader that does not know `dimension` keeps the entity as an unsupported object
+  and writes it back unchanged.
+

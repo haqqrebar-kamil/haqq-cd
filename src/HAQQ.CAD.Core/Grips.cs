@@ -32,6 +32,8 @@ public static class EntityGrips
                     new Point2D(circle.Center.X - circle.Radius, circle.Center.Y),
                     new Point2D(circle.Center.X, circle.Center.Y - circle.Radius),
                 };
+            case DimensionEntity dimension:
+                return DimensionGrips(dimension);
             default:
                 return Array.Empty<Point2D>();
         }
@@ -87,7 +89,82 @@ public static class EntityGrips
                     case 3: arc.Center = target; return true;
                 }
                 return false;
+            case DimensionEntity dimension:
+                return StretchDimension(dimension, gripIndex, target);
         }
+        return false;
+    }
+
+    // Dimension grips.
+    //   Linear, Aligned:   0 = first point, 1 = second point, 2 = middle of the dimension line (moves the line)
+    //   Radius, Diameter:  0 = far end of the line (turns the dimension round the circle and sets its reach), 1 = centre (moves it)
+    //   Angle:             0 = first point, 1 = second point, 2 = middle of the arc (sets its radius and side)
+    //   Arc length:        0 = middle of the dimension arc
+    private static IReadOnlyList<Point2D> DimensionGrips(DimensionEntity d)
+    {
+        switch (d.Kind)
+        {
+            case DimensionKind.Linear:
+            case DimensionKind.Aligned:
+            {
+                var dir = d.Direction;
+                var d1 = d.LinePoint + dir * (d.P1 - d.LinePoint).Dot(dir);
+                var d2 = d.LinePoint + dir * (d.P2 - d.LinePoint).Dot(dir);
+                return new[] { d.P1, d.P2, Point2D.Midpoint(d1, d2) };
+            }
+            case DimensionKind.Radius:
+            case DimensionKind.Diameter:
+            {
+                var u = (d.P1 - d.Center).Normalized();
+                return new[] { d.Center + u * (d.LinePoint - d.Center).Length, d.Center };
+            }
+            default:
+            {
+                var g = d.BuildGeometry();
+                var arc = g.Arcs[0];
+                var mid = ArcMath.PointAt(arc.Center, arc.Radius, arc.StartAngle + arc.Sweep / 2.0);
+                return d.Kind == DimensionKind.Angle ? new[] { d.P1, d.P2, mid } : new[] { mid };
+            }
+        }
+    }
+
+    private static bool StretchDimension(DimensionEntity d, int gripIndex, Point2D target)
+    {
+        var before = (d.P1, d.P2, d.Center, d.LinePoint);
+        switch (d.Kind)
+        {
+            case DimensionKind.Linear:
+            case DimensionKind.Aligned:
+                if (gripIndex == 0) d.P1 = target;
+                else if (gripIndex == 1) d.P2 = target;
+                else if (gripIndex == 2) d.LinePoint = target;
+                else return false;
+                break;
+            case DimensionKind.Radius:
+            case DimensionKind.Diameter:
+                if (gripIndex == 0)
+                {
+                    var u = (target - d.Center).Normalized();
+                    if (u == Vector2D.Zero) return false;
+                    d.P1 = d.Center + u * d.P1.DistanceTo(d.Center);
+                    d.LinePoint = target;
+                }
+                else if (gripIndex == 1) d.Transform(Transform2D.Translation(target - d.Center));
+                else return false;
+                break;
+            case DimensionKind.Angle:
+                if (gripIndex == 0) d.P1 = target;
+                else if (gripIndex == 1) d.P2 = target;
+                else if (gripIndex == 2) d.LinePoint = target;
+                else return false;
+                break;
+            default:
+                if (gripIndex != 0) return false;
+                d.LinePoint = target;
+                break;
+        }
+        if (d.IsValid) return true;
+        (d.P1, d.P2, d.Center, d.LinePoint) = before;
         return false;
     }
 

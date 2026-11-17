@@ -111,4 +111,25 @@ internal sealed class WpfRenderSurface : IRenderSurface
         Brush? fill = fillAlpha > 0 ? GetFill(style, fillAlpha) : null;
         Target.DrawRectangle(fill, GetPen(style), new Rect(x, y, width, height));
     }
+
+    private static readonly Typeface TextFace = new(new FontFamily("Segoe UI"), FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
+
+    /// <summary>A capital letter of the text font is about this fraction of the font size.</summary>
+    private const double CapHeightRatio = 0.7;
+
+    public void DrawText(string text, double cx, double cy, double height, double angle, in RenderStyle style)
+    {
+        if (Target is null || string.IsNullOrEmpty(text) || !(height > 0)) return;
+        double size = height / CapHeightRatio;
+        if (size > 3000) return;                       // zoomed in so far that one letter is larger than the screen
+
+        var formatted = new FormattedText(text, System.Globalization.CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
+            TextFace, size, GetFill(style, 255), 1.0);
+
+        // The surface measures angles counter-clockwise; WPF turns clockwise because its Y axis points down.
+        bool turned = Math.Abs(angle) > 1e-9;
+        if (turned) Target.PushTransform(new RotateTransform(-angle * 180.0 / Math.PI, cx, cy));
+        Target.DrawText(formatted, new Point(cx - formatted.Width / 2.0, cy - formatted.Height / 2.0));
+        if (turned) Target.Pop();
+    }
 }

@@ -40,7 +40,7 @@ public static class HcadSerializer
     public const string FormatName = "HCAD";
 
     /// <summary>Schema version written by this build.</summary>
-    public const int SchemaVersion = 4;
+    public const int SchemaVersion = 5;
 
     /// <summary>
     /// Oldest reader that can safely open files written by this build. A file whose
@@ -93,6 +93,7 @@ public static class HcadSerializer
         w.WriteNumber("gridSpacing", s.GridSpacing);
         w.WriteNumber("snapSpacing", s.SnapSpacing);
         w.WriteNumber("linetypeScale", s.LinetypeScale);
+        w.WriteNumber("dimensionTextHeight", s.DimensionTextHeight);
         w.WriteEndObject();
 
         // Linetypes defined in this drawing (the built-in ones are not stored).
@@ -177,6 +178,16 @@ public static class HcadSerializer
                 w.WriteNumber("radius", arc.Radius);
                 w.WriteNumber("startAngle", arc.StartAngle);
                 w.WriteNumber("endAngle", arc.EndAngle);
+                break;
+            case DimensionEntity dimension:
+                w.WriteString("kind", dimension.Kind.ToString());
+                WritePoint(w, "p1", dimension.P1);
+                WritePoint(w, "p2", dimension.P2);
+                WritePoint(w, "center", dimension.Center);
+                WritePoint(w, "linePoint", dimension.LinePoint);
+                w.WriteNumber("angle", dimension.Angle);
+                w.WriteNumber("textHeight", dimension.TextHeight);
+                w.WriteString("text", dimension.TextOverride);
                 break;
             case PolylineEntity polyline:
                 w.WriteBoolean("closed", polyline.IsClosed);
@@ -329,6 +340,8 @@ public static class HcadSerializer
             if (units.TryGetProperty("snapSpacing", out var ss) && ss.GetDouble() > 0) s.SnapSpacing = ss.GetDouble();
             if (units.TryGetProperty("linetypeScale", out var lts) && lts.ValueKind == JsonValueKind.Number &&
                 lts.GetDouble() > 0 && double.IsFinite(lts.GetDouble())) s.LinetypeScale = lts.GetDouble();
+            if (units.TryGetProperty("dimensionTextHeight", out var dth) && dth.ValueKind == JsonValueKind.Number &&
+                dth.GetDouble() > 0 && double.IsFinite(dth.GetDouble())) s.DimensionTextHeight = dth.GetDouble();
         }
 
         if (doc.TryGetProperty("linetypes", out var linetypes) && linetypes.ValueKind == JsonValueKind.Array)
@@ -474,6 +487,20 @@ public static class HcadSerializer
             case ArcEntity.Type:
                 entity = new ArcEntity(ReadId(e), ReadPoint(e.GetProperty("center")), e.GetProperty("radius").GetDouble(),
                     e.GetProperty("startAngle").GetDouble(), e.GetProperty("endAngle").GetDouble());
+                break;
+            case DimensionEntity.Type:
+                if (!Enum.TryParse(GetString(e, "kind"), ignoreCase: true, out DimensionKind kind) || !Enum.IsDefined(kind))
+                    throw new FormatException("unknown kind of dimension");
+                entity = new DimensionEntity(ReadId(e), kind)
+                {
+                    P1 = ReadPoint(e.GetProperty("p1")),
+                    P2 = ReadPoint(e.GetProperty("p2")),
+                    Center = ReadPoint(e.GetProperty("center")),
+                    LinePoint = ReadPoint(e.GetProperty("linePoint")),
+                    Angle = e.GetProperty("angle").GetDouble(),
+                    TextHeight = e.GetProperty("textHeight").GetDouble(),
+                    TextOverride = GetString(e, "text"),
+                };
                 break;
             case PolylineEntity.Type:
                 var vertices = new List<Point2D>();

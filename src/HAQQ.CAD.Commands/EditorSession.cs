@@ -145,6 +145,15 @@ public sealed class CommandRegistry
         r.Register("COPY", () => new CopyCommand(), "CO", "CP");
         r.Register("ERASE", () => new EraseCommand(), "E", "DELETE", "DEL");
         r.Register("ARC", () => new ArcCommand(), "A");
+        r.Register("DIM", () => new LinearDimensionCommand(aligned: false), "DL", "DIMLIN");
+        r.Register("DIMALIGN", () => new LinearDimensionCommand(aligned: true), "DA");
+        r.Register("DIMRAD", () => new RadialDimensionCommand(diameter: false), "DR");
+        r.Register("DIMDIA", () => new RadialDimensionCommand(diameter: true), "DD");
+        r.Register("DIMANGLE", () => new AngularDimensionCommand(arcLength: false), "DG");
+        r.Register("DIMARCLEN", () => new AngularDimensionCommand(arcLength: true), "DARC");
+        r.Register("DIMCHAIN", () => new RunningDimensionCommand(stack: false), "DC");
+        r.Register("DIMSTACK", () => new RunningDimensionCommand(stack: true), "DS");
+        r.Register("DIMSIZE", () => new DimensionSizeCommand(), "DSIZE");
         r.Register("ROTATE", () => new RotateCommand(), "RO");
         r.Register("SCALE", () => new ScaleCommand(), "SC");
         r.Register("MIRROR", () => new MirrorCommand(), "MI");
@@ -409,6 +418,7 @@ public sealed class EditorSession
         OffsetDistance = null;
         FilletRadius = 0;
         ChamferDistances = (0, 0);
+        LastDimensionId = null;
         NewObjectDefaults = new NewObjectProperties();
         NewObjectOverride = null;
         _overrideSaved = false;
@@ -874,6 +884,18 @@ public sealed class EditorSession
         if (!Execute(new RemoveLinetypeAction(name.Trim()))) return false;
         Post($"Linetype \"{name.Trim()}\" deleted.");
         return true;
+    }
+
+    /// <summary>The dimension placed last in this session: DIMCHAIN and DIMSTACK carry on from it.</summary>
+    public Guid? LastDimensionId { get; set; }
+
+    /// <summary>Sets the text height new dimensions get (drawing units).</summary>
+    public bool SetDimensionTextHeight(double height)
+    {
+        if (!(height > 0) || !double.IsFinite(height)) { Post("The text height must be more than 0."); return false; }
+        var after = Document.Settings.Clone();
+        after.DimensionTextHeight = height;
+        return Execute(new ModifySettingsAction("Dimension size", Document.Settings, after));
     }
 
     /// <summary>Sets the drawing's linetype scale (all dash and gap lengths are multiplied by it).</summary>

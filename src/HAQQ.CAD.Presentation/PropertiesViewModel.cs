@@ -395,6 +395,24 @@ public sealed class PropertiesViewModel : ObservableObject
                 Rows.Add(new PropertyRow("Length", F(arc.Length)));
                 break;
 
+            case DimensionEntity dimension:
+                Rows.Add(new PropertyRow("Measures", dimension.Kind switch
+                {
+                    DimensionKind.Linear => Math.Abs(Math.Sin(dimension.Angle)) < 1e-9 ? "Horizontal distance"
+                        : Math.Abs(Math.Cos(dimension.Angle)) < 1e-9 ? "Vertical distance" : "Distance at an angle",
+                    DimensionKind.Aligned => "Distance",
+                    DimensionKind.Radius => "Radius",
+                    DimensionKind.Diameter => "Diameter",
+                    DimensionKind.Angle => "Angle",
+                    _ => "Arc length",
+                }));
+                Rows.Add(new PropertyRow("Measured", dimension.MeasuredText(settings)));
+                Rows.Add(Editable("Text", dimension.TextOverride, text =>
+                    // Empty shows the measured value; "<>" inside the text stands for it ("<> TYP").
+                    _session.ModifyEntities(new[] { id }, e => ((DimensionEntity)e).TextOverride = text.Trim(), "Edit dimension text")));
+                Rows.Add(Length("Text height", dimension.TextHeight, id, (e, v) => ((DimensionEntity)e).TextHeight = v));
+                break;
+
             case PolylineEntity polyline:
                 Rows.Add(new PropertyRow("Vertices", polyline.Vertices.Count.ToString(CultureInfo.InvariantCulture)));
                 Rows.Add(new PropertyRow("Closed", polyline.IsClosed ? "Yes" : "No"));

@@ -90,6 +90,9 @@ internal sealed class RecordingSurface : IRenderSurface
 
     public int Count => Lines.Count + Polylines.Count + Circles.Count + Rectangles.Count;
 
+    public List<(string Text, double X, double Y, double Height, double Angle, RenderStyle Style)> Texts { get; } = new();
+    public void DrawText(string text, double cx, double cy, double height, double angle, in RenderStyle style) => Texts.Add((text, cx, cy, height, angle, style));
+
     public void DrawLine(double x1, double y1, double x2, double y2, in RenderStyle style) => Lines.Add((x1, y1, x2, y2, style));
     public void DrawPolyline(IReadOnlyList<ScreenPoint> points, bool closed, in RenderStyle style) => Polylines.Add((points.ToArray(), closed, style));
     public void DrawCircle(double cx, double cy, double radius, in RenderStyle style) => Circles.Add((cx, cy, radius, style));

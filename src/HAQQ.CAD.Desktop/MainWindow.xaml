@@ -176,6 +176,22 @@
                     <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconRedo}" Content="Redo" Command="{Binding RedoCommand}" ToolTip="Redo (Ctrl+Y)" />
                 </StackPanel>
             </TabItem>
+            <TabItem Header="DIMENSION">
+                <StackPanel Orientation="Horizontal" Margin="6,0">
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconDimLinear}" Content="Straight" Command="{Binding RunCommandCommand}" CommandParameter="DIM" ToolTip="DIM (DL): horizontal or vertical distance between two points. Place the line above or below for horizontal, beside for vertical." />
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconDimAligned}" Content="Aligned" Command="{Binding RunCommandCommand}" CommandParameter="DIMALIGN" ToolTip="DIMALIGN (DA): true distance between two points, along the slope" />
+                    <Border Width="1" Margin="6,6" Background="{StaticResource BorderBrush}" />
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconDimRadius}" Content="Radius" Command="{Binding RunCommandCommand}" CommandParameter="DIMRAD" ToolTip="DIMRAD (DR): radius of a circle or arc" />
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconDimDiameter}" Content="Diameter" Command="{Binding RunCommandCommand}" CommandParameter="DIMDIA" ToolTip="DIMDIA (DD): diameter of a circle or arc" />
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconDimAngle}" Content="Angle" Command="{Binding RunCommandCommand}" CommandParameter="DIMANGLE" ToolTip="DIMANGLE (DG): angle between two lines, or the angle an arc covers" />
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconDimArc}" Content="Arc Length" Command="{Binding RunCommandCommand}" CommandParameter="DIMARCLEN" ToolTip="DIMARCLEN (DARC): length along an arc" />
+                    <Border Width="1" Margin="6,6" Background="{StaticResource BorderBrush}" />
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconDimChain}" Content="Chain" Command="{Binding RunCommandCommand}" CommandParameter="DIMCHAIN" ToolTip="DIMCHAIN (DC): carry on from the last dimension, end to end on one line" />
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconDimStack}" Content="Stack" Command="{Binding RunCommandCommand}" CommandParameter="DIMSTACK" ToolTip="DIMSTACK (DS): more dimensions from the same first point, each on its own line" />
+                    <Border Width="1" Margin="6,6" Background="{StaticResource BorderBrush}" />
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconDimSize}" Content="Text Size" Command="{Binding RunCommandCommand}" CommandParameter="DIMSIZE" ToolTip="DIMSIZE: text height of dimensions (arrows follow it)" />
+                </StackPanel>
+            </TabItem>
             <TabItem Header="LAYERS">
                 <StackPanel Orientation="Horizontal" Margin="6,0">
                     <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconLayers}" Content="Layers" Command="{Binding RunCommandCommand}" CommandParameter="LAYER" ToolTip="LAYER (LA): open the layer table (on/off, freeze, lock, name, colour, lineweight)" />
