@@ -36,6 +36,7 @@ public partial class MainWindow : Window
         // Shown after the command line has finished handling the key that asked for it.
         _viewModel.LinetypesRequested += (_, _) => Dispatcher.BeginInvoke(new Action(ShowLinetypes));
         _viewModel.ShortcutsRequested += (_, _) => Dispatcher.BeginInvoke(new Action(ShowShortcuts));
+        _viewModel.DimensionStylesRequested += (_, _) => Dispatcher.BeginInvoke(new Action(ShowDimensionStyles));
         // Scroll after the list itself has taken in the new line. Scrolling from inside the change
         // notification forces a layout while the list is still one line behind, which WPF rejects.
         _viewModel.History.CollectionChanged += (_, _) =>
@@ -250,6 +251,26 @@ public partial class MainWindow : Window
         _layersWindow = new LayersWindow(_viewModel) { Owner = this };
         _layersWindow.Closed += (_, _) => _layersWindow = null;
         _layersWindow.Show();
+    }
+
+    private bool _dimensionStylesOpen;
+
+    /// <summary>Shows the Dimension Settings as a dialog over the drawing.</summary>
+    private void ShowDimensionStyles()
+    {
+        if (_dimensionStylesOpen) return;
+        _dimensionStylesOpen = true;
+        var styles = new DimensionStylesViewModel(_viewModel.Session);
+        try
+        {
+            new DimensionStylesWindow(styles) { Owner = this }.ShowDialog();
+        }
+        finally
+        {
+            styles.Dispose();
+            _dimensionStylesOpen = false;
+            DrawingCanvas.Focus();
+        }
     }
 
     private bool _shortcutsOpen;

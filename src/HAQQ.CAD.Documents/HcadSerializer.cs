@@ -40,7 +40,7 @@ public static class HcadSerializer
     public const string FormatName = "HCAD";
 
     /// <summary>Schema version written by this build.</summary>
-    public const int SchemaVersion = 5;
+    public const int SchemaVersion = 6;
 
     /// <summary>
     /// Oldest reader that can safely open files written by this build. A file whose
@@ -93,7 +93,6 @@ public static class HcadSerializer
         w.WriteNumber("gridSpacing", s.GridSpacing);
         w.WriteNumber("snapSpacing", s.SnapSpacing);
         w.WriteNumber("linetypeScale", s.LinetypeScale);
-        w.WriteNumber("dimensionTextHeight", s.DimensionTextHeight);
         w.WriteEndObject();
 
         // Linetypes defined in this drawing (the built-in ones are not stored).
@@ -124,6 +123,17 @@ public static class HcadSerializer
         WriteProperties(w, "customProperties", document.CustomProperties);
 
         w.WriteString("currentLayerId", document.CurrentLayerId);
+
+        // Dimension styles
+        w.WriteString("currentDimensionStyle", document.CurrentDimensionStyleName);
+        w.WriteStartArray("dimensionStyles");
+        foreach (var style in document.DimensionStyles)
+        {
+            w.WriteStartObject();
+            WriteDimensionStyle(w, style);
+            w.WriteEndObject();
+        }
+        w.WriteEndArray();
 
         w.WriteStartArray("layers");
         foreach (var layer in document.Layers)
@@ -187,7 +197,9 @@ public static class HcadSerializer
                 WritePoint(w, "center", dimension.Center);
                 WritePoint(w, "linePoint", dimension.LinePoint);
                 w.WriteNumber("angle", dimension.Angle);
-                w.WriteNumber("textHeight", dimension.TextHeight);
+                w.WriteStartObject("style");
+                WriteDimensionStyle(w, dimension.Style);
+                w.WriteEndObject();
                 w.WriteString("text", dimension.TextOverride);
                 break;
             case PolylineEntity polyline:
@@ -342,7 +354,8 @@ public static class HcadSerializer
             if (units.TryGetProperty("linetypeScale", out var lts) && lts.ValueKind == JsonValueKind.Number &&
                 lts.GetDouble() > 0 && double.IsFinite(lts.GetDouble())) s.LinetypeScale = lts.GetDouble();
             if (units.TryGetProperty("dimensionTextHeight", out var dth) && dth.ValueKind == JsonValueKind.Number &&
-                dth.GetDouble() > 0 && double.IsFinite(dth.GetDouble())) s.DimensionTextHeight = dth.GetDouble();
+                dth.GetDouble() > 0 && double.IsFinite(dth.GetDouble()))
+                document.ReplaceDimensionStyle(new DimensionStyle().Scaled(dth.GetDouble() / new DimensionStyle().TextHeight));   // schema 5
         }
 
         if (doc.TryGetProperty("linetypes", out var linetypes) && linetypes.ValueKind == JsonValueKind.Array)
@@ -414,6 +427,27 @@ public static class HcadSerializer
             document.AddLayer(layer0, 0);
             warnings.Add("Layer 0 was missing and has been recreated.");
         }
+
+        if (doc.TryGetProperty("dimensionStyles", out var dimensionStyles) && dimensionStyles.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var se in dimensionStyles.EnumerateArray())
+            {
+                string styleName = se.ValueKind == JsonValueKind.Object ? GetString(se, "name") : "";
+                try
+                {
+                    var style = ReadDimensionStyle(se);
+                    if (document.FindDimensionStyle(style.Name) is null) document.AddDimensionStyle(style);
+                    else document.ReplaceDimensionStyle(style);                       // "Standard" is already there
+                }
+                catch (Exception ex) when (ex is InvalidOperationException or FormatException)
+                {
+                    warnings.Add($"Dimension style \"{styleName}\" could not be read and was skipped ({ex.Message})");
+                }
+            }
+        }
+        if (doc.TryGetProperty("currentDimensionStyle", out var cds) && cds.ValueKind == JsonValueKind.String &&
+            document.FindDimensionStyle(cds.GetString()) is { } currentStyle)
+            document.CurrentDimensionStyleName = currentStyle.Name;
 
         if (doc.TryGetProperty("currentLayerId", out var cur) && cur.TryGetGuid(out var curId) && document.GetLayer(curId) is not null)
             document.CurrentLayerId = curId;
@@ -500,8 +534,11 @@ public static class HcadSerializer
                     Center = ReadPoint(e.GetProperty("center")),
                     LinePoint = ReadPoint(e.GetProperty("linePoint")),
                     Angle = e.GetProperty("angle").GetDouble(),
-                    TextHeight = e.GetProperty("textHeight").GetDouble(),
                     TextOverride = GetString(e, "text"),
+                    // Schema 5 stored only a text height; everything else was in proportion to it.
+                    Style = e.TryGetProperty("style", out var styleElement) && styleElement.ValueKind == JsonValueKind.Object
+                        ? ReadDimensionStyle(styleElement)
+                        : new DimensionStyle().Scaled(e.GetProperty("textHeight").GetDouble() / new DimensionStyle().TextHeight),
                 };
                 break;
             case PolylineEntity.Type:
@@ -543,6 +580,60 @@ public static class HcadSerializer
         if (e.TryGetProperty("lineweightMm", out var lw) && lw.ValueKind == JsonValueKind.Number) entity.LineweightMm = lw.GetDouble();
         ReadProperties(e, "properties", entity.CustomProperties);
         return entity;
+    }
+
+    private static void WriteDimensionStyle(Utf8JsonWriter w, DimensionStyle style)
+    {
+        w.WriteString("name", style.Name);
+        w.WriteNumber("textHeight", style.TextHeight);
+        w.WriteNumber("textGap", style.TextGap);
+        w.WriteString("arrow", style.Arrow.ToString());
+        w.WriteNumber("arrowSize", style.ArrowSize);
+        w.WriteNumber("extensionOffset", style.ExtensionOffset);
+        w.WriteNumber("extensionBeyond", style.ExtensionBeyond);
+        w.WriteString("format", style.Format.ToString());
+        w.WriteNumber("precision", style.Precision);
+        w.WriteNumber("fractionDenominator", style.FractionDenominator);
+        w.WriteNumber("roundOff", style.RoundOff);
+        w.WriteNumber("scaleFactor", style.ScaleFactor);
+        w.WriteString("prefix", style.Prefix);
+        w.WriteString("suffix", style.Suffix);
+        w.WriteBoolean("suppressZeroFeet", style.SuppressZeroFeet);
+        w.WriteBoolean("suppressZeroInches", style.SuppressZeroInches);
+        w.WriteNumber("anglePrecision", style.AnglePrecision);
+    }
+
+    /// <summary>Reads a dimension style. A field that is missing or cannot be used keeps its standard value.</summary>
+    private static DimensionStyle ReadDimensionStyle(JsonElement e)
+    {
+        var d = new DimensionStyle();
+        double Number(string name, double fallback) =>
+            e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.Number && double.IsFinite(v.GetDouble()) ? v.GetDouble() : fallback;
+        int Whole(string name, int fallback) =>
+            e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.Number && v.TryGetInt32(out int i) ? i : fallback;
+        string name = GetString(e, "name");
+        var style = d with
+        {
+            Name = DimensionStyle.IsValidName(name) ? name.Trim() : d.Name,
+            TextHeight = Number("textHeight", d.TextHeight),
+            TextGap = Number("textGap", d.TextGap),
+            Arrow = Enum.TryParse(GetString(e, "arrow"), true, out DimensionArrow arrow) && Enum.IsDefined(arrow) ? arrow : d.Arrow,
+            ArrowSize = Number("arrowSize", d.ArrowSize),
+            ExtensionOffset = Number("extensionOffset", d.ExtensionOffset),
+            ExtensionBeyond = Number("extensionBeyond", d.ExtensionBeyond),
+            Format = Enum.TryParse(GetString(e, "format"), true, out DimensionUnitFormat format) && Enum.IsDefined(format) ? format : d.Format,
+            Precision = Whole("precision", d.Precision),
+            FractionDenominator = Whole("fractionDenominator", d.FractionDenominator),
+            RoundOff = Number("roundOff", d.RoundOff),
+            ScaleFactor = Number("scaleFactor", d.ScaleFactor),
+            Prefix = e.TryGetProperty("prefix", out var pre) && pre.ValueKind == JsonValueKind.String ? pre.GetString()! : "",
+            Suffix = e.TryGetProperty("suffix", out var suf) && suf.ValueKind == JsonValueKind.String ? suf.GetString()! : "",
+            SuppressZeroFeet = GetBool(e, "suppressZeroFeet", d.SuppressZeroFeet),
+            SuppressZeroInches = GetBool(e, "suppressZeroInches", d.SuppressZeroInches),
+            AnglePrecision = Whole("anglePrecision", d.AnglePrecision),
+        };
+        if (style.Problem is { } problem) throw new FormatException("dimension style: " + problem);
+        return style;
     }
 
     private static Guid ReadId(JsonElement e)

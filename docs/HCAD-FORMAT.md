@@ -16,7 +16,7 @@ The reader and writer live in `src/HAQQ.CAD.Documents/HcadSerializer.cs`.
 ```json
 {
   "format": "HCAD",
-  "schemaVersion": 5,
+  "schemaVersion": 6,
   "minReaderVersion": 1,
   "generator": "HAQQ CAD 0.1.0",
   "recovery": { "originalPath": "C:\\Jobs\\footing.hcad", "savedUtc": "2026-11-14T06:30:00.000Z" },
@@ -162,3 +162,21 @@ rebar objects, bar marks and schedules, revision records, and a compressed conta
   and writes it back unchanged.
 - Layer `plot` (boolean, optional, default `true`; added with schema 5): `false` means the layer is shown on screen
   but left out of prints and exports.
+
+## Dimension styles (schema 6)
+
+- `document.dimensionStyles`: the named styles of the drawing, each
+  `{ "name", "textHeight", "textGap", "arrow", "arrowSize", "extensionOffset", "extensionBeyond", "format",
+  "precision", "fractionDenominator", "roundOff", "scaleFactor", "prefix", "suffix", "suppressZeroFeet",
+  "suppressZeroInches", "anglePrecision" }`. Sizes are in drawing units. `arrow`: `Arrow`, `Tick`, `Dot`, `None`.
+  `format`: `Drawing` (as the drawing's units), `Decimal`, `Architectural`, `Fractional`. A style named `Standard`
+  always exists; when the file has one, its values replace the built-in ones.
+- `document.currentDimensionStyle`: name of the style new dimensions are drawn with.
+- Dimension entity `style`: an object with the same fields: the values that dimension is drawn with (a copy,
+  so a dimension can be read without the table). It replaces the entity field `textHeight` of schema 5.
+- Reading schema 5: a dimension with `textHeight` and no `style` gets the Standard values scaled so that the text
+  has that height; `document.units.dimensionTextHeight` scales the Standard style the same way. Schema 6 no longer
+  writes either field.
+- A missing or unusable field of a style keeps its standard value; a style that is still not usable is skipped
+  with a warning.
+

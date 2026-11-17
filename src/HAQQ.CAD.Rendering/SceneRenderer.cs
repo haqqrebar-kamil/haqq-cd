@@ -299,6 +299,17 @@ public sealed class SceneRenderer
         }
     }
 
+    private static void FillSafe(IRenderSurface surface, ViewTransform view, in RenderStyle style, params Point2D[] corners)
+    {
+        var points = new ScreenPoint[corners.Length];
+        for (int i = 0; i < corners.Length; i++)
+        {
+            points[i] = view.WorldToScreen(corners[i]);
+            if (Math.Abs(points[i].X) > SafeCoordinate || Math.Abs(points[i].Y) > SafeCoordinate) return;
+        }
+        surface.FillPolygon(points, style);
+    }
+
     /// <summary>Text smaller than this many pixels is left out (it could not be read anyway).</summary>
     public const double MinTextPixels = 3.0;
 
@@ -322,15 +333,35 @@ public sealed class SceneRenderer
         double height = dimension.TextHeight * view.Scale;          // pixels
         if (height < MinTextPixels) return;                        // arrows and text too small to see
 
-        double length = dimension.TextHeight, half = length / 6.0;
+        double size = dimension.Style.ArrowSize;
         var fill = solid with { Dashed = false, Width = 1.0 };
         foreach (var (tip, direction) in g.Arrows)
         {
-            var back = tip - direction * length;
-            var side = new Vector2D(-direction.Y, direction.X) * half;
-            var points = new[] { view.WorldToScreen(tip), view.WorldToScreen(back + side), view.WorldToScreen(back - side) };
-            if (points.All(p => Math.Abs(p.X) <= SafeCoordinate && Math.Abs(p.Y) <= SafeCoordinate))
-                surface.FillPolygon(points, fill);
+            var side = new Vector2D(-direction.Y, direction.X);
+            switch (g.Arrow)
+            {
+                case DimensionArrow.Arrow:
+                {
+                    var back = tip - direction * size;
+                    FillSafe(surface, view, fill, tip, back + side * (size / 6.0), back - side * (size / 6.0));
+                    break;
+                }
+                case DimensionArrow.Tick:
+                {
+                    // A slanted stroke through the end of the dimension line.
+                    var slant = (direction + side).Normalized() * (size / 2.0);
+                    DrawSegment(surface, view, view.WorldToScreen(tip - slant), view.WorldToScreen(tip + slant), fill with { Width = 2.0 });
+                    break;
+                }
+                case DimensionArrow.Dot:
+                {
+                    var points = new Point2D[12];
+                    for (int k = 0; k < points.Length; k++)
+                        points[k] = tip + Vector2D.FromPolar(size / 4.0, 2.0 * Math.PI * k / points.Length);
+                    FillSafe(surface, view, fill, points);
+                    break;
+                }
+            }
         }
 
         var at = view.WorldToScreen(g.TextCenter);

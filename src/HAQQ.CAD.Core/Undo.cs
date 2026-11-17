@@ -328,3 +328,84 @@ public sealed class ReplaceLinetypeAction : IUndoableAction
         if (_old is not null) document.ReplaceLinetype(_old);
     }
 }
+
+public sealed class AddDimensionStyleAction : IUndoableAction
+{
+    private readonly DimensionStyle _style;
+    public AddDimensionStyleAction(DimensionStyle style) => _style = style;
+    public string Name => "New dimension style";
+    public void Do(DrawingDocument document) => document.AddDimensionStyle(_style);
+    public void Undo(DrawingDocument document) => document.RemoveDimensionStyle(_style.Name);
+}
+
+public sealed class RemoveDimensionStyleAction : IUndoableAction
+{
+    private readonly string _name;
+    private DimensionStyle? _removed;
+    private int _index;
+
+    public RemoveDimensionStyleAction(string name) => _name = name;
+    public string Name => "Delete dimension style";
+
+    public void Do(DrawingDocument document)
+    {
+        _removed = document.FindDimensionStyle(_name);
+        _index = document.RemoveDimensionStyle(_name);
+    }
+
+    public void Undo(DrawingDocument document)
+    {
+        if (_removed is not null) document.AddDimensionStyle(_removed, _index);
+    }
+}
+
+/// <summary>Changes the values of a dimension style and redraws every dimension that uses it with them.</summary>
+public sealed class ReplaceDimensionStyleAction : IUndoableAction
+{
+    private readonly DimensionStyle _style;
+    private DimensionStyle? _old;
+    private List<Entity> _before = new();
+
+    public ReplaceDimensionStyleAction(DimensionStyle style) => _style = style;
+    public string Name => "Edit dimension style";
+
+    public void Do(DrawingDocument document)
+    {
+        _old = document.ReplaceDimensionStyle(_style);
+        var current = document.FindDimensionStyle(_style.Name)!;
+        _before = document.EntitiesUnordered.OfType<DimensionEntity>()
+            .Where(d => string.Equals(d.StyleName, current.Name, StringComparison.OrdinalIgnoreCase))
+            .Select(d => d.Clone())
+            .ToList();
+        foreach (var entity in _before)
+        {
+            var updated = (DimensionEntity)entity.Clone();
+            updated.Style = current;
+            document.ReplaceEntity(updated);
+        }
+    }
+
+    public void Undo(DrawingDocument document)
+    {
+        if (_old is null) return;
+        document.ReplaceDimensionStyle(_old);
+        foreach (var entity in _before) document.ReplaceEntity(entity.Clone());
+    }
+}
+
+public sealed class SetCurrentDimensionStyleAction : IUndoableAction
+{
+    private readonly string _before;
+    private readonly string _after;
+
+    public SetCurrentDimensionStyleAction(string before, string after)
+    {
+        _before = before;
+        _after = after;
+    }
+
+    public string Name => "Set current dimension style";
+    public void Do(DrawingDocument document) => document.CurrentDimensionStyleName = _after;
+    public void Undo(DrawingDocument document) => document.CurrentDimensionStyleName = _before;
+}
+

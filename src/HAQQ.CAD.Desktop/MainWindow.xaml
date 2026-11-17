@@ -140,6 +140,27 @@
                                       IsChecked="{Binding CurrentLayerPlots, Mode=TwoWay}"
                                       ToolTip="Plot switch of the current layer. Crossed out: the layer is shown on screen but will not be printed." />
                     </StackPanel>
+                    <StackPanel Orientation="Horizontal" Visibility="{Binding DimensionBar.IsActive, Converter={StaticResource BoolToVisibility}}">
+                        <Border Width="1" Margin="6,6,12,6" Background="{StaticResource BorderBrush}" />
+                        <!-- Dimension style: of new dimensions, or of the selected dimensions -->
+                        <StackPanel VerticalAlignment="Center" Margin="0,0,10,0" Width="150">
+                            <TextBlock Text="Dimension style" Foreground="{StaticResource DimTextBrush}" FontSize="11" Margin="1,0,0,3" />
+                            <ComboBox DropDownClosed="PropertyCombo_DropDownClosed" ItemsSource="{Binding DimensionBar.StyleNames}"
+                                      SelectedItem="{Binding DimensionBar.SelectedStyle, Mode=TwoWay}"
+                                      ToolTip="The style new dimensions are drawn with. With dimensions selected: their style." />
+                        </StackPanel>
+                        <StackPanel VerticalAlignment="Center" Margin="0,0,10,0" Width="90">
+                            <TextBlock Text="Text height" Foreground="{StaticResource DimTextBrush}" FontSize="11" Margin="1,0,0,3" />
+                            <TextBox KeyDown="EditBox_KeyDown" Text="{Binding DimensionBar.TextHeightText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                     ToolTip="Text height of this style, in drawing units. Arrows and gaps change in proportion, for every dimension of the style." />
+                        </StackPanel>
+                        <StackPanel VerticalAlignment="Center" Margin="0,0,10,0" Width="90">
+                            <TextBlock Text="Ends" Foreground="{StaticResource DimTextBrush}" FontSize="11" Margin="1,0,0,3" />
+                            <ComboBox DropDownClosed="PropertyCombo_DropDownClosed" ItemsSource="{Binding DimensionBar.ArrowNames}"
+                                      SelectedItem="{Binding DimensionBar.SelectedArrow, Mode=TwoWay}"
+                                      ToolTip="What is drawn at the ends of the dimension line, for every dimension of this style." />
+                        </StackPanel>
+                    </StackPanel>
                 </StackPanel>
             </TabItem>
             <TabItem Header="DRAW">
@@ -218,7 +239,28 @@
                     <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconDimChain}" Content="Chain" Command="{Binding RunCommandCommand}" CommandParameter="DIMCHAIN" ToolTip="DIMCHAIN (DC): carry on from the last dimension, end to end on one line" />
                     <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconDimStack}" Content="Stack" Command="{Binding RunCommandCommand}" CommandParameter="DIMSTACK" ToolTip="DIMSTACK (DS): more dimensions from the same first point, each on its own line" />
                     <Border Width="1" Margin="6,6" Background="{StaticResource BorderBrush}" />
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconDimSize}" Content="Text Size" Command="{Binding RunCommandCommand}" CommandParameter="DIMSIZE" ToolTip="DIMSIZE: text height of dimensions (arrows follow it)" />
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconDimSettings}" Content="Settings" Command="{Binding RunCommandCommand}" CommandParameter="DIMSTYLE" ToolTip="DIMSTYLE (DST): dimension styles - text, arrows, extension lines and how lengths are written" />
+                    <StackPanel Orientation="Horizontal">
+                        <Border Width="1" Margin="6,6,12,6" Background="{StaticResource BorderBrush}" />
+                        <!-- Dimension style: of new dimensions, or of the selected dimensions -->
+                        <StackPanel VerticalAlignment="Center" Margin="0,0,10,0" Width="150">
+                            <TextBlock Text="Dimension style" Foreground="{StaticResource DimTextBrush}" FontSize="11" Margin="1,0,0,3" />
+                            <ComboBox DropDownClosed="PropertyCombo_DropDownClosed" ItemsSource="{Binding DimensionBar.StyleNames}"
+                                      SelectedItem="{Binding DimensionBar.SelectedStyle, Mode=TwoWay}"
+                                      ToolTip="The style new dimensions are drawn with. With dimensions selected: their style." />
+                        </StackPanel>
+                        <StackPanel VerticalAlignment="Center" Margin="0,0,10,0" Width="90">
+                            <TextBlock Text="Text height" Foreground="{StaticResource DimTextBrush}" FontSize="11" Margin="1,0,0,3" />
+                            <TextBox KeyDown="EditBox_KeyDown" Text="{Binding DimensionBar.TextHeightText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                     ToolTip="Text height of this style, in drawing units. Arrows and gaps change in proportion, for every dimension of the style." />
+                        </StackPanel>
+                        <StackPanel VerticalAlignment="Center" Margin="0,0,10,0" Width="90">
+                            <TextBlock Text="Ends" Foreground="{StaticResource DimTextBrush}" FontSize="11" Margin="1,0,0,3" />
+                            <ComboBox DropDownClosed="PropertyCombo_DropDownClosed" ItemsSource="{Binding DimensionBar.ArrowNames}"
+                                      SelectedItem="{Binding DimensionBar.SelectedArrow, Mode=TwoWay}"
+                                      ToolTip="What is drawn at the ends of the dimension line, for every dimension of this style." />
+                        </StackPanel>
+                    </StackPanel>
                 </StackPanel>
             </TabItem>
             <TabItem Header="LAYERS">

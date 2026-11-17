@@ -8,6 +8,7 @@
                 <ResourceDictionary Source="Themes/Dark.xaml" />
             </ResourceDictionary.MergedDictionaries>
             <local:ColorNameToBrushConverter x:Key="ColorNameToBrush" />
+            <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
         </ResourceDictionary>
     </Application.Resources>
 </Application>

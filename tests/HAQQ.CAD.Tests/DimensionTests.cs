@@ -19,7 +19,7 @@ public class DimensionTests : IDisposable
         var s = new EditorSession();
         s.Document.Settings.Format = LengthFormat.Decimal;
         s.Document.Settings.DecimalPrecision = 2;
-        s.Document.Settings.DimensionTextHeight = 1.0;
+        s.Document.ReplaceDimensionStyle(new DimensionStyle().Scaled(0.25));      // text 1 unit high
         return s;
     }
 
@@ -269,13 +269,15 @@ public class DimensionTests : IDisposable
         Assert.Equal(2.0, Only(s).TextHeight);
 
         s.ClearSelection();
-        s.StartCommand("DIMSIZE");
+        s.StartCommand("DIMSIZE");                      // the size of the current style, and of every dimension using it
         s.SubmitText("3");
-        Assert.Equal(3.0, s.Document.Settings.DimensionTextHeight);
-        Assert.NotNull(s.ActiveCommand);                // asks about the dimensions already drawn
-        s.SubmitKeyword("Y");
-        Assert.Equal(3.0, Only(s).TextHeight);
         Assert.Null(s.ActiveCommand);
+        Assert.Equal(3.0, s.Document.CurrentDimensionStyle.TextHeight);
+        Assert.Equal(3.0, s.Document.CurrentDimensionStyle.ArrowSize);       // in proportion
+        Assert.Equal(3.0, Only(s).TextHeight);
+        s.Undo();
+        Assert.Equal(2.0, Only(s).TextHeight);          // the dimension's own height comes back
+        Assert.Equal(4.0, s.Document.CurrentDimensionStyle.TextHeight);
     }
 
     [Fact]
@@ -302,8 +304,8 @@ public class DimensionTests : IDisposable
         Assert.Equal(d.LinePoint, back.LinePoint);
         Assert.Equal(d.TextHeight, back.TextHeight);
         Assert.Equal("<> CLR", back.TextOverride);
-        Assert.Equal(1.0, loaded.Document.Settings.DimensionTextHeight);
-        Assert.Equal(5, HcadSerializer.SchemaVersion);
+        Assert.Equal(1.0, loaded.Document.CurrentDimensionStyle.TextHeight);
+        Assert.Equal(d.Style, back.Style);
     }
 
     [Fact]
@@ -468,5 +470,267 @@ public class ObjectTrackingTests
         });
         Assert.Equal(1, surface.Lines.Count(l => l.Style == RenderTheme.PolarTrack));
         Assert.Equal(2, surface.Lines.Count(l => l.Style == RenderTheme.SnapMarker));       // the small cross
+    }
+}
+
+public class DimensionStyleTests : IDisposable
+{
+    private readonly TempDirectory _temp = new();
+    public void Dispose() => _temp.Dispose();
+
+    private static DrawingSettings Arch() => new() { Unit = LinearUnit.Inch, Format = LengthFormat.Architectural, FractionDenominator = 16 };
+
+    [Fact]
+    public void A_style_decides_how_a_length_is_written()
+    {
+        var standard = new DimensionStyle();
+        Assert.Equal("5'-6 1/2\"", standard.FormatLength(66.5, Arch()));                     // follows the drawing
+        Assert.Equal("6\"", standard.FormatLength(6, Arch()));
+
+        Assert.Equal("0'-6\"", (standard with { SuppressZeroFeet = false }).FormatLength(6, Arch()));
+        Assert.Equal("5'", (standard with { SuppressZeroInches = true }).FormatLength(60, Arch()));
+        Assert.Equal("5'-0\"", standard.FormatLength(60, Arch()));
+
+        var half = standard with { RoundOff = 0.5 };
+        Assert.Equal("5'-6 1/2\"", half.FormatLength(66.53125, Arch()));                    // to the nearest half inch
+        Assert.Equal("5'-7\"", half.FormatLength(66.8, Arch()));
+
+        var decimals = standard with { Format = DimensionUnitFormat.Decimal, Precision = 1, Prefix = "~", Suffix = " in" };
+        Assert.Equal("~66.5 in", decimals.FormatLength(66.53125, Arch()));
+        Assert.Equal("66 1/2\"", (standard with { Format = DimensionUnitFormat.Fractional, FractionDenominator = 2 }).FormatLength(66.53125, Arch()));
+        Assert.Equal("11'-1\"", (standard with { ScaleFactor = 2 }).FormatLength(66.5, Arch()));
+
+        Assert.Equal("34.2°", (standard with { AnglePrecision = 1 }).FormatAngle(GeoMath.DegreesToRadians(34.21)));
+        Assert.Equal("90°", standard.FormatAngle(Math.PI / 2));
+
+        Assert.NotNull((standard with { TextHeight = 0 }).Problem);
+        Assert.NotNull((standard with { FractionDenominator = 3 }).Problem);
+        Assert.NotNull((standard with { Name = " " }).Problem);
+        Assert.Null(standard.Problem);
+    }
+
+    [Fact]
+    public void New_dimensions_use_the_current_style_and_follow_it_when_it_changes()
+    {
+        var s = new EditorSession();
+        s.Document.Settings.Format = LengthFormat.Decimal;
+        s.Document.Settings.DecimalPrecision = 2;
+        Assert.True(s.AddDimensionStyle(new DimensionStyle { Name = "Rebar", TextHeight = 2, ArrowSize = 2, Arrow = DimensionArrow.Tick, Format = DimensionUnitFormat.Decimal, Precision = 0 }));
+        Assert.False(s.AddDimensionStyle(new DimensionStyle { Name = "rebar" }));               // the name is taken
+        Assert.True(s.SetCurrentDimensionStyle("Rebar"));
+
+        s.StartCommand("DIM");
+        s.SubmitPoint(P(0, 0));
+        s.SubmitPoint(P(12.4, 0));
+        s.SubmitPoint(P(6, 8));
+        var d = s.Document.Entities.OfType<DimensionEntity>().Single();
+        Assert.Equal("Rebar", d.StyleName);
+        Assert.Equal("12", d.GetText(s.Document.Settings));
+        Assert.Equal(DimensionArrow.Tick, d.BuildGeometry().Arrow);
+
+        // Changing the style changes the dimension; undo puts both back.
+        Assert.True(s.ModifyDimensionStyle(s.Document.FindDimensionStyle("Rebar")! with { Precision = 1, TextHeight = 5 }));
+        d = s.Document.Entities.OfType<DimensionEntity>().Single();
+        Assert.Equal("12.4", d.GetText(s.Document.Settings));
+        Assert.Equal(5.0, d.TextHeight);
+        s.Undo();
+        d = s.Document.Entities.OfType<DimensionEntity>().Single();
+        Assert.Equal("12", d.GetText(s.Document.Settings));
+        Assert.Equal(2.0, s.Document.FindDimensionStyle("Rebar")!.TextHeight);
+
+        // A style in use, the current one and Standard cannot be deleted.
+        Assert.False(s.DeleteDimensionStyle("Rebar"));
+        Assert.True(s.SetCurrentDimensionStyle("Standard"));
+        Assert.False(s.DeleteDimensionStyle("Rebar"));                                          // still used by the dimension
+        Assert.False(s.DeleteDimensionStyle("Standard"));
+
+        // Giving the selected dimension another style.
+        s.SelectAt(P(6, 8), 0.5);
+        Assert.True(s.SetDimensionStyleOfSelection("Standard"));
+        Assert.Equal("Standard", s.Document.Entities.OfType<DimensionEntity>().Single().StyleName);
+        Assert.True(s.DeleteDimensionStyle("Rebar"));
+        s.Undo();
+        Assert.NotNull(s.Document.FindDimensionStyle("Rebar"));
+    }
+
+    [Fact]
+    public void Tick_and_dot_ends_are_drawn_and_never_turned_outside()
+    {
+        var doc = new DrawingDocument();
+        var tick = new DimensionEntity(DimensionKind.Linear)
+        {
+            P1 = P(0, 0), P2 = P(2, 0), LinePoint = P(0, 5), LayerId = doc.CurrentLayerId,
+            Style = new DimensionStyle { TextHeight = 1, ArrowSize = 1, TextGap = 0.3, ExtensionOffset = 0.3, ExtensionBeyond = 0.5, Arrow = DimensionArrow.Tick },
+        };
+        var g = tick.BuildGeometry();
+        Assert.Contains(g.Lines, l => l.A == P(0, 5) && l.B == P(2, 5));                       // a short line is not stretched for ticks
+        doc.AddEntity(tick);
+
+        var view = new ViewTransform();
+        view.SetViewport(800, 600);
+        view.SetView(P(1, 3), 40);
+        var surface = new RecordingSurface();
+        new SceneRenderer().Render(surface, doc, view, new RenderOptions { ShowGrid = false });
+        Assert.Empty(surface.Polygons);                                                         // no arrowheads
+        Assert.Equal(5, surface.Lines.Count);                                                   // 3 lines and 2 ticks
+
+        doc.ReplaceEntity(With(tick, DimensionArrow.Dot));
+        surface = new RecordingSurface();
+        new SceneRenderer().Render(surface, doc, view, new RenderOptions { ShowGrid = false });
+        Assert.Equal(2, surface.Polygons.Count);
+        Assert.Equal(12, surface.Polygons[0].Points.Length);
+
+        doc.ReplaceEntity(With(tick, DimensionArrow.None));
+        surface = new RecordingSurface();
+        new SceneRenderer().Render(surface, doc, view, new RenderOptions { ShowGrid = false });
+        Assert.Empty(surface.Polygons);
+        Assert.Equal(3, surface.Lines.Count);
+
+        static DimensionEntity With(DimensionEntity source, DimensionArrow arrow)
+        {
+            var copy = (DimensionEntity)source.Clone();
+            copy.Style = copy.Style with { Arrow = arrow };
+            return copy;
+        }
+    }
+
+    [Fact]
+    public void Styles_are_saved_with_the_drawing_and_older_files_still_open()
+    {
+        var s = new EditorSession();
+        s.AddDimensionStyle(new DimensionStyle { Name = "Rebar", TextHeight = 2, Arrow = DimensionArrow.Dot, Prefix = "(", Suffix = ")", RoundOff = 0.25, SuppressZeroInches = true });
+        s.SetCurrentDimensionStyle("Rebar");
+        s.ModifyDimensionStyle(new DimensionStyle { TextHeight = 6 });                          // Standard, changed
+        s.StartCommand("DIM");
+        s.SubmitPoint(P(0, 0));
+        s.SubmitPoint(P(24, 0));
+        s.SubmitPoint(P(6, 8));
+
+        byte[] bytes = HcadSerializer.SaveToBytes(s.Document);
+        var loaded = HcadSerializer.LoadFromBytes(bytes);
+        Assert.Empty(loaded.Warnings);
+        var doc = loaded.Document;
+        Assert.Equal(new[] { "Standard", "Rebar" }, doc.DimensionStyles.Select(x => x.Name).ToArray());
+        Assert.Equal("Rebar", doc.CurrentDimensionStyleName);
+        Assert.Equal(s.Document.FindDimensionStyle("Rebar"), doc.FindDimensionStyle("Rebar"));
+        Assert.Equal(6.0, doc.FindDimensionStyle("Standard")!.TextHeight);
+        var d = doc.Entities.OfType<DimensionEntity>().Single();
+        Assert.Equal(s.Document.FindDimensionStyle("Rebar"), d.Style);
+        Assert.Equal("(2')", d.GetText(doc.Settings));
+        Assert.Equal(6, HcadSerializer.SchemaVersion);
+
+        // A schema 5 file: a text height on the dimension and in the units, and no styles.
+        string json = System.Text.Encoding.UTF8.GetString(bytes);
+        int from = json.IndexOf("\"style\": {", json.IndexOf("\"type\": \"dimension\"", StringComparison.Ordinal), StringComparison.Ordinal);
+        int to = json.IndexOf('}', from) + 1;
+        json = json.Remove(from, to - from).Insert(from, "\"textHeight\": 8");
+        var old = HcadSerializer.LoadFromBytes(System.Text.Encoding.UTF8.GetBytes(json)).Document;
+        var od = old.Entities.OfType<DimensionEntity>().Single();
+        Assert.Equal(8.0, od.TextHeight);
+        Assert.Equal(8.0, od.Style.ArrowSize);                                                  // in proportion, as schema 5 drew it
+        Assert.Equal("Standard", od.StyleName);
+    }
+
+    [Fact]
+    public void Settings_window_edits_the_selected_style_and_makes_new_ones()
+    {
+        var s = new EditorSession();
+        using var vm = new DimensionStylesViewModel(s);
+        Assert.Equal(new[] { "Standard" }, vm.Styles.ToArray());
+        Assert.Equal("Standard", vm.Selected);
+        Assert.Equal("4", vm.TextHeightText);
+        Assert.False(vm.DeleteCommand.CanExecute(null));
+
+        vm.NewName = "Rebar";
+        Assert.True(vm.AddNew());
+        Assert.Equal("Rebar", vm.Selected);
+        Assert.True(vm.AddNew());                                                               // no name given
+        Assert.Equal("Style 1", vm.Selected);
+        vm.NewName = "rebar";
+        Assert.False(vm.AddNew());
+        Assert.NotEqual("", vm.Message);
+
+        vm.Selected = "Rebar";
+        vm.TextHeightText = "3/4";
+        vm.SelectedArrow = "Tick";
+        vm.SelectedFormat = "Feet and inches";
+        vm.SelectedFraction = "1/8\"";
+        vm.RoundOffText = "1/2";
+        vm.SuppressZeroInches = true;
+        vm.Prefix = "#";
+        var rebar = s.Document.FindDimensionStyle("Rebar")!;
+        Assert.Equal(0.75, rebar.TextHeight);
+        Assert.Equal(DimensionArrow.Tick, rebar.Arrow);
+        Assert.Equal(DimensionUnitFormat.Architectural, rebar.Format);
+        Assert.Equal(8, rebar.FractionDenominator);
+        Assert.Equal(0.5, rebar.RoundOff);
+        Assert.True(rebar.SuppressZeroInches);
+        Assert.Equal("#", rebar.Prefix);
+        Assert.Equal(3.2, vm.PreviewStyle.TextHeight, 9);                                       // the sample is always the same size
+        Assert.True(vm.HasOwnFormat);
+        Assert.Equal(4.0, s.Document.FindDimensionStyle("Standard")!.TextHeight);               // other styles untouched
+
+        vm.TextHeightText = "tall";                                                             // refused, value kept
+        Assert.Equal(0.75, s.Document.FindDimensionStyle("Rebar")!.TextHeight);
+        Assert.NotEqual("", vm.Message);
+        vm.TextHeightText = "0";
+        Assert.Equal(0.75, s.Document.FindDimensionStyle("Rebar")!.TextHeight);
+
+        vm.SetCurrentCommand.Execute(null);
+        Assert.Equal("Rebar", s.Document.CurrentDimensionStyleName);
+        vm.Selected = "Style 1";
+        vm.DeleteCommand.Execute(null);
+        Assert.Equal(new[] { "Standard", "Rebar" }, vm.Styles.ToArray());
+
+        s.Undo();                                                                               // the window follows undo
+        Assert.Contains("Style 1", vm.Styles);
+    }
+
+    [Fact]
+    public void Ribbon_strip_shows_the_current_style_or_that_of_the_selected_dimension()
+    {
+        var main = new MainViewModel(new FakeUi(), new RecoveryStore(_temp.File("recovery")));
+        var s = main.Session;
+        var bar = main.DimensionBar;
+        s.Document.Settings.Format = LengthFormat.Decimal;
+        s.AddDimensionStyle(new DimensionStyle { Name = "Rebar", TextHeight = 2, ArrowSize = 2 });
+        Assert.Equal(new[] { "Standard", "Rebar" }, bar.StyleNames.ToArray());
+        Assert.Equal("Standard", bar.SelectedStyle);
+        Assert.Equal("Arrow", bar.SelectedArrow);
+        Assert.False(bar.IsActive);
+
+        main.RunCommand("DIM");
+        Assert.True(bar.IsActive);                                                              // shown on the HOME tab while dimensioning
+        s.SubmitPoint(P(0, 0));
+        s.SubmitPoint(P(10, 0));
+        s.SubmitPoint(P(5, 6));
+        Assert.False(bar.IsActive);
+
+        bar.SelectedStyle = "Rebar";                                                            // nothing selected: the current style
+        Assert.Equal("Rebar", s.Document.CurrentDimensionStyleName);
+        Assert.Equal("Standard", s.Document.Entities.OfType<DimensionEntity>().Single().StyleName);
+
+        s.SelectAt(P(5, 6), 0.5);
+        Assert.True(bar.IsActive);
+        Assert.Equal("Standard", bar.SelectedStyle);                                            // the dimension's own style
+        bar.SelectedStyle = "Rebar";
+        Assert.Equal("Rebar", s.Document.Entities.OfType<DimensionEntity>().Single().StyleName);
+        Assert.Equal("Dimension", main.Properties.Header);
+        Assert.Equal("Rebar", main.Properties.Rows.Single(r => r.Label == "Style").Value);
+
+        bar.TextHeightText = "5";                                                               // the whole style, in proportion
+        var rebar = s.Document.FindDimensionStyle("Rebar")!;
+        Assert.Equal(5.0, rebar.TextHeight);
+        Assert.Equal(5.0, rebar.ArrowSize);
+        Assert.Equal(5.0, s.Document.Entities.OfType<DimensionEntity>().Single().TextHeight);
+        bar.SelectedArrow = "Dot";
+        Assert.Equal(DimensionArrow.Dot, s.Document.FindDimensionStyle("Rebar")!.Arrow);
+
+        int opened = 0;
+        main.DimensionStylesRequested += (_, _) => opened++;
+        s.ClearSelection();
+        main.RunCommand("DIMSTYLE");
+        main.RunCommand("DST");
+        Assert.Equal(2, opened);
     }
 }

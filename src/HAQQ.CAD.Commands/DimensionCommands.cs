@@ -9,7 +9,7 @@ public abstract class DimensionCommandBase : CadCommandBase, ICreatesObjects, IO
     /// <summary>True while the command wants a click on an object (object snap off, pick box shown).</summary>
     public virtual bool PickingObject => false;
 
-    protected DimensionEntity New(DimensionKind kind) => new(kind) { TextHeight = Document.Settings.DimensionTextHeight };
+    protected DimensionEntity New(DimensionKind kind) => new(kind) { Style = Document.CurrentDimensionStyle };
 
     /// <summary>Adds the dimension to the drawing as one undo step and remembers it for DIMCHAIN and DIMSTACK.</summary>
     protected bool Add(DimensionEntity dimension)
@@ -301,7 +301,7 @@ public sealed class RunningDimensionCommand : DimensionCommandBase
     private readonly bool _stack;
     private Point2D _from, _first, _linePoint;
     private Vector2D _direction;
-    private double _textHeight;
+    private DimensionStyle _style = new();
     private int _count;
     private bool _ready;
 
@@ -322,7 +322,7 @@ public sealed class RunningDimensionCommand : DimensionCommandBase
         _from = last.P2;
         _direction = last.Direction;
         _linePoint = last.LinePoint;
-        _textHeight = last.TextHeight;
+        _style = last.Style;
         _ready = true;
         return CommandResult.Continue;
     }
@@ -342,7 +342,7 @@ public sealed class RunningDimensionCommand : DimensionCommandBase
     private DimensionEntity Build(Point2D to, int number)
     {
         var d = New(DimensionKind.Linear);
-        d.TextHeight = _textHeight;
+        d.Style = _style;
         d.Angle = _direction.Angle;
         d.P1 = _stack ? _first : _from;
         d.P2 = to;
@@ -351,7 +351,7 @@ public sealed class RunningDimensionCommand : DimensionCommandBase
             // Each stacked dimension sits one step further from the measured points.
             var normal = new Vector2D(-_direction.Y, _direction.X);
             double side = normal.Dot(_linePoint - _first) >= 0 ? 1 : -1;
-            d.LinePoint = _linePoint + normal * (side * number * 2.2 * _textHeight);
+            d.LinePoint = _linePoint + normal * (side * number * 2.2 * _style.TextHeight);
         }
         else d.LinePoint = _linePoint;
         return d;
@@ -361,36 +361,22 @@ public sealed class RunningDimensionCommand : DimensionCommandBase
         _ready ? PreviewOf(Build(cursor, _count + 1)) : Array.Empty<Entity>();
 }
 
-/// <summary>DIMSIZE: the text height of new dimensions (arrows and gaps follow it), and optionally of the ones already drawn.</summary>
+/// <summary>
+/// DIMSIZE: the text height of the current dimension style. Arrows, gaps and extensions change in proportion,
+/// and every dimension drawn with that style follows.
+/// </summary>
 public sealed class DimensionSizeCommand : CadCommandBase
 {
-    private bool _askExisting;
-
     public override string Name => "DIMSIZE";
 
-    public override string Prompt => _askExisting
-        ? "DIMSIZE  Change the dimensions already in the drawing to this size too? [Yes/No] <No>:"
-        : $"DIMSIZE  Enter the text height for dimensions <{UnitFormatter.FormatLength(Document.Settings.DimensionTextHeight, Document.Settings)}>:";
-
-    public override IReadOnlyList<string> Options => _askExisting ? new[] { "Yes", "No" } : Array.Empty<string>();
+    public override string Prompt =>
+        $"DIMSIZE  Enter the text height for dimension style \"{Document.CurrentDimensionStyleName}\" <{UnitFormatter.FormatLength(Document.CurrentDimensionStyle.TextHeight, Document.Settings)}>:";
 
     public override CommandResult OnInput(CommandInput input)
     {
-        if (_askExisting)
-        {
-            if (input is CommandInput.KeywordInput k && Matches(k.Keyword, "YES"))
-            {
-                double height = Document.Settings.DimensionTextHeight;
-                var ids = Document.EntitiesUnordered.OfType<DimensionEntity>().Select(d => d.Id).ToList();
-                Session.ModifyEntities(ids, e => ((DimensionEntity)e).TextHeight = height, "Dimension size");
-            }
-            return CommandResult.Finished;
-        }
-
         if (input is CommandInput.EnterInput) return CommandResult.Finished;
         if (input is not CommandInput.NumberInput n || !(n.Value > 0)) return Invalid("Type a height more than 0.");
-        if (!Session.SetDimensionTextHeight(n.Value)) return CommandResult.Continue;
-        _askExisting = Document.EntitiesUnordered.OfType<DimensionEntity>().Any();
-        return _askExisting ? CommandResult.Continue : CommandResult.Finished;
+        var style = Document.CurrentDimensionStyle;
+        return Session.ModifyDimensionStyle(style.Scaled(n.Value / style.TextHeight)) ? CommandResult.Finished : CommandResult.Continue;
     }
 }

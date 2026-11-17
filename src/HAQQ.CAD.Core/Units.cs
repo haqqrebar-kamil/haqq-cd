@@ -45,12 +45,6 @@ public sealed class DrawingSettings
     /// <summary>Scales every linetype pattern in the drawing (LTSCALE). 1 = lengths as defined, in drawing units.</summary>
     public double LinetypeScale { get; set; } = 1.0;
 
-    /// <summary>
-    /// Height of the text of new dimensions, in drawing units. Arrowheads and gaps follow it. A plan drawn full
-    /// size needs a large value (for example 4 to 6 inches); a small detail needs a small one.
-    /// </summary>
-    public double DimensionTextHeight { get; set; } = 4.0;
-
     public DrawingSettings Clone() => (DrawingSettings)MemberwiseClone();
 }
 

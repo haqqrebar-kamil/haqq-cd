@@ -406,6 +406,7 @@ public sealed class PropertiesViewModel : ObservableObject
                     DimensionKind.Angle => "Angle",
                     _ => "Arc length",
                 }));
+                Rows.Add(new PropertyRow("Style", dimension.StyleName));
                 Rows.Add(new PropertyRow("Measured", dimension.MeasuredText(settings)));
                 Rows.Add(Editable("Text", dimension.TextOverride, text =>
                     // Empty shows the measured value; "<>" inside the text stands for it ("<> TYP").

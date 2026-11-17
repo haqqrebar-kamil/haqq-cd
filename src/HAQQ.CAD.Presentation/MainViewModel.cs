@@ -62,6 +62,7 @@ public sealed class MainViewModel : ObservableObject
         Session = new EditorSession(CreateNewDrawing()) { CrosshairSizePercent = _userSettings.CrosshairPercent };
         if (_userSettings.SnapModes is { } savedSnaps) Session.Snap.Modes = (SnapModes)savedSnaps & SnapSettings.AllModes;
         Properties = new PropertiesViewModel(Session);
+        DimensionBar = new DimensionBarViewModel(Session);
         if (_userSettings.Shortcuts.Count > 0 &&
             Session.SetShortcuts(_userSettings.Shortcuts.ToDictionary(p => p.Key, p => (IReadOnlyList<string>)p.Value)) is { } shortcutProblem)
             _startupNote = "Your saved shortcuts could not be used (" + shortcutProblem + ") The standard ones are in use.";
@@ -76,6 +77,7 @@ public sealed class MainViewModel : ObservableObject
             if (name == "Layers") LayersRequested?.Invoke(this, EventArgs.Empty);
             if (name == "Linetypes") LinetypesRequested?.Invoke(this, EventArgs.Empty);
             if (name == "Shortcuts") ShortcutsRequested?.Invoke(this, EventArgs.Empty);
+            if (name == "DimensionStyles") DimensionStylesRequested?.Invoke(this, EventArgs.Empty);
         };
 
         RunCommandCommand = new RelayCommand(p => RunCommand(p as string ?? ""));
@@ -119,6 +121,12 @@ public sealed class MainViewModel : ObservableObject
     public EditorSession Session { get; }
     public RecoveryStore Recovery { get; }
     public PropertiesViewModel Properties { get; }
+
+    /// <summary>The dimension style strip of the ribbon.</summary>
+    public DimensionBarViewModel DimensionBar { get; }
+
+    /// <summary>The DIMSTYLE command asked the shell to show the dimension settings.</summary>
+    public event EventHandler? DimensionStylesRequested;
 
     public ObservableCollection<LayerViewModel> Layers { get; } = new();
 
@@ -857,6 +865,7 @@ public sealed class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(CurrentLayerName));
         OnPropertyChanged(nameof(CurrentLayerPlots));
         Properties.Refresh();
+        DimensionBar.Refresh();
         if (_layersRebuilt)
         {
             // Lists bound to the layer rows lost their choice when the rows were replaced.

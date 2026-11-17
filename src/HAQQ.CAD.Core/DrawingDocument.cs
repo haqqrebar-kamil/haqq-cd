@@ -209,6 +209,77 @@ public sealed class DrawingDocument
         return FindLinetype(name) ?? _linetypes[0];
     }
 
+    // ----------------------------------------------------- dimension styles
+
+    private readonly List<DimensionStyle> _dimensionStyles = new() { new DimensionStyle() };
+    private string _currentDimensionStyle = DimensionStyle.StandardName;
+
+    /// <summary>The dimension styles of the drawing. "Standard" is always there.</summary>
+    public IReadOnlyList<DimensionStyle> DimensionStyles => _dimensionStyles;
+
+    public DimensionStyle? FindDimensionStyle(string? name) =>
+        _dimensionStyles.FirstOrDefault(s => string.Equals(s.Name, name?.Trim(), StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>The style new dimensions are made with.</summary>
+    public DimensionStyle CurrentDimensionStyle => FindDimensionStyle(_currentDimensionStyle) ?? _dimensionStyles[0];
+
+    public string CurrentDimensionStyleName
+    {
+        get => CurrentDimensionStyle.Name;
+        set
+        {
+            var style = FindDimensionStyle(value) ?? throw new InvalidOperationException($"There is no dimension style named \"{value}\".");
+            if (_currentDimensionStyle == style.Name) return;
+            _currentDimensionStyle = style.Name;
+            OnChanged(DocumentChangeKind.Settings);
+        }
+    }
+
+    public void AddDimensionStyle(DimensionStyle style, int? index = null)
+    {
+        if (style.Problem is { } problem) throw new InvalidOperationException(problem);
+        if (FindDimensionStyle(style.Name) is not null) throw new InvalidOperationException($"Dimension style \"{style.Name}\" already exists.");
+        if (index is int i && i >= 1 && i <= _dimensionStyles.Count) _dimensionStyles.Insert(i, style); else _dimensionStyles.Add(style);
+        OnChanged(DocumentChangeKind.Settings);
+    }
+
+    /// <summary>Why a dimension style cannot be removed, or null when removal is allowed.</summary>
+    public string? GetDimensionStyleRemovalBlocker(string? name)
+    {
+        var style = FindDimensionStyle(name);
+        if (style is null) return $"There is no dimension style named \"{name}\".";
+        if (style.Name == DimensionStyle.StandardName) return "The Standard style cannot be deleted.";
+        if (style.Name == CurrentDimensionStyle.Name) return $"\"{style.Name}\" is the current dimension style. Make another style current first.";
+        if (_entities.Values.OfType<DimensionEntity>().Any(d => string.Equals(d.StyleName, style.Name, StringComparison.OrdinalIgnoreCase)))
+            return $"Dimension style \"{style.Name}\" is used by dimensions in the drawing.";
+        return null;
+    }
+
+    /// <summary>Removes a dimension style and returns its position in the table.</summary>
+    public int RemoveDimensionStyle(string name)
+    {
+        if (GetDimensionStyleRemovalBlocker(name) is { } blocker) throw new InvalidOperationException(blocker);
+        int index = _dimensionStyles.FindIndex(s => string.Equals(s.Name, name.Trim(), StringComparison.OrdinalIgnoreCase));
+        _dimensionStyles.RemoveAt(index);
+        OnChanged(DocumentChangeKind.Settings);
+        return index;
+    }
+
+    /// <summary>
+    /// Replaces the values of the style with the same name. The dimensions that use it are not touched here;
+    /// <see cref="ReplaceDimensionStyleAction"/> updates them as well. Returns the values that were replaced.
+    /// </summary>
+    public DimensionStyle ReplaceDimensionStyle(DimensionStyle style)
+    {
+        if (style.Problem is { } problem) throw new InvalidOperationException(problem);
+        int index = _dimensionStyles.FindIndex(s => string.Equals(s.Name, style.Name, StringComparison.OrdinalIgnoreCase));
+        if (index < 0) throw new InvalidOperationException($"There is no dimension style named \"{style.Name}\".");
+        var old = _dimensionStyles[index];
+        _dimensionStyles[index] = style with { Name = old.Name };
+        OnChanged(DocumentChangeKind.Settings);
+        return old;
+    }
+
     public Guid CurrentLayerId
     {
         get => _currentLayerId;

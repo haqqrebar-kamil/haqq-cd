@@ -26,6 +26,9 @@ public sealed class DimensionGeometry
     /// <summary>Arrowheads: the tip and the unit direction the arrow points in.</summary>
     public List<(Point2D Tip, Vector2D Direction)> Arrows { get; } = new();
 
+    /// <summary>What is drawn at each entry of <see cref="Arrows"/>.</summary>
+    public DimensionArrow Arrow { get; set; }
+
     /// <summary>Centre of the text.</summary>
     public Point2D TextCenter { get; set; }
 
@@ -65,8 +68,21 @@ public sealed class DimensionEntity : Entity
     /// <summary>Linear only: direction of the dimension line in radians (0 = horizontal, pi/2 = vertical).</summary>
     public double Angle { get; set; }
 
-    /// <summary>Height of the text in drawing units. Arrowheads and gaps are sized from it.</summary>
-    public double TextHeight { get; set; } = 4.0;
+    /// <summary>
+    /// The values of the dimension style this dimension is drawn with (sizes, ends, how the value is written).
+    /// It is a copy: the drawing's style table updates it when the style of that name is changed.
+    /// </summary>
+    public DimensionStyle Style { get; set; } = new();
+
+    /// <summary>Name of the dimension style.</summary>
+    public string StyleName => Style.Name;
+
+    /// <summary>Height of the text in drawing units (part of <see cref="Style"/>).</summary>
+    public double TextHeight
+    {
+        get => Style.TextHeight;
+        set => Style = Style with { TextHeight = value };
+    }
 
     /// <summary>Text to show instead of the measured value; "&lt;&gt;" inside it stands for the measured value. Empty = measured value.</summary>
     public string TextOverride { get; set; } = "";
@@ -117,11 +133,11 @@ public sealed class DimensionEntity : Entity
         double m = Measurement;
         return Kind switch
         {
-            DimensionKind.Angle => GeoMath.RadiansToDegrees(m).ToString("0.##", CultureInfo.InvariantCulture) + "°",
-            DimensionKind.Radius => "R " + UnitFormatter.FormatLength(m, settings),
-            DimensionKind.Diameter => "Ø " + UnitFormatter.FormatLength(m, settings),
-            DimensionKind.ArcLength => "⌒ " + UnitFormatter.FormatLength(m, settings),
-            _ => UnitFormatter.FormatLength(m, settings),
+            DimensionKind.Angle => Style.FormatAngle(m),
+            DimensionKind.Radius => "R " + Style.FormatLength(m, settings),
+            DimensionKind.Diameter => "Ø " + Style.FormatLength(m, settings),
+            DimensionKind.ArcLength => "⌒ " + Style.FormatLength(m, settings),
+            _ => Style.FormatLength(m, settings),
         };
     }
 
@@ -143,7 +159,9 @@ public sealed class DimensionEntity : Entity
     public DimensionGeometry BuildGeometry()
     {
         var g = new DimensionGeometry();
-        double h = TextHeight, gap = 0.35 * h, beyond = 0.5 * h, arrow = h;
+        g.Arrow = Style.Arrow;
+        double h = Style.TextHeight, gap = Style.ExtensionOffset, beyond = Style.ExtensionBeyond, arrow = Style.ArrowSize, textGap = Style.TextGap;
+        bool heads = Style.Arrow == DimensionArrow.Arrow;       // only arrowheads need room and can be turned round
 
         switch (Kind)
         {
@@ -159,7 +177,7 @@ public sealed class DimensionEntity : Entity
                 var along = d2 - d1;
                 double length = along.Length;
                 var u = length > GeoMath.Epsilon ? along / length : dir;
-                if (length >= 3.0 * arrow)
+                if (length >= 3.0 * arrow || !heads)
                 {
                     g.Lines.Add((d1, d2));
                     g.Arrows.Add((d1, -u));
@@ -172,7 +190,7 @@ public sealed class DimensionEntity : Entity
                     g.Arrows.Add((d1, u));
                     g.Arrows.Add((d2, -u));
                 }
-                PlaceText(g, Point2D.Midpoint(d1, d2), u.Angle, gap, h);
+                PlaceText(g, Point2D.Midpoint(d1, d2), u.Angle, textGap, h);
                 break;
             }
 
@@ -190,13 +208,13 @@ public sealed class DimensionEntity : Entity
                 {
                     g.Lines.Add((from, far));
                     g.Arrows.Add((P1, -u));                                  // from outside, pointing at the circle
-                    PlaceText(g, Point2D.Midpoint(P1, far), u.Angle, gap, h);
+                    PlaceText(g, Point2D.Midpoint(P1, far), u.Angle, textGap, h);
                 }
                 else
                 {
                     g.Lines.Add((from, P1));
                     g.Arrows.Add((P1, u));
-                    PlaceText(g, Kind == DimensionKind.Diameter ? Center : Point2D.Midpoint(Center, P1), u.Angle, gap, h);
+                    PlaceText(g, Kind == DimensionKind.Diameter ? Center : Point2D.Midpoint(Center, P1), u.Angle, textGap, h);
                 }
                 if (Kind == DimensionKind.Diameter) g.Arrows.Add((from, -u));
 
@@ -230,7 +248,7 @@ public sealed class DimensionEntity : Entity
 
                 double mid = start + sweep / 2.0;
                 var um = new Vector2D(Math.Cos(mid), Math.Sin(mid));
-                g.TextCenter = Center + um * (r + gap + h / 2.0);
+                g.TextCenter = Center + um * (r + textGap + h / 2.0);
                 g.TextAngle = Readable(mid - Math.PI / 2.0);
                 break;
             }
@@ -278,7 +296,7 @@ public sealed class DimensionEntity : Entity
     {
         get
         {
-            if (!P1.IsFinite || !LinePoint.IsFinite || !GeoMath.IsFinite(TextHeight) || TextHeight <= GeoMath.Epsilon) return false;
+            if (!P1.IsFinite || !LinePoint.IsFinite || !Style.IsValid) return false;
             switch (Kind)
             {
                 case DimensionKind.Linear:
@@ -339,7 +357,7 @@ public sealed class DimensionEntity : Entity
         P2 = transform.Apply(P2);
         Center = transform.Apply(Center);
         LinePoint = transform.Apply(LinePoint);
-        TextHeight *= transform.ScaleFactor;
+        Style = Style.Scaled(transform.ScaleFactor);
         // An arc runs counter-clockwise from P1 to P2; a mirror reverses that.
         if (Kind == DimensionKind.ArcLength && transform.Determinant < 0) (P1, P2) = (P2, P1);
     }
@@ -351,7 +369,7 @@ public sealed class DimensionEntity : Entity
         Center = Center,
         LinePoint = LinePoint,
         Angle = Angle,
-        TextHeight = TextHeight,
+        Style = Style,
         TextOverride = TextOverride,
     };
 }

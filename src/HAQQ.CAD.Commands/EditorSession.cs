@@ -253,7 +253,8 @@ public sealed class CommandRegistry
         r.Register("DIMARCLEN", "Arc length dimension", () => new AngularDimensionCommand(arcLength: true), "DARC");
         r.Register("DIMCHAIN", "Carry on dimensions end to end", () => new RunningDimensionCommand(stack: false), "DC");
         r.Register("DIMSTACK", "More dimensions from the same first point", () => new RunningDimensionCommand(stack: true), "DS");
-        r.Register("DIMSIZE", "Text height of dimensions", () => new DimensionSizeCommand(), "DSIZE");
+        r.Register("DIMSTYLE", "Dimension settings and styles", null, "DST", "DIMSETTINGS");
+        r.Register("DIMSIZE", "Text height of the current dimension style", () => new DimensionSizeCommand(), "DSIZE");
         // Layers and linetypes
         r.Register("LAYER", "Open the layer table", null, "LA", "LAYERS");
         r.Register("LINETYPE", "Open the Linetype Manager", null, "LT", "LTYPE");
@@ -809,6 +810,10 @@ public sealed class EditorSession
                 Post("Command: ZOOM (extents)");
                 ViewCommandRequested?.Invoke("ZoomExtents");
                 return true;
+            case "DIMSTYLE":
+                Post("Command: DIMSTYLE");
+                ViewCommandRequested?.Invoke("DimensionStyles");
+                return true;
             case "SHORTCUTS":
                 Post("Command: SHORTCUTS");
                 ViewCommandRequested?.Invoke("Shortcuts");
@@ -1134,13 +1139,46 @@ public sealed class EditorSession
     /// <summary>The dimension placed last in this session: DIMCHAIN and DIMSTACK carry on from it.</summary>
     public Guid? LastDimensionId { get; set; }
 
-    /// <summary>Sets the text height new dimensions get (drawing units).</summary>
-    public bool SetDimensionTextHeight(double height)
+    // ------------------------------------------------------ dimension styles
+
+    /// <summary>Adds a dimension style. False (with a message) when the name is taken or a value cannot be used.</summary>
+    public bool AddDimensionStyle(DimensionStyle style)
     {
-        if (!(height > 0) || !double.IsFinite(height)) { Post("The text height must be more than 0."); return false; }
-        var after = Document.Settings.Clone();
-        after.DimensionTextHeight = height;
-        return Execute(new ModifySettingsAction("Dimension size", Document.Settings, after));
+        style = style with { Name = style.Name.Trim() };
+        if (style.Problem is { } problem) { Post(problem); return false; }
+        if (Document.FindDimensionStyle(style.Name) is not null) { Post($"There is already a dimension style named \"{style.Name}\"."); return false; }
+        return Execute(new AddDimensionStyleAction(style));
+    }
+
+    /// <summary>Changes the values of the style with that name; the dimensions using it follow. One undo step.</summary>
+    public bool ModifyDimensionStyle(DimensionStyle style)
+    {
+        if (Document.FindDimensionStyle(style.Name) is not { } existing) { Post($"There is no dimension style named \"{style.Name}\"."); return false; }
+        if (style.Problem is { } problem) { Post(problem); return false; }
+        if (existing == style with { Name = existing.Name }) return true;
+        return Execute(new ReplaceDimensionStyleAction(style));
+    }
+
+    public bool DeleteDimensionStyle(string name)
+    {
+        if (Document.GetDimensionStyleRemovalBlocker(name) is { } blocker) { Post(blocker); return false; }
+        return Execute(new RemoveDimensionStyleAction(name.Trim()));
+    }
+
+    /// <summary>Makes a style the one new dimensions are drawn with.</summary>
+    public bool SetCurrentDimensionStyle(string name)
+    {
+        if (Document.FindDimensionStyle(name) is not { } style) { Post($"There is no dimension style named \"{name}\"."); return false; }
+        if (style.Name == Document.CurrentDimensionStyleName) return true;
+        return Execute(new SetCurrentDimensionStyleAction(Document.CurrentDimensionStyleName, style.Name));
+    }
+
+    /// <summary>Gives the selected dimensions another style.</summary>
+    public bool SetDimensionStyleOfSelection(string name)
+    {
+        if (Document.FindDimensionStyle(name) is not { } style) { Post($"There is no dimension style named \"{name}\"."); return false; }
+        var ids = GetSelectedEntities().OfType<DimensionEntity>().Select(d => d.Id).ToList();
+        return ids.Count > 0 && ModifyEntities(ids, e => ((DimensionEntity)e).Style = style, "Change dimension style");
     }
 
     /// <summary>Sets the drawing's linetype scale (all dash and gap lengths are multiplied by it).</summary>
