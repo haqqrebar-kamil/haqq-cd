@@ -9,7 +9,7 @@ Last updated: 2026-11-15 · Version 0.2.0-dev · Phase 1 complete, Phase 2 start
 | First release (Phase 1) built on Windows 10/11 with the .NET 10 SDK (10.0.404), including the WPF project | **Passed**, 0 warnings, 0 errors |
 | First release: `dotnet test` with real xUnit on Windows | **160 passed, 0 failed** |
 | Current source: engine and view-model libraries compiled on Linux (.NET 8 SDK) | **Passed**, 0 warnings |
-| Current source: 273 automated tests through `tools/OfflineTestRunner` | **273 passed, 0 failed** |
+| Current source: 275 automated tests through `tools/OfflineTestRunner` | **275 passed, 0 failed** |
 | Build of 14 Nov evening on Windows (.NET 10): solution build and `dotnet test` | **Passed**, 181 tests at that point; the app was seen running (screenshots from the owner) |
 | Current source: WPF project compiled on Windows | **Compiled** by the installer build of 15 Nov 10:38 (all features up to the updater); the self-installer added afterwards is **not compiled yet**. Earlier note: not confirmed for the latest changes (per-section polyline width, rectangle options, the 11 arc methods and the longer Arc drop-down, grip editing, object snaps and their menus, folding Properties panel); no build log read since the 181-test build |
 | Running the application and using it by hand | Owner has run it and sent screenshots of the window, crosshair and input box; no systematic manual test |
@@ -88,6 +88,7 @@ Legend: **Tested** = implemented and covered by executed automated tests ·
 | EXTEND (EX), quick mode | Tested | Click near an end of a line or arc; it grows to the first object met. Polyline targets not yet |
 | FILLET (F) and CHAMFER (CHA) | Tested | Two lines only (not arcs, circles or polyline corners yet). Radius / distances remembered for the session; radius 0 makes a sharp corner. No Polyline, Trim-mode or Multiple options |
 | JOIN (J) | Tested | Selected lines, arcs and open polylines whose ends touch (within 0.000001 units) become polylines; a loop becomes a closed polyline; curves and widths are kept. Objects with a gap are not joined (no gap tolerance setting) |
+| Snap name shown beside the snap marker; snap overrides can be typed (END, MID, INT, CEN, QUA, PER, TAN, NEA, NON) | Tested (typed codes) / Untested UI (label) | The owner reported on 16 Nov that Tangent on a second point "does not work" in the application; the same sequence passes at engine and view-model level, so the cause in the running program is **not yet found** |
 | Tangent snap on the first point of a LINE, and a line tangent to two circles | Tested (logic) / Untested UI | The line start slides round the circle until the second point is given. Only LINE supports this; Perpendicular still needs a previous point |
 | EXPLODE (X) | Tested | Polylines into lines and arcs; width is dropped |
 | While a command asks for an object click, object snap is off and the pick box is shown | Tested (logic) / Untested UI | |

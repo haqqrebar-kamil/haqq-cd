@@ -2860,6 +2860,61 @@ public class TangentLineTests
     }
 
     [Fact]
+    public void Line_from_a_point_to_the_tangent_of_a_circle_by_right_click_override_or_typed_TAN()
+    {
+        // The owner's sequence: LINE, any first point, choose Tangent, click the circle.
+        var s = Session(new CircleEntity(P(100, 50), 24));
+        s.Snap.Enabled = false;                             // works with OSNAP off
+        s.StartCommand("LINE");
+        s.SubmitText("0,80");
+        s.SetSnapOverride(SnapModes.Tangent);               // what right-click > Snap Overrides > Tangent does
+        s.UpdateCursor(P(100, 74.2), 0.4);                  // hovering the top of the circle
+        var snap = s.CurrentSnap!.Value;
+        Assert.Equal(SnapModes.Tangent, snap.Mode);
+        Assert.False(snap.Deferred);
+        s.SubmitPoint(s.EffectiveCursor);
+        var line = LastLine(s);
+        Assert.Equal(P(0, 80), line.Start);
+        AssertTangent(line, P(100, 50), 24);
+        Assert.Equal(0.0, (line.End - line.Start).Dot(line.End - P(100, 50)), 6);   // 90 degrees to the radius at the touching point
+        Assert.Equal(24.0, line.End.DistanceTo(P(100, 50)), 6);
+
+        s.StartCommand("LINE");
+        s.SubmitText("0,80");
+        s.SubmitText("tan");                                // typed instead of the menu
+        Assert.Equal(SnapModes.Tangent, s.SnapOverride);
+        s.UpdateCursor(P(100, 25.8), 0.4);                  // the bottom of the circle: the other tangent
+        s.SubmitPoint(s.EffectiveCursor);
+        var lower = LastLine(s);
+        AssertTangent(lower, P(100, 50), 24);
+        Assert.True(lower.End.Y < 50);
+        Assert.Null(s.SnapOverride);
+    }
+
+    [Fact]
+    public void Typed_snap_codes_give_way_to_command_options_with_the_same_letters()
+    {
+        var s = Session(new LineEntity(P(0, 0), P(10, 0)));
+        s.StartCommand("ARC");
+        s.SubmitText("50,50");
+        s.SubmitText("END");                                // ARC's own End option, not the Endpoint snap
+        Assert.Null(s.SnapOverride);
+        Assert.Contains("end point", s.Prompt);
+        s.Cancel();
+
+        s.StartCommand("LINE");
+        s.SubmitText("END");
+        Assert.Equal(SnapModes.Endpoint, s.SnapOverride);
+        s.UpdateCursor(P(9.7, 0.2), 0.5);
+        s.SubmitPoint(s.EffectiveCursor);
+        s.SubmitText("mid");
+        s.UpdateCursor(P(5.2, 0.1), 0.5);
+        Assert.Equal(SnapModes.Midpoint, s.CurrentSnap!.Value.Mode);
+        s.Cancel();
+        Assert.Null(s.SnapOverride);
+    }
+
+    [Fact]
     public void Common_tangents_of_two_circles()
     {
         Assert.Equal(4, TangentMath.Common(P(0, 0), 5, P(30, 0), 3).Count());       // apart: two outer, two crossing

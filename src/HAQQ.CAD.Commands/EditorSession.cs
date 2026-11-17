@@ -284,6 +284,13 @@ public sealed class EditorSession
     /// </summary>
     public SnapModes? SnapOverride { get; private set; }
 
+    private static readonly Dictionary<string, SnapModes> SnapCodes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["END"] = SnapModes.Endpoint, ["MID"] = SnapModes.Midpoint, ["INT"] = SnapModes.Intersection, ["CEN"] = SnapModes.Center,
+        ["QUA"] = SnapModes.Quadrant, ["PER"] = SnapModes.Perpendicular, ["TAN"] = SnapModes.Tangent, ["NEA"] = SnapModes.Nearest,
+        ["NON"] = SnapModes.None,
+    };
+
     public void SetSnapOverride(SnapModes? mode)
     {
         SnapOverride = WantsPoint ? mode : null;
@@ -500,6 +507,16 @@ public sealed class EditorSession
         if (command.WantsSelection && trimmed.Equals("ALL", StringComparison.OrdinalIgnoreCase))
         {
             SelectAll();
+            return;
+        }
+
+        // END, MID, INT, CEN, QUA, PER, TAN, NEA (or NON) while a point is wanted: that snap for the next point only.
+        // An option of the command with the same letters wins (ARC has End).
+        if (WantsPoint && !PickingObject && SnapCodes.TryGetValue(trimmed, out var snapCode) &&
+            !command.Options.Any(o => o.StartsWith(trimmed, StringComparison.OrdinalIgnoreCase)))
+        {
+            SetSnapOverride(snapCode);
+            Post(snapCode == SnapModes.None ? "Snap override: none (next point only)" : $"Snap override: {SnapEngine.NameOf(snapCode)} (next point only)");
             return;
         }
 

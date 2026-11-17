@@ -286,7 +286,19 @@ public sealed class CadCanvas : FrameworkElement
             _surface.Target = null;
         }
 
+        DrawSnapLabel(drawingContext);
         if (_mouse is { } tipAnchor) DrawDynamicInput(drawingContext, tipAnchor);
+    }
+
+    /// <summary>The name of the acquired object snap ("Tangent", "Endpoint"...) beside its marker.</summary>
+    private void DrawSnapLabel(DrawingContext dc)
+    {
+        if (_viewModel?.Session.CurrentSnap is not { } snap) return;
+        var at = _view.WorldToScreen(snap.Point);
+        var text = new FormattedText(HAQQ.CAD.Snapping.SnapEngine.NameOf(snap.Mode), CultureInfo.CurrentUICulture,
+            FlowDirection.LeftToRight, TipTypeface, 12, TipTextBrush, VisualTreeHelper.GetDpi(this).PixelsPerDip);
+        // Below and to the right of the marker, clear of the crosshair's input boxes above it.
+        DrawCenteredBox(dc, text, new Point(at.X + 14 + text.Width / 2, at.Y + 24), TipFieldBrush);
     }
 
     // ---------------------------------------------------------------- mouse
