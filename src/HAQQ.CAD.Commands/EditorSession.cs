@@ -78,6 +78,15 @@ public interface IObjectPicker
     bool PickingObject { get; }
 }
 
+/// <summary>
+/// A command that has taken an object by a click and still needs something else (OFFSET waiting for the side,
+/// FILLET waiting for the second line). The object is shown highlighted so the user can see it was taken.
+/// </summary>
+public interface IPickedObjects
+{
+    IEnumerable<Guid> PickedObjects { get; }
+}
+
 /// <summary>An active polar tracking alignment: the cursor is locked onto a ray from <paramref name="From"/>.</summary>
 public readonly record struct PolarTrack(Point2D From, double AngleDegrees, Point2D Point);
 
@@ -198,6 +207,10 @@ public sealed class EditorSession
     /// true = a chain of lines until Enter, with Close and Undo. Changed with the LINEMODE command.
     /// </summary>
     public bool ContinuousLines { get; set; }
+
+    /// <summary>True for objects to draw highlighted: the selection, and whatever the active command has picked.</summary>
+    public bool IsHighlighted(Guid id) =>
+        Selection.Contains(id) || (ActiveCommand is IPickedObjects picked && picked.PickedObjects.Contains(id));
 
     /// <summary>True while the active command wants a click on an object rather than a point.</summary>
     public bool PickingObject => ActiveCommand is IObjectPicker { PickingObject: true };

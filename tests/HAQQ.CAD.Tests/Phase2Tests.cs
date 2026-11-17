@@ -3414,3 +3414,37 @@ public class LinetypeTests : IDisposable
         Assert.Equal("Rebar hidden", Linetypes.FromEarlierName("Rebar hidden"));
     }
 }
+
+public class PickHighlightTests
+{
+    [Fact]
+    public void Object_picked_inside_a_command_is_highlighted_until_the_command_uses_it()
+    {
+        var s = new EditorSession();
+        s.Document.Settings.Format = LengthFormat.Decimal;
+        var a = new LineEntity(P(0, 0), P(10, 0)) { LayerId = s.Document.CurrentLayerId };
+        var b = new LineEntity(P(10, 5), P(10, 20)) { LayerId = s.Document.CurrentLayerId };
+        s.Document.AddEntity(a);
+        s.Document.AddEntity(b);
+        Assert.False(s.IsHighlighted(a.Id));
+
+        s.StartCommand("OFFSET");
+        s.SubmitText("2");
+        s.SubmitPoint(P(5, 0));                       // the object to offset
+        Assert.True(s.IsHighlighted(a.Id));
+        Assert.False(s.IsHighlighted(b.Id));
+        s.SubmitPoint(P(5, 3));                       // the side
+        Assert.False(s.IsHighlighted(a.Id));
+        s.Cancel();
+
+        s.StartCommand("FILLET");
+        s.SubmitPoint(P(5, 0));                       // first line
+        Assert.True(s.IsHighlighted(a.Id));
+        s.Cancel();
+        Assert.False(s.IsHighlighted(a.Id));
+
+        s.Selection.Add(b.Id);                        // an ordinary selection is highlighted too
+        Assert.True(s.IsHighlighted(b.Id));
+    }
+}
+

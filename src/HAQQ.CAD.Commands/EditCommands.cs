@@ -40,10 +40,12 @@ public abstract class PickCommandBase : CadCommandBase, IObjectPicker
 }
 
 /// <summary>OFFSET: a parallel copy of a line, arc, circle or polyline at a set distance, on the side that is clicked.</summary>
-public sealed class OffsetCommand : PickCommandBase
+public sealed class OffsetCommand : PickCommandBase, IPickedObjects
 {
     private double? _distance;
     private Entity? _source;
+
+    public IEnumerable<Guid> PickedObjects => _source is null ? Array.Empty<Guid>() : new[] { _source.Id };
 
     public override string Name => "OFFSET";
 
@@ -385,9 +387,11 @@ public sealed class ExtendCommand : PickCommandBase
 }
 
 /// <summary>Shared two-line corner logic of FILLET and CHAMFER.</summary>
-public abstract class CornerCommandBase : PickCommandBase
+public abstract class CornerCommandBase : PickCommandBase, IPickedObjects
 {
     private LineEntity? _first;
+
+    public IEnumerable<Guid> PickedObjects => _first is null ? Array.Empty<Guid>() : new[] { _first.Id };
     private Point2D _firstPick;
     protected int ValueStage;        // 0 = picking lines; otherwise the command is asking for a value
 

@@ -219,7 +219,9 @@ public class SceneRendererTests
         var surface = new RecordingSurface();
         new SceneRenderer().Render(surface, doc, View(P(0, 0), 10), options);
 
-        Assert.Equal(RenderTheme.Selection, Assert.Single(surface.Lines).Style);
+        // A wide glow underneath, bright dashes on top.
+        Assert.Equal(new[] { RenderTheme.SelectionGlow, RenderTheme.Selection }, surface.Lines.Select(l => l.Style).ToArray());
+        Assert.True(RenderTheme.SelectionGlow.Width >= 3 * RenderTheme.Selection.Width && !RenderTheme.SelectionGlow.Dashed);
         Assert.Equal(RenderTheme.Preview, Assert.Single(surface.Circles).Style);
         // 3 grips for the selected line, 1 selection rectangle, 1 endpoint snap marker.
         Assert.Equal(5, surface.Rectangles.Count);

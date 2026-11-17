@@ -36,7 +36,9 @@ public static class RenderTheme
     public static readonly RenderStyle GridMajor = new(58, 64, 74);
     public static readonly RenderStyle AxisX = new(150, 70, 70);
     public static readonly RenderStyle AxisY = new(70, 140, 80);
-    public static readonly RenderStyle Selection = new(64, 160, 255, 1.5, true);
+    /// <summary>Selected objects: a wide glow underneath (<see cref="SelectionGlow"/>) and bright dashes on top.</summary>
+    public static readonly RenderStyle Selection = new(150, 220, 255, 2.0, true);
+    public static readonly RenderStyle SelectionGlow = new(0, 110, 215, 6.0);
     public static readonly RenderStyle Grip = new(64, 160, 255);
     public static readonly RenderStyle Preview = new(255, 205, 80);
     public static readonly RenderStyle RubberBand = new(255, 205, 80, 1.0, true);
@@ -117,6 +119,8 @@ public sealed class SceneRenderer
 
         if (selected is not null)
         {
+            // The glow of every selected object goes down first, so that it never covers another object's dashes.
+            foreach (var entity in selected) DrawEntity(surface, entity, view, RenderTheme.SelectionGlow);
             foreach (var entity in selected)
             {
                 DrawEntity(surface, entity, view, RenderTheme.Selection);

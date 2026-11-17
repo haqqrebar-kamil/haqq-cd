@@ -254,7 +254,7 @@ public sealed class CadCanvas : FrameworkElement
         var options = new CadRenderOptions
         {
             ShowGrid = _viewModel.GridOn,
-            IsSelected = session.Selection.Contains,
+            IsSelected = session.IsHighlighted,
             Preview = session.GetPreview(),
             Snap = session.CurrentSnap,
             PolarTrack = session.CurrentPolarTrack is { } track ? (track.From, track.AngleDegrees) : null,
