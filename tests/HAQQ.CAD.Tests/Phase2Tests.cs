@@ -3160,12 +3160,12 @@ public class LinetypeTests : IDisposable
     public void Every_drawing_has_continuous_dashed_and_center()
     {
         var doc = new DrawingDocument();
-        Assert.Equal(new[] { "Solid", "Dash", "Short Dash", "Long Short", "Long Short Short", "Dash Dot", "Dotted", "Dash Dash Dot" }, doc.LinetypeTable.Select(l => l.Name).ToArray());
+        Assert.Equal(new[] { "Continuous", "Dashed", "Short Dash", "Center", "Long Short Short", "Dash Dot", "Dotted", "Dash Dash Dot" }, doc.LinetypeTable.Select(l => l.Name).ToArray());
         Assert.Equal(new[] { 1.25, 0.25, 0.25, 0.25, 0.25, 0.25 }, doc.FindLinetype("long short short")!.Pattern.ToArray());
-        Assert.True(doc.FindLinetype("solid")!.IsContinuous);
-        Assert.Equal(new[] { 0.5, 0.25 }, doc.FindLinetype("DASH")!.Pattern.ToArray());
-        Assert.Equal(2.0, doc.FindLinetype("Long Short")!.PatternLength, 12);
-        Assert.NotNull(doc.GetLinetypeRemovalBlocker("Dash"));           // built-in
+        Assert.True(doc.FindLinetype("continuous")!.IsContinuous);
+        Assert.Equal(new[] { 0.5, 0.25 }, doc.FindLinetype("DASHED")!.Pattern.ToArray());
+        Assert.Equal(2.0, doc.FindLinetype("Center")!.PatternLength, 12);
+        Assert.NotNull(doc.GetLinetypeRemovalBlocker("Dashed"));           // built-in
         Assert.NotNull(doc.GetLinetypeRemovalBlocker("nope"));
     }
 
@@ -3193,11 +3193,11 @@ public class LinetypeTests : IDisposable
         Assert.Equal("ByLayer", line.Linetype);
         Assert.True(doc.ResolveLinetype(line).IsContinuous);
 
-        s.UpdateLayer(doc.CurrentLayerId, l => l.Linetype = "Dash");
-        Assert.Equal("Dash", doc.ResolveLinetype(doc.GetEntity(line.Id)!).Name);
+        s.UpdateLayer(doc.CurrentLayerId, l => l.Linetype = "Dashed");
+        Assert.Equal("Dashed", doc.ResolveLinetype(doc.GetEntity(line.Id)!).Name);
 
-        s.ModifyEntities(new[] { line.Id }, e => e.Linetype = "Long Short", "t");
-        Assert.Equal("Long Short", doc.ResolveLinetype(doc.GetEntity(line.Id)!).Name);
+        s.ModifyEntities(new[] { line.Id }, e => e.Linetype = "Center", "t");
+        Assert.Equal("Center", doc.ResolveLinetype(doc.GetEntity(line.Id)!).Name);
 
         s.ModifyEntities(new[] { line.Id }, e => e.Linetype = Linetypes.ByBlock, "t");
         Assert.True(doc.ResolveLinetype(doc.GetEntity(line.Id)!).IsContinuous);          // no blocks yet
@@ -3213,7 +3213,7 @@ public class LinetypeTests : IDisposable
         var messages = CaptureMessages(s);
         s.StartCommand("-LINETYPE");
         s.SubmitKeyword("NEW");
-        s.SubmitText("Dash");                             // taken
+        s.SubmitText("Dashed");                             // taken
         Assert.Contains(messages, m => m.Contains("already a linetype"));
         s.SubmitText("Rebar hidden");                       // names may have spaces
         s.SubmitText("oops");                               // not a pattern
@@ -3247,7 +3247,7 @@ public class LinetypeTests : IDisposable
 
         s.StartCommand("-LINETYPE");
         s.SubmitKeyword("D");
-        s.SubmitText("Long Short");
+        s.SubmitText("Center");
         Assert.Contains(messages, m => m.Contains("built-in"));
     }
 
@@ -3256,7 +3256,7 @@ public class LinetypeTests : IDisposable
     {
         var s = Session();
         var line = AddLine(s, 0, 0, 100, 0);
-        s.UpdateLayer(s.Document.CurrentLayerId, l => l.Linetype = "Dash");
+        s.UpdateLayer(s.Document.CurrentLayerId, l => l.Linetype = "Dashed");
 
         var view = new ViewTransform();
         view.SetViewport(800, 600);
@@ -3329,7 +3329,7 @@ public class LinetypeTests : IDisposable
         var loaded = HcadSerializer.LoadFromBytes(bytes);
         Assert.Empty(loaded.Warnings);
         var doc = loaded.Document;
-        Assert.Equal(new[] { "Solid", "Dash", "Short Dash", "Long Short", "Long Short Short", "Dash Dot", "Dotted", "Dash Dash Dot", "Rebar hidden" }, doc.LinetypeTable.Select(l => l.Name).ToArray());
+        Assert.Equal(new[] { "Continuous", "Dashed", "Short Dash", "Center", "Long Short Short", "Dash Dot", "Dotted", "Dash Dash Dot", "Rebar hidden" }, doc.LinetypeTable.Select(l => l.Name).ToArray());
         Assert.Equal(new[] { 0.75, 0.2, 0, 0.2 }, doc.FindLinetype("Rebar hidden")!.Pattern.ToArray());
         Assert.Equal(12.0, doc.Settings.LinetypeScale);
         Assert.Equal("Rebar hidden", doc.GetLayer(doc.CurrentLayerId)!.Linetype);
@@ -3352,17 +3352,17 @@ public class LinetypeTests : IDisposable
     {
         var vm = new MainViewModel(new FakeUi(), new RecoveryStore(_temp.File("recovery")));
         var s = vm.Session;
-        Assert.Equal(new[] { "Solid", "Dash", "Short Dash", "Long Short", "Long Short Short", "Dash Dot", "Dotted", "Dash Dash Dot" }, vm.LinetypeNames.ToArray());
-        Assert.Equal(new[] { "ByLayer", "ByBlock", "Solid", "Dash", "Short Dash", "Long Short", "Long Short Short", "Dash Dot", "Dotted", "Dash Dash Dot" }, vm.Properties.LinetypeNames.ToArray());
+        Assert.Equal(new[] { "Continuous", "Dashed", "Short Dash", "Center", "Long Short Short", "Dash Dot", "Dotted", "Dash Dash Dot" }, vm.LinetypeNames.ToArray());
+        Assert.Equal(new[] { "ByLayer", "ByBlock", "Continuous", "Dashed", "Short Dash", "Center", "Long Short Short", "Dash Dot", "Dotted", "Dash Dash Dot" }, vm.Properties.LinetypeNames.ToArray());
         Assert.Null(vm.Properties.SelectedLinetype);        // nothing selected
 
         var line = new LineEntity(P(0, 0), P(10, 0)) { LayerId = s.Document.CurrentLayerId };
         s.Document.AddEntity(line);
         s.Selection.Add(line.Id);
         Assert.Equal("ByLayer", vm.Properties.SelectedLinetype);
-        vm.Properties.SelectedLinetype = "Dash";
-        Assert.Equal("Dash", s.Document.GetEntity(line.Id)!.Linetype);
-        Assert.Equal("Dash", vm.Properties.SelectedLinetype);
+        vm.Properties.SelectedLinetype = "Dashed";
+        Assert.Equal("Dashed", s.Document.GetEntity(line.Id)!.Linetype);
+        Assert.Equal("Dashed", vm.Properties.SelectedLinetype);
         vm.Properties.Rows.Single(r => r.Label == "Linetype scale").Value = "3";
         Assert.Equal(3.0, s.Document.GetEntity(line.Id)!.LinetypeScale);
         vm.Properties.Rows.Single(r => r.Label == "Linetype scale").Value = "0";          // refused
@@ -3371,10 +3371,10 @@ public class LinetypeTests : IDisposable
         Assert.Equal("ByBlock", s.Document.GetEntity(line.Id)!.Linetype);
 
         var row = vm.Layers.Single(l => l.IsCurrent);
-        row.Linetype = "Long Short";
-        Assert.Equal("Long Short", s.Document.GetLayer(row.Id)!.Linetype);
+        row.Linetype = "Center";
+        Assert.Equal("Center", s.Document.GetLayer(row.Id)!.Linetype);
         row.Linetype = "No such linetype";                  // ignored
-        Assert.Equal("Long Short", row.Linetype);
+        Assert.Equal("Center", row.Linetype);
 
         s.AddLinetype("Mine", "Custom", new[] { 1.0, 0.5 });
         Assert.Contains("Mine", vm.LinetypeNames);
@@ -3394,15 +3394,16 @@ public class LinetypeTests : IDisposable
         doc.AddEntity(a);
         doc.AddEntity(b);
         string json = System.Text.Encoding.UTF8.GetString(HcadSerializer.SaveToBytes(doc));
-        Assert.Contains("\"linetype\": \"Solid\"", json);
-        // What an earlier build wrote: layer "Continuous", objects "Center" and "ByLayer".
-        json = json.Replace("\"linetype\": \"Solid\"", "\"linetype\": \"Continuous\"");
+        Assert.Contains("\"linetype\": \"Continuous\"", json);
+        // What the builds of 17 Nov wrote for a while: layer "Solid", objects "Phantom" and "ByLayer".
+        json = json.Replace("\"linetype\": \"Continuous\"", "\"linetype\": \"Solid\"");
         int at = json.IndexOf("\"linetype\": \"ByLayer\"", StringComparison.Ordinal);
-        json = json.Remove(at, "\"linetype\": \"ByLayer\"".Length).Insert(at, "\"linetype\": \"Center\"");
+        json = json.Remove(at, "\"linetype\": \"ByLayer\"".Length).Insert(at, "\"linetype\": \"Phantom\"");
         var opened = HcadSerializer.LoadFromBytes(System.Text.Encoding.UTF8.GetBytes(json)).Document;
-        Assert.Equal("Solid", opened.Layers[0].Linetype);
+        Assert.Equal("Continuous", opened.Layers[0].Linetype);
         var linetypes = opened.Entities.Select(e => e.Linetype).OrderBy(n => n).ToArray();
-        Assert.Equal(new[] { "ByLayer", "Long Short" }, linetypes);
+        Assert.Equal(new[] { "ByLayer", "Long Short Short" }, linetypes);
+        Assert.Equal("Center", Linetypes.FromEarlierName("Long Short"));
         Assert.Equal("Dash Dash Dot", Linetypes.FromEarlierName("border"));
         Assert.Equal("Rebar hidden", Linetypes.FromEarlierName("Rebar hidden"));
     }

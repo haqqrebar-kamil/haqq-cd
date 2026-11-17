@@ -69,7 +69,7 @@ The reader and writer live in `src/HAQQ.CAD.Documents/HcadSerializer.cs`.
 ## Layers
 
 ```json
-{ "id": "9d2e...", "name": "REBAR", "color": "#FF0000", "linetype": "Solid",
+{ "id": "9d2e...", "name": "REBAR", "color": "#FF0000", "linetype": "Continuous",
   "lineweightMm": 0.5, "visible": true, "locked": false, "frozen": false }
 ```
 
@@ -120,16 +120,15 @@ if it saves, drops the custom definitions (layers and objects keep their linetyp
 
 - `document.linetypes`: the linetypes defined in the drawing, each `{ "name", "description", "pattern": [dash, gap, dash, gap, ...] }`.
   Lengths are in drawing units; a dash of 0 is a dot; every gap is greater than 0. The built-in linetypes
-  are never stored: `Solid`, `Dash` (0.5, 0.25), `Short Dash` (0.25, 0.125), `Long Short` (1.25, 0.25, 0.25, 0.25),
+  are never stored: `Continuous`, `Dashed` (0.5, 0.25), `Short Dash` (0.25, 0.125), `Center` (1.25, 0.25, 0.25, 0.25),
   `Long Short Short` (1.25, 0.25, 0.25, 0.25, 0.25, 0.25), `Dash Dot` (0.5, 0.25, 0, 0.25), `Dotted` (0, 0.25) and
   `Dash Dash Dot` (0.5, 0.25, 0.5, 0.25, 0, 0.25). A stored linetype whose name is a built-in one is skipped with a
   warning when the file is read (the built-in is used). A reader that does not know a linetype name draws it
-  solid and keeps the name.
-- Earlier names: files written before 17 Nov 2026 name the solid linetype `Continuous` (every layer of every
-  schema 1-3 file), and development builds of schema 4 used `Dashed`, `Hidden`, `Center`, `Phantom`, `DashDot`,
-  `Dot` and `Border`. A reader maps these to `Solid`, `Dash`, `Short Dash`, `Long Short`, `Long Short Short`,
-  `Dash Dot`, `Dotted` and `Dash Dash Dot` on layers and entities, unless the file itself defines a linetype
-  with that name. Writers use the current names only.
+  continuous and keeps the name.
+- Earlier names: development builds of 17 Nov 2026 (schema 4, never released) wrote `Solid`, `Dash`, `Long Short`,
+  `Hidden`, `Phantom`, `DashDot`, `Dot` and `Border` for a while. A reader maps these to `Continuous`, `Dashed`,
+  `Center`, `Short Dash`, `Long Short Short`, `Dash Dot`, `Dotted` and `Dash Dash Dot` on layers and entities,
+  unless the file itself defines a linetype with that name. Writers use the current names only.
 - `document.units.linetypeScale`: the drawing's linetype scale (default 1). Every pattern length is multiplied by it.
 - Layer `linetype`: a linetype name.
 - Entity `linetype`: `ByLayer` (use the layer's), `ByBlock` (use the containing block's; drawn continuous until

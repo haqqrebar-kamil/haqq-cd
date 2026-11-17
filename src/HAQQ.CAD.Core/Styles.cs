@@ -61,11 +61,11 @@ public static class Linetypes
     /// </summary>
     public const string ByBlock = "ByBlock";
 
-    // The names are HAQQ CAD's own: they say what the line looks like.
-    public const string Solid = "Solid";
-    public const string Dash = "Dash";
+    // Continuous, Dashed and Center keep their usual drafting names (owner's decision); the others say what the line looks like.
+    public const string Solid = "Continuous";
+    public const string Dash = "Dashed";
     public const string ShortDash = "Short Dash";
-    public const string LongShort = "Long Short";
+    public const string LongShort = "Center";
     public const string LongShortShort = "Long Short Short";
     public const string DashDot = "Dash Dot";
     public const string Dotted = "Dotted";
@@ -89,13 +89,13 @@ public static class Linetypes
     };
 
     /// <summary>
-    /// Names the built-in linetypes had in development builds before 17 Nov 2026 (and "Continuous", which every
-    /// earlier drawing stores for its layers), with the name used now. Applied when a drawing is opened.
+    /// Names the built-in linetypes had in development builds of 17 Nov 2026, with the name used now.
+    /// Applied when a drawing is opened.
     /// </summary>
     private static readonly Dictionary<string, string> EarlierNames = new(StringComparer.OrdinalIgnoreCase)
     {
-        ["Continuous"] = Solid, ["Dashed"] = Dash, ["Hidden"] = ShortDash, ["Center"] = LongShort,
-        ["Phantom"] = LongShortShort, ["DashDot"] = DashDot, ["Dot"] = Dotted, ["Border"] = DashDashDot,
+        ["Solid"] = Solid, ["Dash"] = Dash, ["Long Short"] = LongShort,
+        ["Hidden"] = ShortDash, ["Phantom"] = LongShortShort, ["DashDot"] = DashDot, ["Dot"] = Dotted, ["Border"] = DashDashDot,
     };
 
     /// <summary>The current name for a linetype name read from a drawing saved by an earlier build.</summary>

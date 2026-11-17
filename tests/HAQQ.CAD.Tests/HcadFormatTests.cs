@@ -40,7 +40,7 @@ public class HcadSerializationTests
         {
             LayerId = rebar.Id,
             Color = CadColor.FromRgb(10, 20, 30),
-            Linetype = "Long Short",
+            Linetype = "Center",
             LineweightMm = 0.35,
         };
         line.CustomProperties["barMark"] = "A1";

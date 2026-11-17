@@ -649,7 +649,7 @@ public class LayerTableTests : IDisposable
         vm.AddLayerCommand.Execute(null);
         var row = vm.Layers.Single(l => l.Name == "Layer 2");
         Assert.Equal("White", row.ColorName);
-        Assert.Equal("Solid", row.Linetype);
+        Assert.Equal("Continuous", row.Linetype);
         var changed = new List<string?>();
         row.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
         row.ColorHex = "#FF0000";
@@ -720,8 +720,8 @@ public class LinetypeManagerTests
     {
         var (s, vm) = Make();
         Assert.Equal(s.Document.LinetypeTable.Select(l => l.Name).ToArray(), vm.Rows.Select(r => r.Name).ToArray());
-        Assert.Equal("Solid line", vm.Rows.First(r => r.Name == "Solid").Recipe);
-        Assert.Equal("dash 0.5, space 0.25", vm.Rows.First(r => r.Name == "Dash").Recipe);
+        Assert.Equal("Solid line", vm.Rows.First(r => r.Name == "Continuous").Recipe);
+        Assert.Equal("dash 0.5, space 0.25", vm.Rows.First(r => r.Name == "Dashed").Recipe);
         Assert.Equal("dash 0.5, space 0.25, dot, space 0.25", vm.Rows.First(r => r.Name == "Dash Dot").Recipe);
         Assert.True(vm.Rows.First(r => r.Name == "Long Short Short").IsBuiltIn);
         Assert.True(vm.PreviewUnits >= 2.5 * 2.5);                        // long enough for the longest pattern, same for all rows
@@ -803,7 +803,7 @@ public class LinetypeManagerTests
     {
         var (s, vm) = Make();
         vm.BeginNew();
-        vm.EditName = "dash";
+        vm.EditName = "dashed";
         Assert.False(vm.Save());
         Assert.True(vm.IsEditing);
         Assert.Contains("already", vm.Message);
@@ -818,15 +818,15 @@ public class LinetypeManagerTests
     public void Duplicate_starts_from_the_selected_linetype()
     {
         var (s, vm) = Make();
-        vm.Selected = vm.Rows.First(r => r.Name == "Long Short");
+        vm.Selected = vm.Rows.First(r => r.Name == "Center");
         Assert.True(vm.DuplicateCommand.CanExecute(null));
         vm.DuplicateCommand.Execute(null);
-        Assert.Equal("Long Short 1", vm.EditName);
+        Assert.Equal("Center 1", vm.EditName);
         Assert.Equal(new[] { 1.25, 0.25, 0.25, 0.25 }, vm.EditPattern);
         Assert.True(vm.Save());
-        Assert.NotNull(s.Document.FindLinetype("Long Short 1"));
+        Assert.NotNull(s.Document.FindLinetype("Center 1"));
 
-        vm.Selected = vm.Rows.First(r => r.Name == "Solid");
+        vm.Selected = vm.Rows.First(r => r.Name == "Continuous");
         Assert.False(vm.DuplicateCommand.CanExecute(null));
     }
 
@@ -838,7 +838,7 @@ public class LinetypeManagerTests
         var layer = s.Document.Layers[0];
         layer.Linetype = "Mine";
 
-        vm.Selected = vm.Rows.First(r => r.Name == "Dash");
+        vm.Selected = vm.Rows.First(r => r.Name == "Dashed");
         Assert.False(vm.EditCommand.CanExecute(null));
         Assert.False(vm.DeleteCommand.CanExecute(null));
 
@@ -859,10 +859,10 @@ public class LinetypeManagerTests
         Assert.NotNull(s.Document.FindLinetype("Mine"));
         Assert.Contains("used by layer", vm.Message);
 
-        layer.Linetype = "Solid";
+        layer.Linetype = "Continuous";
         vm.DeleteSelected();
         Assert.Null(s.Document.FindLinetype("Mine"));
-        Assert.False(s.ModifyLinetype("Dash", "", new[] { 1.0, 1.0 }));  // built-in
+        Assert.False(s.ModifyLinetype("Dashed", "", new[] { 1.0, 1.0 }));  // built-in
     }
 
     [Fact]
