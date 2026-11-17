@@ -336,3 +336,137 @@ public class DimensionTests : IDisposable
         Assert.Equal(3, far.Lines.Count);
     }
 }
+
+public class ObjectTrackingTests
+{
+    private static EditorSession Session()
+    {
+        var s = new EditorSession();
+        s.Document.Settings.Format = LengthFormat.Decimal;
+        AddLine(s.Document, 0, 0, 10, 0);               // endpoints at (0,0) and (10,0)
+        AddLine(s.Document, 30, 20, 30, 40);            // endpoint at (30,20)
+        return s;
+    }
+
+    private const double Aperture = 0.5;
+
+    [Fact]
+    public void Hovering_over_a_snap_acquires_it_and_the_cursor_locks_onto_a_line_through_it()
+    {
+        var s = Session();
+        s.StartCommand("LINE");
+        Assert.Empty(s.TrackingPoints);
+
+        s.UpdateCursor(P(10.1, 0.1), Aperture);         // over the endpoint, no click
+        Assert.NotNull(s.CurrentSnap);
+        Assert.Equal(new[] { P(10, 0) }, s.TrackingPoints.ToArray());
+        Assert.Null(s.CurrentObjectTrack);              // still on the snap itself
+
+        s.UpdateCursor(P(10.2, 15), Aperture);          // straight up from it, a little off the line
+        var track = s.CurrentObjectTrack;
+        Assert.NotNull(track);
+        Assert.Equal(P(10, 15), track!.Point);          // exactly above the acquired point
+        Assert.Equal((P(10, 0), 90.0), track.Lines.Single());
+        Assert.Equal(P(10, 15), s.EffectiveCursor);
+
+        s.UpdateCursor(P(14, 15), Aperture);            // away from every tracking line
+        Assert.Null(s.CurrentObjectTrack);
+        Assert.Equal(P(14, 15), s.EffectiveCursor);
+
+        s.UpdateCursor(P(10.2, 15), Aperture);
+        s.SubmitPoint(s.EffectiveCursor);               // the first point of the line lands on the tracking line
+        Assert.Empty(s.TrackingPoints);                 // the next point starts with nothing acquired
+        s.SubmitText("@5,0");
+        var line = s.Document.Entities.OfType<LineEntity>().Last();
+        Assert.Equal(P(10, 15), line.Start);
+    }
+
+    [Fact]
+    public void Two_acquired_points_give_the_corner_where_their_lines_cross()
+    {
+        var s = Session();
+        s.StartCommand("LINE");
+        s.UpdateCursor(P(10, 0), Aperture);
+        s.UpdateCursor(P(30, 20), Aperture);
+        Assert.Equal(2, s.TrackingPoints.Count);
+
+        s.UpdateCursor(P(10.2, 19.8), Aperture);        // above the first, level with the second
+        var track = s.CurrentObjectTrack;
+        Assert.NotNull(track);
+        Assert.Equal(P(10, 20), track!.Point);
+        Assert.Equal(2, track.Lines.Count);
+    }
+
+    [Fact]
+    public void A_tracking_line_crosses_the_polar_ray_from_the_previous_point()
+    {
+        var s = Session();
+        s.StartCommand("LINE");
+        s.SubmitPoint(P(-20, 30));                      // first point
+        s.UpdateCursor(P(10, 0), Aperture);             // acquire the endpoint
+        s.UpdateCursor(P(10.2, 30.1), Aperture);        // level with the first point, above the endpoint
+        Assert.NotNull(s.CurrentPolarTrack);
+        Assert.Equal(P(10, 30), s.EffectiveCursor);
+        s.SubmitPoint(s.EffectiveCursor);
+        var line = s.Document.Entities.OfType<LineEntity>().Last();
+        Assert.Equal(P(10, 30), line.End);
+        Assert.Equal(30.0, line.Length, 9);
+    }
+
+    [Fact]
+    public void A_typed_distance_is_measured_along_the_tracking_line_from_the_acquired_point()
+    {
+        var s = Session();
+        s.StartCommand("LINE");
+        s.UpdateCursor(P(10, 0), Aperture);
+        s.UpdateCursor(P(18, 0.2), Aperture);           // to the right of the endpoint
+        s.SubmitText("6");
+        s.SubmitText("@0,5");
+        var line = s.Document.Entities.OfType<LineEntity>().Last();
+        Assert.Equal(P(16, 0), line.Start);             // 6 from the acquired point, along the line
+    }
+
+    [Fact]
+    public void Otrack_off_ortho_or_no_command_means_no_tracking()
+    {
+        var s = Session();
+        s.UpdateCursor(P(10, 0), Aperture);             // no command: nothing to acquire for
+        Assert.Empty(s.TrackingPoints);
+
+        s.TrackingEnabled = false;
+        s.StartCommand("LINE");
+        s.UpdateCursor(P(10, 0), Aperture);
+        s.UpdateCursor(P(10.2, 15), Aperture);
+        Assert.Empty(s.TrackingPoints);
+        Assert.Equal(P(10.2, 15), s.EffectiveCursor);
+
+        s.TrackingEnabled = true;
+        s.UpdateCursor(P(10, 0), Aperture);
+        s.UpdateCursor(P(0, 0), Aperture);
+        s.UpdateCursor(P(30, 20), Aperture);
+        s.UpdateCursor(P(30, 40), Aperture);            // a fourth one: the oldest is dropped
+        Assert.Equal(EditorSession.MaxTrackingPoints, s.TrackingPoints.Count);
+        Assert.DoesNotContain(P(10, 0), s.TrackingPoints);
+
+        s.Cancel();
+        Assert.Empty(s.TrackingPoints);
+    }
+
+    [Fact]
+    public void Renderer_draws_the_tracking_line_and_marks_the_acquired_point()
+    {
+        var doc = new DrawingDocument();
+        var view = new ViewTransform();
+        view.SetViewport(800, 600);
+        view.SetView(P(0, 0), 10);
+        var surface = new RecordingSurface();
+        new SceneRenderer().Render(surface, doc, view, new RenderOptions
+        {
+            ShowGrid = false,
+            TrackLines = new[] { (P(0, 0), 90.0) },
+            TrackPoints = new[] { P(0, 0) },
+        });
+        Assert.Equal(1, surface.Lines.Count(l => l.Style == RenderTheme.PolarTrack));
+        Assert.Equal(2, surface.Lines.Count(l => l.Style == RenderTheme.SnapMarker));       // the small cross
+    }
+}

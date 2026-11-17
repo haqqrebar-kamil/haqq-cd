@@ -412,6 +412,7 @@
                 <ToggleButton DockPanel.Dock="Left" Style="{StaticResource StatusToggle}" Content="OSNAP" IsChecked="{Binding OsnapOn, Mode=TwoWay}" MouseRightButtonUp="OsnapButton_RightClick" ToolTip="Object snap on/off (F3). Right-click to choose which snaps act automatically." />
                 <ToggleButton DockPanel.Dock="Left" Style="{StaticResource StatusToggle}" Content="ORTHO" IsChecked="{Binding OrthoOn, Mode=TwoWay}" ToolTip="Restrict to horizontal / vertical (F8)" />
                 <ToggleButton DockPanel.Dock="Left" Style="{StaticResource StatusToggle}" Content="POLAR" IsChecked="{Binding PolarOn, Mode=TwoWay}" ToolTip="Polar tracking: lock onto horizontal and vertical when the cursor is close to them (F10)" />
+                <ToggleButton DockPanel.Dock="Left" Style="{StaticResource StatusToggle}" Content="OTRACK" IsChecked="{Binding TrackOn, Mode=TwoWay}" ToolTip="Object snap tracking (F11): hover over a snap point without clicking, then move away from it; the cursor locks onto a line through that point. Needs OSNAP on." />
                 <ToggleButton DockPanel.Dock="Left" Style="{StaticResource StatusToggle}" Content="GRID" IsChecked="{Binding GridOn, Mode=TwoWay}" ToolTip="Show the grid (F7)" />
                 <Border DockPanel.Dock="Left" Margin="8,0,2,0" Padding="9,2" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="2">
                     <TextBlock Text="MODEL" FontWeight="SemiBold" />

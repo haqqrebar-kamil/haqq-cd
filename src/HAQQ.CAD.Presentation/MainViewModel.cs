@@ -215,7 +215,8 @@ public sealed class MainViewModel : ObservableObject
         if (delta.Length < GeoMath.Epsilon) degrees = 0;
         string lengthText = UnitFormatter.FormatLength(delta.Length, settings);
         string angleText = "< " + degrees.ToString("0.#", CultureInfo.InvariantCulture) + "\u00B0";
-        string polar = Session.CurrentPolarTrack is null ? "" : $"Polar: {lengthText} {angleText}";
+        string polar = Session.CurrentObjectTrack is not null ? "Track"
+            : Session.CurrentPolarTrack is null ? "" : $"Polar: {lengthText} {angleText}";
         return new DynamicInputInfo(prompt, lengthText, angleText, false, from, cursor, degrees, polar);
     }
 
@@ -285,6 +286,20 @@ public sealed class MainViewModel : ObservableObject
             Session.Snap.Enabled = value;
             OnPropertyChanged();
             AddHistory(value ? "<Osnap on>" : "<Osnap off>");
+            RedrawRequested?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    /// <summary>OTRACK: object snap tracking (F11).</summary>
+    public bool TrackOn
+    {
+        get => Session.TrackingEnabled;
+        set
+        {
+            if (Session.TrackingEnabled == value) return;
+            Session.TrackingEnabled = value;
+            OnPropertyChanged();
+            AddHistory(value ? "<Otrack on>" : "<Otrack off>");
             RedrawRequested?.Invoke(this, EventArgs.Empty);
         }
     }

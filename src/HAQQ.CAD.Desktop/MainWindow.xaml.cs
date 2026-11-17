@@ -333,6 +333,7 @@ public partial class MainWindow : Window
 
         switch (e.Key)
         {
+            case Key.F11: _viewModel.TrackOn = !_viewModel.TrackOn; e.Handled = true; return;
             case Key.F3: _viewModel.OsnapOn = !_viewModel.OsnapOn; e.Handled = true; return;
             case Key.F7: _viewModel.GridOn = !_viewModel.GridOn; e.Handled = true; return;
             case Key.F8: _viewModel.OrthoOn = !_viewModel.OrthoOn; e.Handled = true; return;

@@ -65,6 +65,12 @@ public sealed class RenderOptions
     /// <summary>Polar tracking ray to show: base point and direction in degrees (model space).</summary>
     public (Point2D From, double AngleDegrees)? PolarTrack { get; set; }
 
+    /// <summary>Object snap tracking lines to draw: the acquired point each starts at and its angle.</summary>
+    public IReadOnlyList<(Point2D From, double AngleDegrees)> TrackLines { get; set; } = Array.Empty<(Point2D, double)>();
+
+    /// <summary>Points acquired for object snap tracking, each marked with a small cross.</summary>
+    public IReadOnlyList<Point2D> TrackPoints { get; set; } = Array.Empty<Point2D>();
+
     /// <summary>Selection rectangle being dragged, in screen pixels.</summary>
     public (ScreenPoint A, ScreenPoint B, bool Crossing)? SelectionRectangle { get; set; }
 
@@ -169,6 +175,24 @@ public sealed class SceneRenderer
             double reach = Math.Abs(start.X) + Math.Abs(start.Y) + 2.0 * (view.ViewportWidth + view.ViewportHeight);
             var end = new ScreenPoint(start.X + reach * Math.Cos(a), start.Y - reach * Math.Sin(a));
             DrawSegment(surface, view, start, end, RenderTheme.PolarTrack);
+        }
+
+        foreach (var line in options.TrackLines)
+        {
+            // A dashed line from the acquired point through the cursor to the edge of the view.
+            var start = view.WorldToScreen(line.From);
+            double a = GeoMath.DegreesToRadians(line.AngleDegrees);
+            double reach = Math.Abs(start.X) + Math.Abs(start.Y) + 2.0 * (view.ViewportWidth + view.ViewportHeight);
+            var end = new ScreenPoint(start.X + reach * Math.Cos(a), start.Y - reach * Math.Sin(a));
+            DrawSegment(surface, view, start, end, RenderTheme.PolarTrack);
+        }
+
+        foreach (var point in options.TrackPoints)
+        {
+            var s = view.WorldToScreen(point);
+            if (Math.Abs(s.X) > SafeCoordinate || Math.Abs(s.Y) > SafeCoordinate) continue;
+            surface.DrawLine(s.X - 5, s.Y, s.X + 5, s.Y, RenderTheme.SnapMarker);
+            surface.DrawLine(s.X, s.Y - 5, s.X, s.Y + 5, RenderTheme.SnapMarker);
         }
 
         if (options.Snap is { } snap) DrawSnapMarker(surface, view.WorldToScreen(snap.Point), snap.Mode);

@@ -258,6 +258,8 @@ public sealed class CadCanvas : FrameworkElement
             Preview = session.GetPreview(),
             Snap = session.CurrentSnap,
             PolarTrack = session.CurrentPolarTrack is { } track ? (track.From, track.AngleDegrees) : null,
+            TrackLines = session.CurrentObjectTrack?.Lines ?? Array.Empty<(HAQQ.CAD.Geometry.Point2D, double)>(),
+            TrackPoints = session.TrackingPoints,
         };
 
         if (_mouse is { } mouse)
