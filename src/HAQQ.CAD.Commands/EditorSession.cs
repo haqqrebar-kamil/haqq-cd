@@ -123,7 +123,7 @@ public sealed class CommandRegistry
         r.Register("SCALE", () => new ScaleCommand(), "SC");
         r.Register("MIRROR", () => new MirrorCommand(), "MI");
         r.Register("LINEMODE", () => new LineModeCommand());
-        r.Register("LINETYPE", () => new LinetypeCommand(), "LT", "LTYPE");
+        r.Register("-LINETYPE", () => new LinetypeCommand(), "-LT", "-LTYPE");      // typed version; LINETYPE opens the window
         r.Register("LTSCALE", () => new LinetypeScaleCommand(), "LTS");
         r.Register("OFFSET", () => new OffsetCommand(), "O");
         r.Register("TRIM", () => new TrimCommand(), "TR");
@@ -428,6 +428,12 @@ public sealed class EditorSession
                 Post("Command: LAYER");
                 ViewCommandRequested?.Invoke("Layers");
                 return true;
+            case "LINETYPE":
+            case "LT":
+            case "LTYPE":
+                Post("Command: LINETYPE");
+                ViewCommandRequested?.Invoke("Linetypes");
+                return true;
             case "Z":
             case "ZE":
             case "ZA":
@@ -696,6 +702,22 @@ public sealed class EditorSession
         }
         if (!Execute(new AddLinetypeAction(new LinetypeDefinition(name, description, pattern)))) return false;
         Post($"Linetype \"{name}\" created.");
+        return true;
+    }
+
+    /// <summary>Changes the dashes and description of a custom linetype (its name stays). One undo step.</summary>
+    public bool ModifyLinetype(string name, string description, IReadOnlyList<double> pattern)
+    {
+        var existing = Document.FindLinetype(name);
+        if (existing is null) { Post($"There is no linetype named \"{name.Trim()}\"."); return false; }
+        if (Linetypes.IsBuiltIn(existing.Name)) { Post($"\"{existing.Name}\" is a built-in linetype and cannot be changed."); return false; }
+        if (!LinetypeDefinition.IsValidPattern(pattern) || pattern.Count == 0)
+        {
+            Post("A pattern is pairs of dash and gap lengths, for example 0.5, 0.25. Gaps must be more than 0.");
+            return false;
+        }
+        if (!Execute(new ReplaceLinetypeAction(new LinetypeDefinition(existing.Name, description, pattern)))) return false;
+        Post($"Linetype \"{existing.Name}\" changed.");
         return true;
     }
 

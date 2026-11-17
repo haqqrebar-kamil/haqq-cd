@@ -120,7 +120,11 @@ if it saves, drops the custom definitions (layers and objects keep their linetyp
 
 - `document.linetypes`: the linetypes defined in the drawing, each `{ "name", "description", "pattern": [dash, gap, dash, gap, ...] }`.
   Lengths are in drawing units; a dash of 0 is a dot; every gap is greater than 0. The built-in linetypes
-  `Continuous`, `Dashed` (0.5, 0.25) and `Center` (1.25, 0.25, 0.25, 0.25) are never stored.
+  are never stored: `Continuous`, `Dashed` (0.5, 0.25), `Center` (1.25, 0.25, 0.25, 0.25), `Hidden` (0.25, 0.125),
+  `Phantom` (1.25, 0.25, 0.25, 0.25, 0.25, 0.25), `DashDot` (0.5, 0.25, 0, 0.25), `Dot` (0, 0.25) and
+  `Border` (0.5, 0.25, 0.5, 0.25, 0, 0.25). A stored linetype whose name is a built-in one is skipped with a
+  warning when the file is read (the built-in is used). A reader that does not know a linetype name draws it
+  continuous and keeps the name.
 - `document.units.linetypeScale`: the drawing's linetype scale (default 1). Every pattern length is multiplied by it.
 - Layer `linetype`: a linetype name.
 - Entity `linetype`: `ByLayer` (use the layer's), `ByBlock` (use the containing block's; drawn continuous until

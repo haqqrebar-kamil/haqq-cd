@@ -151,6 +151,21 @@ public sealed class DrawingDocument
         OnChanged(DocumentChangeKind.Layers);
     }
 
+    /// <summary>
+    /// Replaces the dashes and description of a user-defined linetype, keeping its name, so that everything
+    /// drawn with it changes. Returns the definition that was replaced.
+    /// </summary>
+    public LinetypeDefinition ReplaceLinetype(LinetypeDefinition replacement)
+    {
+        int index = _linetypes.FindIndex(l => string.Equals(l.Name, replacement.Name, StringComparison.OrdinalIgnoreCase));
+        if (index < 0) throw new InvalidOperationException($"There is no linetype named \"{replacement.Name}\".");
+        if (Linetypes.IsBuiltIn(replacement.Name)) throw new InvalidOperationException($"\"{replacement.Name}\" is a built-in linetype and cannot be changed.");
+        var old = _linetypes[index];
+        _linetypes[index] = replacement;
+        OnChanged(DocumentChangeKind.Layers);
+        return old;
+    }
+
     /// <summary>Why a linetype cannot be removed, or null when removal is allowed.</summary>
     public string? GetLinetypeRemovalBlocker(string? name)
     {

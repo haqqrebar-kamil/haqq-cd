@@ -71,6 +71,7 @@ public sealed class MainViewModel : ObservableObject
             if (name == "ZoomExtents") ZoomExtentsRequested?.Invoke(this, EventArgs.Empty);
             if (name == "Quit") CloseRequested?.Invoke(this, EventArgs.Empty);
             if (name == "Layers") LayersRequested?.Invoke(this, EventArgs.Empty);
+            if (name == "Linetypes") LinetypesRequested?.Invoke(this, EventArgs.Empty);
         };
 
         RunCommandCommand = new RelayCommand(p => RunCommand(p as string ?? ""));
@@ -144,6 +145,9 @@ public sealed class MainViewModel : ObservableObject
 
     /// <summary>The LAYER command asked the shell to show the layer manager.</summary>
     public event EventHandler? LayersRequested;
+
+    /// <summary>The LINETYPE command asked the shell to show the Linetype Manager.</summary>
+    public event EventHandler? LinetypesRequested;
 
     /// <summary>The canvas should repaint.</summary>
     public event EventHandler? RedrawRequested;

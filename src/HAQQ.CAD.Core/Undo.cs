@@ -312,3 +312,19 @@ public sealed class RemoveLinetypeAction : IUndoableAction
         if (_removed is not null) document.AddLinetype(_removed, _index);
     }
 }
+
+public sealed class ReplaceLinetypeAction : IUndoableAction
+{
+    private readonly LinetypeDefinition _replacement;
+    private LinetypeDefinition? _old;
+
+    public ReplaceLinetypeAction(LinetypeDefinition replacement) => _replacement = replacement;
+
+    public string Name => "Edit linetype";
+    public void Do(DrawingDocument document) => _old = document.ReplaceLinetype(_replacement);
+
+    public void Undo(DrawingDocument document)
+    {
+        if (_old is not null) document.ReplaceLinetype(_old);
+    }
+}

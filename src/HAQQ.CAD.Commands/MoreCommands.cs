@@ -221,7 +221,7 @@ public sealed class LineModeCommand : CadCommandBase
 }
 
 /// <summary>
-/// LINETYPE: lists the linetypes of the drawing, creates a custom one (name, then dash and gap lengths) or
+/// -LINETYPE (the typed version; LINETYPE opens the Linetype Manager window): lists the linetypes of the drawing, creates a custom one (name, then dash and gap lengths) or
 /// deletes one that is not in use.
 /// </summary>
 public sealed class LinetypeCommand : CadCommandBase, IRawTextCommand

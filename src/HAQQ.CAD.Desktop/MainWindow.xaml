@@ -155,7 +155,7 @@
                     <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconLayers}" Content="Layers" Command="{Binding RunCommandCommand}" CommandParameter="LAYER" ToolTip="LAYER (LA): open the layer table (on/off, freeze, lock, name, colour, lineweight)" />
                     <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconLayers}" Content="New Layer" Command="{Binding AddLayerCommand}" ToolTip="Create a layer" />
                     <Border Width="1" Margin="6,6" Background="{StaticResource BorderBrush}" />
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconLinetype}" Content="Linetype" Command="{Binding RunCommandCommand}" CommandParameter="LINETYPE" ToolTip="LINETYPE (LT): list the linetypes, create your own (New) or delete one" />
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconLinetype}" Content="Linetype" Command="{Binding RunCommandCommand}" CommandParameter="LINETYPE" ToolTip="LINETYPE (LT): Linetype Manager - see every linetype, build your own with sliders, edit or delete" />
                     <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconLinetype}" Content="LT Scale" Command="{Binding RunCommandCommand}" CommandParameter="LTSCALE" ToolTip="LTSCALE (LTS): make every dash and gap in the drawing longer or shorter" />
                     <StackPanel VerticalAlignment="Center" Margin="14,0,0,0">
                         <TextBlock Text="Current layer" Foreground="{StaticResource DimTextBrush}" FontSize="11" />

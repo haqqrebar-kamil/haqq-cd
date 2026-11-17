@@ -1,0 +1,176 @@
+<Window x:Class="HAQQ.CAD.Desktop.LinetypesWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:HAQQ.CAD.Desktop"
+        Title="Linetype Manager"
+        Width="860" Height="680" MinWidth="700" MinHeight="460"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False"
+        Background="{StaticResource PanelBrush}"
+        Foreground="{StaticResource TextBrush}"
+        FontFamily="Segoe UI" FontSize="12"
+        UseLayoutRounding="True">
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
+        <Style x:Key="ColumnHeader" TargetType="TextBlock">
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{StaticResource DimTextBrush}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Margin" Value="6,0,0,0" />
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" MinHeight="120" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- Tools -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
+            <Button Style="{StaticResource PanelButton}" Content="+ New linetype" Command="{Binding NewCommand}" ToolTip="Build a new linetype from dashes and spaces" />
+            <Button Style="{StaticResource PanelButton}" Content="Copy as new" Command="{Binding DuplicateCommand}" ToolTip="Start a new linetype from the one selected in the list" />
+            <Button Style="{StaticResource PanelButton}" Content="Edit" Command="{Binding EditCommand}" ToolTip="Change the selected custom linetype (built-in linetypes cannot be changed; use Copy as new)" />
+            <Button Style="{StaticResource PanelButton}" Content="Delete" Command="{Binding DeleteCommand}" ToolTip="Delete the selected custom linetype (it must not be in use)" />
+            <TextBlock VerticalAlignment="Center" Margin="18,0,6,0" Foreground="{StaticResource DimTextBrush}" Text="Linetype scale (whole drawing):" />
+            <TextBox Width="64" KeyDown="EditBox_KeyDown" Text="{Binding LinetypeScaleText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                     ToolTip="LTSCALE: every dash and space in the drawing is multiplied by this" />
+        </StackPanel>
+
+        <!-- Column titles: the widths match the row template below -->
+        <Border Grid.Row="1" Background="{StaticResource PanelAltBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Padding="5,5">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="130" />
+                    <ColumnDefinition Width="*" MinWidth="180" />
+                    <ColumnDefinition Width="270" />
+                    <ColumnDefinition Width="70" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Style="{StaticResource ColumnHeader}" Text="Name" />
+                <TextBlock Grid.Column="1" Style="{StaticResource ColumnHeader}" Text="Appearance (all to the same scale)" />
+                <TextBlock Grid.Column="2" Style="{StaticResource ColumnHeader}" Text="How it is made" />
+                <TextBlock Grid.Column="3" Style="{StaticResource ColumnHeader}" Text="Type" />
+            </Grid>
+        </Border>
+
+        <!-- One row per linetype -->
+        <ListBox x:Name="LinetypeList" Grid.Row="2" ItemsSource="{Binding Rows}" SelectedItem="{Binding Selected, Mode=TwoWay}"
+                 HorizontalContentAlignment="Stretch" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                 MouseDoubleClick="LinetypeList_MouseDoubleClick">
+            <ListBox.ItemTemplate>
+                <DataTemplate>
+                    <Grid Margin="0,3" ToolTip="{Binding Tip}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="130" />
+                            <ColumnDefinition Width="*" MinWidth="180" />
+                            <ColumnDefinition Width="270" />
+                            <ColumnDefinition Width="70" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Margin="6,0,0,0" VerticalAlignment="Center" FontWeight="SemiBold" Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                        <local:LinetypePreview Grid.Column="1" Height="16" Margin="6,0" Stroke="{StaticResource TextBrush}"
+                                               Pattern="{Binding Pattern}"
+                                               UnitsAcross="{Binding DataContext.PreviewUnits, RelativeSource={RelativeSource AncestorType={x:Type Window}}}" />
+                        <TextBlock Grid.Column="2" Margin="6,0,0,0" VerticalAlignment="Center" Foreground="{StaticResource DimTextBrush}" Text="{Binding Recipe}" TextTrimming="CharacterEllipsis" />
+                        <TextBlock Grid.Column="3" Margin="6,0,0,0" VerticalAlignment="Center" Foreground="{StaticResource DimTextBrush}" Text="{Binding Kind}" />
+                    </Grid>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+
+        <!-- Editor: shown for a new linetype or while changing a custom one -->
+        <Border Grid.Row="3" Margin="0,10,0,0" Padding="10" Background="{StaticResource PanelAltBrush}"
+                BorderBrush="{StaticResource AccentBrush}" BorderThickness="1" CornerRadius="3"
+                Visibility="{Binding IsEditing, Converter={StaticResource BoolToVisibility}}">
+            <StackPanel>
+                <TextBlock FontWeight="SemiBold" FontSize="13" Foreground="{StaticResource AccentBrush}" Text="{Binding EditorTitle}" />
+
+                <Grid Margin="0,8,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="170" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Style="{StaticResource FieldLabel}" Text="Name" />
+                    <TextBox x:Name="NameBox" Grid.Column="1" IsReadOnly="{Binding NameLocked}"
+                             Text="{Binding EditName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                    <TextBlock Grid.Column="2" Style="{StaticResource FieldLabel}" Margin="14,0,6,0" Text="Description" />
+                    <TextBox Grid.Column="3" Text="{Binding EditDescription, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                </Grid>
+
+                <!-- The new linetype above the one selected in the list, to the same scale -->
+                <Grid Margin="0,10,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="130" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="22" />
+                        <RowDefinition Height="22" />
+                    </Grid.RowDefinitions>
+                    <TextBlock Grid.Row="0" Grid.Column="0" VerticalAlignment="Center" FontWeight="SemiBold" Text="{Binding EditName}" TextTrimming="CharacterEllipsis" />
+                    <local:LinetypePreview Grid.Row="0" Grid.Column="1" Height="16" Stroke="{StaticResource AccentBrush}"
+                                           Pattern="{Binding EditPattern}" UnitsAcross="{Binding PreviewUnits}" />
+                    <TextBlock Grid.Row="1" Grid.Column="0" VerticalAlignment="Center" Foreground="{StaticResource DimTextBrush}" Text="{Binding Selected.Name}"
+                               TextTrimming="CharacterEllipsis" ToolTip="The linetype selected in the list above. Click another one to compare with it." />
+                    <local:LinetypePreview Grid.Row="1" Grid.Column="1" Height="16" Stroke="{StaticResource DimTextBrush}"
+                                           Pattern="{Binding Selected.Pattern}" UnitsAcross="{Binding PreviewUnits}" />
+                </Grid>
+
+                <!-- One slider and one number box per dash and per space -->
+                <ItemsControl Margin="0,10,0,0" ItemsSource="{Binding Segments}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Grid Margin="0,2" ToolTip="{Binding Hint}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="70" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="80" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" VerticalAlignment="Center" Text="{Binding Label}" />
+                                <Slider Grid.Column="1" Margin="0,0,10,0" VerticalAlignment="Center" Focusable="False" IsMoveToPointEnabled="True"
+                                        Minimum="0" Maximum="{Binding Maximum, Mode=OneWay}" Value="{Binding SliderValue, Mode=TwoWay}" />
+                                <TextBox Grid.Column="2" KeyDown="EditBox_KeyDown" Text="{Binding Text, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <Grid Margin="0,10,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0" Orientation="Horizontal">
+                        <Button Style="{StaticResource PanelButton}" Content="+ Add dash and space" Command="{Binding AddPairCommand}" ToolTip="Up to 4 dashes and 4 spaces" />
+                        <Button Style="{StaticResource PanelButton}" Content="- Remove last" Command="{Binding RemovePairCommand}" />
+                    </StackPanel>
+                    <TextBlock Grid.Column="1" Margin="10,0" VerticalAlignment="Center" Foreground="{StaticResource DimTextBrush}" TextTrimming="CharacterEllipsis">
+                        <Run Text="One repeat:" /> <Run Text="{Binding EditLength, Mode=OneWay}" /> <Run Text="  (" /><Run Text="{Binding EditRecipe, Mode=OneWay}" /><Run Text=")" />
+                    </TextBlock>
+                    <StackPanel Grid.Column="2" Orientation="Horizontal">
+                        <Button Style="{StaticResource PanelButton}" Content="Save linetype" Click="Save_Click" />
+                        <Button Style="{StaticResource PanelButton}" Content="Cancel" Command="{Binding CancelCommand}" />
+                    </StackPanel>
+                </Grid>
+            </StackPanel>
+        </Border>
+
+        <TextBlock Grid.Row="4" Margin="0,8,0,0" Foreground="{StaticResource AccentBrush}" TextWrapping="Wrap" Text="{Binding Message}" />
+
+        <Grid Grid.Row="5" Margin="0,8,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" Foreground="{StaticResource DimTextBrush}" TextWrapping="Wrap" VerticalAlignment="Center"
+                       Text="Lengths are in drawing units. A dash of 0 is a dot. Give a linetype to a layer in the layer table (LA), or to selected objects in Properties." />
+            <Button Grid.Column="1" Style="{StaticResource PanelButton}" Content="Close" Click="Close_Click" Margin="10,0,0,0" />
+        </Grid>
+    </Grid>
+</Window>

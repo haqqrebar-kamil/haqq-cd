@@ -1,3 +1,4 @@
+using HAQQ.CAD.Commands;
 using HAQQ.CAD.Core;
 using HAQQ.CAD.Documents;
 using HAQQ.CAD.Geometry;
@@ -703,5 +704,192 @@ public class LayerTableTests : IDisposable
         vm.PurgeLayersCommand.Execute(null);                // nothing left to remove
         Assert.Contains(vm.History, h => h.Contains("No unused layers"));
         Assert.Equal(3, s.Document.Layers.Count);
+    }
+}
+
+public class LinetypeManagerTests
+{
+    private static (EditorSession Session, LinetypeManagerViewModel Vm) Make()
+    {
+        var s = new EditorSession();
+        return (s, new LinetypeManagerViewModel(s));
+    }
+
+    [Fact]
+    public void Lists_every_linetype_with_how_it_is_made()
+    {
+        var (s, vm) = Make();
+        Assert.Equal(s.Document.LinetypeTable.Select(l => l.Name).ToArray(), vm.Rows.Select(r => r.Name).ToArray());
+        Assert.Equal("Solid line", vm.Rows.First(r => r.Name == "Continuous").Recipe);
+        Assert.Equal("dash 0.5, space 0.25", vm.Rows.First(r => r.Name == "Dashed").Recipe);
+        Assert.Equal("dash 0.5, space 0.25, dot, space 0.25", vm.Rows.First(r => r.Name == "DashDot").Recipe);
+        Assert.True(vm.Rows.First(r => r.Name == "Phantom").IsBuiltIn);
+        Assert.True(vm.PreviewUnits >= 2.5 * 2.5);                        // long enough for the longest pattern, same for all rows
+    }
+
+    [Fact]
+    public void New_linetype_is_built_from_dashes_and_spaces_and_can_be_undone()
+    {
+        var (s, vm) = Make();
+        vm.BeginNew();
+        Assert.True(vm.IsEditing);
+        Assert.False(vm.NameLocked);
+        Assert.Equal(new[] { "Dash 1", "Space 1" }, vm.Segments.Select(x => x.Label).ToArray());
+
+        vm.EditName = "Long";
+        vm.Segments[0].Text = "2";
+        vm.Segments[1].SliderValue = 0.52;                                // the slider snaps to its step
+        Assert.Equal(0.5, vm.Segments[1].Value, 9);
+        vm.AddPair();
+        vm.Segments[2].SliderValue = 0;                                   // a dash of 0 is a dot
+        Assert.Equal("dash 2, space 0.5, dot, space 0.5", vm.EditRecipe);
+
+        Assert.True(vm.Save());
+        Assert.False(vm.IsEditing);
+        Assert.Equal(new[] { 2, 0.5, 0, 0.5 }, s.Document.FindLinetype("long")!.Pattern.ToArray());
+        Assert.Equal("Long", vm.Selected!.Name);
+        Assert.False(vm.Selected.IsBuiltIn);
+
+        s.Undo();
+        Assert.Null(s.Document.FindLinetype("Long"));
+        Assert.DoesNotContain(vm.Rows, r => r.Name == "Long");            // the list follows the drawing
+    }
+
+    [Fact]
+    public void Up_to_four_dashes_and_four_spaces()
+    {
+        var (_, vm) = Make();
+        vm.BeginNew();
+        Assert.False(vm.RemovePairCommand.CanExecute(null));
+        vm.AddPair(); vm.AddPair(); vm.AddPair();
+        Assert.Equal(8, vm.Segments.Count);
+        Assert.False(vm.AddPairCommand.CanExecute(null));
+        vm.AddPair();
+        Assert.Equal(8, vm.Segments.Count);
+        Assert.Equal("Space 4", vm.Segments[7].Label);
+        vm.RemovePair();
+        Assert.Equal(6, vm.Segments.Count);
+    }
+
+    [Fact]
+    public void A_space_cannot_be_zero_and_bad_text_is_refused()
+    {
+        var (_, vm) = Make();
+        vm.BeginNew();
+        vm.Segments[1].SliderValue = 0;
+        Assert.True(vm.Segments[1].Value > 0);
+        vm.Segments[0].Text = "longDash";
+        Assert.Equal(0.5, vm.Segments[0].Value, 9);
+        Assert.NotEqual("", vm.Message);
+        vm.Segments[0].Text = "3/8";
+        Assert.Equal(0.375, vm.Segments[0].Value, 9);
+        Assert.Equal("", vm.Message);
+    }
+
+    [Fact]
+    public void Typing_a_long_value_stretches_the_sliders()
+    {
+        var (_, vm) = Make();
+        vm.BeginNew();
+        double before = vm.SliderMaximum;
+        vm.Segments[0].Text = "12";
+        Assert.True(vm.SliderMaximum >= 24 && vm.SliderMaximum > before);
+        Assert.Equal(12.0, vm.Segments[0].SliderValue, 9);
+        Assert.True(vm.PreviewUnits >= 12.25 * 2.5);
+    }
+
+    [Fact]
+    public void Name_must_be_new_and_not_reserved()
+    {
+        var (s, vm) = Make();
+        vm.BeginNew();
+        vm.EditName = "dashed";
+        Assert.False(vm.Save());
+        Assert.True(vm.IsEditing);
+        Assert.Contains("already", vm.Message);
+        vm.EditName = "ByLayer";
+        Assert.False(vm.Save());
+        vm.EditName = "  ";
+        Assert.False(vm.Save());
+        Assert.Equal(Linetypes.BuiltIn.Count, s.Document.LinetypeTable.Count);
+    }
+
+    [Fact]
+    public void Duplicate_starts_from_the_selected_linetype()
+    {
+        var (s, vm) = Make();
+        vm.Selected = vm.Rows.First(r => r.Name == "Center");
+        Assert.True(vm.DuplicateCommand.CanExecute(null));
+        vm.DuplicateCommand.Execute(null);
+        Assert.Equal("Center 1", vm.EditName);
+        Assert.Equal(new[] { 1.25, 0.25, 0.25, 0.25 }, vm.EditPattern);
+        Assert.True(vm.Save());
+        Assert.NotNull(s.Document.FindLinetype("Center 1"));
+
+        vm.Selected = vm.Rows.First(r => r.Name == "Continuous");
+        Assert.False(vm.DuplicateCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public void Custom_linetype_can_be_edited_built_in_cannot()
+    {
+        var (s, vm) = Make();
+        s.AddLinetype("Mine", "", new[] { 1.0, 0.5 });
+        var layer = s.Document.Layers[0];
+        layer.Linetype = "Mine";
+
+        vm.Selected = vm.Rows.First(r => r.Name == "Dashed");
+        Assert.False(vm.EditCommand.CanExecute(null));
+        Assert.False(vm.DeleteCommand.CanExecute(null));
+
+        vm.Selected = vm.Rows.First(r => r.Name == "Mine");
+        vm.BeginEdit();
+        Assert.True(vm.NameLocked);
+        vm.Segments[0].Text = "3";
+        Assert.True(vm.Save());
+        Assert.Equal(new[] { 3.0, 0.5 }, s.Document.FindLinetype("Mine")!.Pattern.ToArray());
+        Assert.Equal("Mine", layer.Linetype);                              // layers keep pointing at it
+
+        s.Undo();
+        Assert.Equal(new[] { 1.0, 0.5 }, s.Document.FindLinetype("Mine")!.Pattern.ToArray());
+        Assert.Equal("dash 1, space 0.5", vm.Rows.First(r => r.Name == "Mine").Recipe);
+
+        vm.Selected = vm.Rows.First(r => r.Name == "Mine");
+        vm.DeleteSelected();                                               // in use by a layer
+        Assert.NotNull(s.Document.FindLinetype("Mine"));
+        Assert.Contains("used by layer", vm.Message);
+
+        layer.Linetype = "Continuous";
+        vm.DeleteSelected();
+        Assert.Null(s.Document.FindLinetype("Mine"));
+        Assert.False(s.ModifyLinetype("Dashed", "", new[] { 1.0, 1.0 }));  // built-in
+    }
+
+    [Fact]
+    public void Linetype_scale_box_sets_the_drawing_scale()
+    {
+        var (s, vm) = Make();
+        vm.LinetypeScaleText = "12";
+        Assert.Equal(12.0, s.Document.Settings.LinetypeScale, 9);
+        vm.LinetypeScaleText = "0";
+        Assert.Equal(12.0, s.Document.Settings.LinetypeScale, 9);
+        Assert.NotEqual("", vm.Message);
+        Assert.Equal("12", vm.LinetypeScaleText);
+    }
+
+    [Fact]
+    public void LINETYPE_opens_the_window_and_the_typed_version_still_works()
+    {
+        using var temp = new TempDirectory();
+        var vm = new MainViewModel(new FakeUi(), new RecoveryStore(temp.File("r")));
+        int opened = 0;
+        vm.LinetypesRequested += (_, _) => opened++;
+        vm.RunCommand("LT");
+        vm.RunCommand("LINETYPE");
+        Assert.Equal(2, opened);
+        Assert.Null(vm.Session.ActiveCommand);
+
+        vm.Session.StartCommand("-LT");
+        Assert.NotNull(vm.Session.ActiveCommand);
     }
 }

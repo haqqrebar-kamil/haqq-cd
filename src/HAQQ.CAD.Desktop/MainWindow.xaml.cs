@@ -33,6 +33,8 @@ public partial class MainWindow : Window
         DrawingCanvas.Attach(_viewModel);
         _viewModel.CloseRequested += (_, _) => Close();
         _viewModel.LayersRequested += (_, _) => ShowLayers();
+        // Shown after the command line has finished handling the key that asked for it.
+        _viewModel.LinetypesRequested += (_, _) => Dispatcher.BeginInvoke(new Action(ShowLinetypes));
         // Scroll after the list itself has taken in the new line. Scrolling from inside the change
         // notification forces a layout while the list is still one line behind, which WPF rejects.
         _viewModel.History.CollectionChanged += (_, _) =>
@@ -247,6 +249,26 @@ public partial class MainWindow : Window
         _layersWindow = new LayersWindow(_viewModel) { Owner = this };
         _layersWindow.Closed += (_, _) => _layersWindow = null;
         _layersWindow.Show();
+    }
+
+    private bool _linetypesOpen;
+
+    /// <summary>Shows the Linetype Manager as a dialog over the drawing.</summary>
+    private void ShowLinetypes()
+    {
+        if (_linetypesOpen) return;
+        _linetypesOpen = true;
+        var manager = new LinetypeManagerViewModel(_viewModel.Session);
+        try
+        {
+            new LinetypesWindow(manager) { Owner = this }.ShowDialog();
+        }
+        finally
+        {
+            manager.Dispose();
+            _linetypesOpen = false;
+            DrawingCanvas.Focus();
+        }
     }
 
     /// <summary>Enter commits an edit box and returns the keyboard to the drawing.</summary>

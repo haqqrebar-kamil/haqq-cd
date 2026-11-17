@@ -64,6 +64,11 @@ public static class Linetypes
     public const string Continuous = "Continuous";
     public const string Dashed = "Dashed";
     public const string Center = "Center";
+    public const string Hidden = "Hidden";
+    public const string Phantom = "Phantom";
+    public const string DashDot = "DashDot";
+    public const string Dot = "Dot";
+    public const string Border = "Border";
 
     public static bool IsReserved(string? name) =>
         string.Equals(name, ByLayer, StringComparison.OrdinalIgnoreCase) ||
@@ -75,6 +80,11 @@ public static class Linetypes
         new LinetypeDefinition(Continuous, "Solid line", Array.Empty<double>()),
         new LinetypeDefinition(Dashed, "Dashed __ __ __ __ __", new[] { 0.5, 0.25 }),
         new LinetypeDefinition(Center, "Center ____ _ ____ _ ____", new[] { 1.25, 0.25, 0.25, 0.25 }),
+        new LinetypeDefinition(Hidden, "Hidden _ _ _ _ _ _ _ _ (short dashes)", new[] { 0.25, 0.125 }),
+        new LinetypeDefinition(Phantom, "Phantom ____ _ _ ____ _ _ (center line with 2 short dashes)", new[] { 1.25, 0.25, 0.25, 0.25, 0.25, 0.25 }),
+        new LinetypeDefinition(DashDot, "Dash dot __ . __ . __ .", new[] { 0.5, 0.25, 0.0, 0.25 }),
+        new LinetypeDefinition(Dot, "Dotted . . . . . . . .", new[] { 0.0, 0.25 }),
+        new LinetypeDefinition(Border, "Border __ __ . __ __ .", new[] { 0.5, 0.25, 0.5, 0.25, 0.0, 0.25 }),
     };
 
     public static bool IsBuiltIn(string? name) =>

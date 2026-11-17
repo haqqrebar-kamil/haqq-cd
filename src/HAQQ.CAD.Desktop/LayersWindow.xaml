@@ -151,7 +151,7 @@
                         <ComboBox Grid.Column="6" Margin="4,0" VerticalAlignment="Center"
                                   ItemsSource="{Binding DataContext.LinetypeNames, RelativeSource={RelativeSource AncestorType={x:Type Window}}}"
                                   SelectedItem="{Binding Linetype, Mode=TwoWay}"
-                                  ToolTip="Linetype of the layer. Create your own with the LINETYPE command." />
+                                  ToolTip="Linetype of the layer. Create your own in the Linetype Manager (LT)." />
 
                         <StackPanel Grid.Column="7" Orientation="Horizontal" Margin="4,0">
                             <TextBox Width="58" KeyDown="EditBox_KeyDown" ToolTip="Lineweight in millimetres"
