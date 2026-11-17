@@ -87,17 +87,38 @@
                     <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconLayers}" Content="Layers" Command="{Binding RunCommandCommand}" CommandParameter="LAYER" ToolTip="LAYER (LA): open the layer table" />
                     <Border Width="1" Margin="6,6,12,6" Background="{StaticResource BorderBrush}" />
                     <!-- Layer, colour, linetype and lineweight: of new objects, or of what is selected -->
-                    <StackPanel VerticalAlignment="Center" Margin="0,0,10,0" Width="160">
+                    <StackPanel VerticalAlignment="Center" Margin="0,0,10,0" Width="170">
                         <TextBlock Text="Layer" Foreground="{StaticResource DimTextBrush}" FontSize="11" Margin="1,0,0,3" />
-                        <ComboBox DropDownClosed="PropertyCombo_DropDownClosed" ItemsSource="{Binding Properties.LayerNames}"
-                                  SelectedItem="{Binding Properties.SelectedLayerName, Mode=TwoWay}"
-                                  ToolTip="The layer new objects are drawn on. With objects selected: their layer." />
+                        <ComboBox DropDownClosed="PropertyCombo_DropDownClosed" ItemsSource="{Binding Layers}" SelectedValuePath="Name"
+                                  SelectedValue="{Binding Properties.SelectedLayerName, Mode=TwoWay}"
+                                  ToolTip="The layer new objects are drawn on. With objects selected: their layer.">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel Orientation="Horizontal">
+                                        <Border Width="12" Height="12" Margin="0,0,7,0" VerticalAlignment="Center" Background="{Binding ColorHex}"
+                                                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" />
+                                        <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
                     </StackPanel>
                     <StackPanel VerticalAlignment="Center" Margin="0,0,10,0" Width="120">
                         <TextBlock Text="Color" Foreground="{StaticResource DimTextBrush}" FontSize="11" Margin="1,0,0,3" />
                         <ComboBox DropDownClosed="PropertyCombo_DropDownClosed" ItemsSource="{Binding Properties.ColorNames}"
                                   SelectedItem="{Binding Properties.SelectedColor, Mode=TwoWay}"
-                                  ToolTip="Colour of new objects (ByLayer uses the layer colour). With objects selected: their colour." />
+                                  ToolTip="Colour of new objects (ByLayer uses the layer colour). With objects selected: their colour.">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel Orientation="Horizontal">
+                                        <Border Width="12" Height="12" Margin="0,0,7,0" VerticalAlignment="Center"
+                                                Background="{Binding Converter={StaticResource ColorNameToBrush}}"
+                                                BorderBrush="{StaticResource DimTextBrush}" BorderThickness="1" />
+                                        <TextBlock Text="{Binding}" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
                     </StackPanel>
                     <StackPanel VerticalAlignment="Center" Margin="0,0,10,0" Width="140">
                         <TextBlock Text="Linetype" Foreground="{StaticResource DimTextBrush}" FontSize="11" Margin="1,0,0,3" />
@@ -110,6 +131,13 @@
                         <ComboBox DropDownClosed="PropertyCombo_DropDownClosed" ItemsSource="{Binding Properties.LineweightNames}"
                                   SelectedItem="{Binding Properties.SelectedLineweight, Mode=TwoWay}"
                                   ToolTip="Line thickness of new objects in millimetres (ByLayer uses the layer lineweight). With objects selected: their lineweight." />
+                    </StackPanel>
+                    <StackPanel VerticalAlignment="Center" Margin="0,0,10,0">
+                        <TextBlock Text="Plot" Foreground="{StaticResource DimTextBrush}" FontSize="11" Margin="1,0,0,1" HorizontalAlignment="Center" />
+                        <ToggleButton Style="{StaticResource FlagToggle}" Foreground="{StaticResource TextBrush}"
+                                      Tag="{StaticResource GlyphPlot}" Content="{StaticResource GlyphNoPlot}"
+                                      IsChecked="{Binding CurrentLayerPlots, Mode=TwoWay}"
+                                      ToolTip="Plot switch of the current layer. Crossed out: the layer is shown on screen but will not be printed." />
                     </StackPanel>
                 </StackPanel>
             </TabItem>
@@ -274,7 +302,18 @@
                             <TextBlock Grid.Column="0" Style="{StaticResource FieldLabel}" Text="Color" />
                             <ComboBox Grid.Column="1" DropDownClosed="PropertyCombo_DropDownClosed" ItemsSource="{Binding Properties.ColorNames}"
                                       SelectedItem="{Binding Properties.SelectedColor, Mode=TwoWay}"
-                                      ToolTip="ByLayer uses the colour of the layer." />
+                                      ToolTip="ByLayer uses the colour of the layer.">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel Orientation="Horizontal">
+                                        <Border Width="12" Height="12" Margin="0,0,7,0" VerticalAlignment="Center"
+                                                Background="{Binding Converter={StaticResource ColorNameToBrush}}"
+                                                BorderBrush="{StaticResource DimTextBrush}" BorderThickness="1" />
+                                        <TextBlock Text="{Binding}" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
                         </Grid>
                         <Grid Margin="0,4,0,0">
                             <Grid.ColumnDefinitions>

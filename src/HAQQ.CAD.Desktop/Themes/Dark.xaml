@@ -54,6 +54,9 @@
     <Geometry x:Key="IconDimChain">M2,5 L2,15 M9,5 L9,15 M18,5 L18,15 M2,8 L18,8 M2,8 L4,7 M2,8 L4,9 M9,8 L7,7 M9,8 L7,9 M9,8 L11,7 M9,8 L11,9 M18,8 L16,7 M18,8 L16,9</Geometry>
     <Geometry x:Key="IconDimStack">M3,3 L3,17 M10,9 L10,17 M17,3 L17,17 M3,11 L10,11 M3,5 L17,5 M3,11 L5,10 M3,11 L5,12 M10,11 L8,10 M10,11 L8,12 M3,5 L5,4 M3,5 L5,6 M17,5 L15,4 M17,5 L15,6</Geometry>
     <Geometry x:Key="IconDimSize">M3,16 L7,4 L11,16 M4.5,12 L9.5,12 M15,4 L15,16 M15,4 L13.5,6.5 M15,4 L16.5,6.5 M15,16 L13.5,13.5 M15,16 L16.5,13.5</Geometry>
+    <!-- Printer, and printer crossed out (layer plot switch) -->
+    <Geometry x:Key="GlyphPlot">M6,7 L6,3 L14,3 L14,7 M4,7 L16,7 L16,14 L14,14 M6,14 L4,14 L4,7 M6,12 L14,12 L14,17 L6,17 Z</Geometry>
+    <Geometry x:Key="GlyphNoPlot">M6,7 L6,3 L14,3 L14,7 M4,7 L16,7 L16,14 L14,14 M6,14 L4,14 L4,7 M6,12 L14,12 L14,17 L6,17 Z M2,2 L18,18</Geometry>
     <Geometry x:Key="IconArrowDown">M0,0 L4,4 L8,0</Geometry>
 
     <!-- Ribbon button: glyph above caption. Tag carries the glyph geometry. -->
@@ -389,4 +392,38 @@
         <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
         <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
     </Style>
+
+    <!-- A two-state glyph button: Tag = glyph when checked, Content = glyph when unchecked -->
+    <Style x:Key="FlagToggle" TargetType="ToggleButton">
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="HorizontalAlignment" Value="Center" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToggleButton">
+                    <Border x:Name="Bd" Background="Transparent" CornerRadius="3" Padding="3,1">
+                        <Grid Width="20" Height="20">
+                            <Path x:Name="Unchecked" Width="20" Height="20" Stroke="{StaticResource DimTextBrush}" StrokeThickness="1.4"
+                                  StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                  Data="{Binding Content, RelativeSource={RelativeSource TemplatedParent}}" />
+                            <Path x:Name="Checked" Width="20" Height="20" Stroke="{TemplateBinding Foreground}" StrokeThickness="1.4"
+                                  StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Visibility="Collapsed"
+                                  Data="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}" />
+                        </Grid>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Unchecked" Property="Visibility" Value="Collapsed" />
+                            <Setter TargetName="Checked" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource HoverBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
 </ResourceDictionary>

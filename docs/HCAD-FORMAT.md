@@ -160,4 +160,5 @@ rebar objects, bar marks and schedules, revision records, and a compressed conta
 - `document.units.dimensionTextHeight`: text height given to new dimensions (default 4).
 - `minReaderVersion` stays 1: a reader that does not know `dimension` keeps the entity as an unsupported object
   and writes it back unchanged.
-
+- Layer `plot` (boolean, optional, default `true`; added with schema 5): `false` means the layer is shown on screen
+  but left out of prints and exports.

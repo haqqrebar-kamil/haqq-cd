@@ -1,11 +1,13 @@
 <Application x:Class="HAQQ.CAD.Desktop.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:HAQQ.CAD.Desktop">
     <Application.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="Themes/Dark.xaml" />
             </ResourceDictionary.MergedDictionaries>
+            <local:ColorNameToBrushConverter x:Key="ColorNameToBrush" />
         </ResourceDictionary>
     </Application.Resources>
 </Application>

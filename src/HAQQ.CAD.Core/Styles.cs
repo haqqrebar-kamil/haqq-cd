@@ -206,6 +206,12 @@ public sealed class Layer
     /// <summary>Frozen layers are not drawn, not selectable and not snappable.</summary>
     public bool IsFrozen { get; set; }
 
+    /// <summary>
+    /// Plot switch: objects on a layer with this off are shown on screen but left out when the drawing is
+    /// printed or exported.
+    /// </summary>
+    public bool IsPlotted { get; set; } = true;
+
     public bool IsDisplayed => IsVisible && !IsFrozen;
     public bool IsEditable => IsDisplayed && !IsLocked;
 
@@ -217,5 +223,6 @@ public sealed class Layer
         IsVisible = IsVisible,
         IsLocked = IsLocked,
         IsFrozen = IsFrozen,
+        IsPlotted = IsPlotted,
     };
 }

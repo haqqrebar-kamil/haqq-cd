@@ -68,6 +68,19 @@ public sealed class LayerViewModel : ObservableObject
         }
     }
 
+    /// <summary>Plot switch: off leaves the layer out of prints and exports.</summary>
+    public bool IsPlotted
+    {
+        get => _isPlotted;
+        set
+        {
+            if (value == _isPlotted) return;
+            if (!_owner.Session.UpdateLayer(Id, l => l.IsPlotted = value)) OnPropertyChanged();
+        }
+    }
+
+    private bool _isPlotted = true;
+
     public bool IsLocked
     {
         get => _isLocked;
@@ -151,6 +164,7 @@ public sealed class LayerViewModel : ObservableObject
         if (SetField(ref _isVisible, layer.IsVisible)) OnPropertyChanged(nameof(IsVisible));
         if (SetField(ref _isLocked, layer.IsLocked)) OnPropertyChanged(nameof(IsLocked));
         if (SetField(ref _isFrozen, layer.IsFrozen)) OnPropertyChanged(nameof(IsFrozen));
+        if (SetField(ref _isPlotted, layer.IsPlotted)) OnPropertyChanged(nameof(IsPlotted));
         IsCurrent = isCurrent;
     }
 

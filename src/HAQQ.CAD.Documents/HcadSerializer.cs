@@ -137,6 +137,7 @@ public static class HcadSerializer
             w.WriteBoolean("visible", layer.IsVisible);
             w.WriteBoolean("locked", layer.IsLocked);
             w.WriteBoolean("frozen", layer.IsFrozen);
+            w.WriteBoolean("plot", layer.IsPlotted);
             w.WriteEndObject();
         }
         w.WriteEndArray();
@@ -401,6 +402,7 @@ public static class HcadSerializer
                 layer.IsVisible = GetBool(le, "visible", true);
                 layer.IsLocked = GetBool(le, "locked", false);
                 layer.IsFrozen = GetBool(le, "frozen", false);
+                layer.IsPlotted = GetBool(le, "plot", true);
                 document.AddLayer(layer);
             }
         }

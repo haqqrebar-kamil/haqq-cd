@@ -1046,3 +1046,32 @@ public class NewObjectPropertiesTests : IDisposable
     }
 }
 
+
+public class LayerPlotTests : IDisposable
+{
+    private readonly TempDirectory _temp = new();
+    public void Dispose() => _temp.Dispose();
+
+    [Fact]
+    public void Layer_plot_switch_is_on_by_default_undoable_and_saved()
+    {
+        var vm = new MainViewModel(new FakeUi(), new RecoveryStore(_temp.File("recovery")));
+        var s = vm.Session;
+        Assert.True(vm.CurrentLayerPlots);
+        Assert.True(vm.Layers.All(l => l.IsPlotted));
+
+        vm.CurrentLayerPlots = false;                                   // the HOME tab switch acts on the current layer
+        Assert.False(s.Document.CurrentLayer.IsPlotted);
+        Assert.False(vm.Layers.Single(l => l.IsCurrent).IsPlotted);
+        Assert.True(s.Document.CurrentLayer.IsDisplayed);               // still shown on screen
+
+        var loaded = HcadSerializer.LoadFromBytes(HcadSerializer.SaveToBytes(s.Document)).Document;
+        Assert.False(loaded.CurrentLayer.IsPlotted);
+        Assert.True(loaded.Layers.Where(l => l.Id != loaded.CurrentLayerId).All(l => l.IsPlotted));
+
+        s.Undo();
+        Assert.True(vm.CurrentLayerPlots);
+        vm.Layers[0].IsPlotted = false;                                 // the layer table switch
+        Assert.False(s.Document.Layers[0].IsPlotted);
+    }
+}

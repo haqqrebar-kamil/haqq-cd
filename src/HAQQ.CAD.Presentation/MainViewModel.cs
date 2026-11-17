@@ -442,6 +442,17 @@ public sealed class MainViewModel : ObservableObject
 
     public string CurrentLayerName => Session.Document.CurrentLayer.Name;
 
+    /// <summary>Plot switch of the current layer (shown on the HOME tab).</summary>
+    public bool CurrentLayerPlots
+    {
+        get => Session.Document.CurrentLayer.IsPlotted;
+        set
+        {
+            if (value == Session.Document.CurrentLayer.IsPlotted) return;
+            if (!Session.UpdateLayer(Session.Document.CurrentLayerId, l => l.IsPlotted = value)) OnPropertyChanged();
+        }
+    }
+
     // -------------------------------------------------------- command line
 
     public void AddHistory(string line)
@@ -806,7 +817,14 @@ public sealed class MainViewModel : ObservableObject
 
         SyncLayers(doc);
         OnPropertyChanged(nameof(CurrentLayerName));
+        OnPropertyChanged(nameof(CurrentLayerPlots));
         Properties.Refresh();
+        if (_layersRebuilt)
+        {
+            // Lists bound to the layer rows lost their choice when the rows were replaced.
+            _layersRebuilt = false;
+            Properties.RaiseLayerChoice();
+        }
         RefreshExplorer(doc);
 
         string selection = Session.Selection.Count > 0 ? $"   {Session.Selection.Count} selected" : "";
@@ -816,6 +834,8 @@ public sealed class MainViewModel : ObservableObject
         RedoCommand.RaiseCanExecuteChanged();
         RedrawRequested?.Invoke(this, EventArgs.Empty);
     }
+
+    private bool _layersRebuilt;
 
     private void SyncLayers(DrawingDocument doc)
     {
@@ -831,6 +851,7 @@ public sealed class MainViewModel : ObservableObject
         }
 
         Guid? selectedId = SelectedLayer?.Id;
+        _layersRebuilt = true;
         Layers.Clear();
         foreach (var layer in doc.Layers) Layers.Add(new LayerViewModel(this, layer, layer.Id == doc.CurrentLayerId));
         SelectedLayer = Layers.FirstOrDefault(l => l.Id == selectedId) ?? Layers.FirstOrDefault(l => l.IsCurrent);

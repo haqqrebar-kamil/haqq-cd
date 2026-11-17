@@ -460,6 +460,8 @@ public sealed class PropertiesViewModel : ObservableObject
         });
     }
 
+    internal void RaiseLayerChoice() => OnPropertyChanged(nameof(SelectedLayerName));
+
     private void SetLayerName(string? name, bool listChanged = false)
     {
         // A list that changed makes the drop-down drop its choice, so it is told again even when the name is the same.
