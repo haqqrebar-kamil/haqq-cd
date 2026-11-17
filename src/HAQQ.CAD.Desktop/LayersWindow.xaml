@@ -1,0 +1,173 @@
+<Window x:Class="HAQQ.CAD.Desktop.LayersWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Layers"
+        Width="820" Height="380" MinWidth="640" MinHeight="220"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False"
+        Background="{StaticResource PanelBrush}"
+        Foreground="{StaticResource TextBrush}"
+        FontFamily="Segoe UI" FontSize="12"
+        UseLayoutRounding="True">
+    <Window.Resources>
+        <!-- Glyphs drawn for HAQQ CAD on a 20 x 20 grid -->
+        <Geometry x:Key="GlyphOn">M5,8 A5,5 0 1 1 15,8 A5,5 0 1 1 5,8 M8,15 L12,15 M8.5,17.5 L11.5,17.5</Geometry>
+        <Geometry x:Key="GlyphOff">M5,8 A5,5 0 1 1 15,8 A5,5 0 1 1 5,8 M8,15 L12,15 M8.5,17.5 L11.5,17.5 M3,2 L17,16</Geometry>
+        <Geometry x:Key="GlyphThawed">M7,10 A3,3 0 1 1 13,10 A3,3 0 1 1 7,10 M10,2 L10,4.5 M10,15.5 L10,18 M2,10 L4.5,10 M15.5,10 L18,10 M4.3,4.3 L6.1,6.1 M13.9,13.9 L15.7,15.7 M4.3,15.7 L6.1,13.9 M13.9,6.1 L15.7,4.3</Geometry>
+        <Geometry x:Key="GlyphFrozen">M10,2 L10,18 M3,6 L17,14 M3,14 L17,6 M10,2 L8,4 M10,2 L12,4 M10,18 L8,16 M10,18 L12,16</Geometry>
+        <Geometry x:Key="GlyphUnlocked">M5,9 L15,9 L15,17 L5,17 Z M7,9 L7,6 A3,3 0 0 1 13,6</Geometry>
+        <Geometry x:Key="GlyphLocked">M5,9 L15,9 L15,17 L5,17 Z M7,9 L7,6 A3,3 0 0 1 13,6 L13,9 M10,12 L10,14.5</Geometry>
+
+        <!-- A two-state glyph button: Tag = glyph when checked, Content = glyph when unchecked -->
+        <Style x:Key="FlagToggle" TargetType="ToggleButton">
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="Bd" Background="Transparent" CornerRadius="3" Padding="3,1">
+                            <Grid Width="20" Height="20">
+                                <Path x:Name="Unchecked" Width="20" Height="20" Stroke="{StaticResource DimTextBrush}" StrokeThickness="1.4"
+                                      StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                      Data="{Binding Content, RelativeSource={RelativeSource TemplatedParent}}" />
+                                <Path x:Name="Checked" Width="20" Height="20" Stroke="{TemplateBinding Foreground}" StrokeThickness="1.4"
+                                      StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Visibility="Collapsed"
+                                      Data="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}" />
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Unchecked" Property="Visibility" Value="Collapsed" />
+                                <Setter TargetName="Checked" Property="Visibility" Value="Visible" />
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource HoverBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="ColumnHeader" TargetType="TextBlock">
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{StaticResource DimTextBrush}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- Tools -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
+            <Button Style="{StaticResource PanelButton}" Content="+ New layer" Command="{Binding AddLayerCommand}" ToolTip="Add a layer" />
+            <Button Style="{StaticResource PanelButton}" Content="Delete" Command="{Binding DeleteLayerCommand}" ToolTip="Delete the selected layer (it must be empty, and not the current layer or layer 0)" />
+            <Button Style="{StaticResource PanelButton}" Content="Remove unused" Command="{Binding PurgeLayersCommand}" ToolTip="Delete every layer that has no objects on it" />
+            <Button Style="{StaticResource PanelButton}" Content="Set current" Command="{Binding SetCurrentLayerCommand}" ToolTip="Draw new objects on the selected layer (or double-click the layer)" />
+            <TextBlock VerticalAlignment="Center" Margin="14,0,0,0" Foreground="{StaticResource DimTextBrush}" Text="Current layer:" />
+            <TextBlock VerticalAlignment="Center" Margin="6,0,0,0" FontWeight="SemiBold" Text="{Binding CurrentLayerName}" />
+        </StackPanel>
+
+        <!-- Column titles: the widths match the row template below -->
+        <Border Grid.Row="1" Background="{StaticResource PanelAltBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Padding="5,5">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="22" />
+                    <ColumnDefinition Width="58" />
+                    <ColumnDefinition Width="58" />
+                    <ColumnDefinition Width="58" />
+                    <ColumnDefinition Width="*" MinWidth="130" />
+                    <ColumnDefinition Width="140" />
+                    <ColumnDefinition Width="110" />
+                    <ColumnDefinition Width="110" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="1" Style="{StaticResource ColumnHeader}" Text="On/Off" />
+                <TextBlock Grid.Column="2" Style="{StaticResource ColumnHeader}" Text="Freeze" />
+                <TextBlock Grid.Column="3" Style="{StaticResource ColumnHeader}" Text="Locked" />
+                <TextBlock Grid.Column="4" Style="{StaticResource ColumnHeader}" Text="Name" HorizontalAlignment="Left" Margin="6,0,0,0" />
+                <TextBlock Grid.Column="5" Style="{StaticResource ColumnHeader}" Text="Color" HorizontalAlignment="Left" Margin="6,0,0,0" />
+                <TextBlock Grid.Column="6" Style="{StaticResource ColumnHeader}" Text="Linetype" HorizontalAlignment="Left" Margin="6,0,0,0" />
+                <TextBlock Grid.Column="7" Style="{StaticResource ColumnHeader}" Text="Lineweight" HorizontalAlignment="Left" Margin="6,0,0,0" />
+            </Grid>
+        </Border>
+
+        <!-- One row per layer -->
+        <ListBox x:Name="LayerList" Grid.Row="2" ItemsSource="{Binding Layers}" SelectedItem="{Binding SelectedLayer, Mode=TwoWay}"
+                 HorizontalContentAlignment="Stretch" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                 PreviewMouseLeftButtonDown="LayerList_PreviewMouseLeftButtonDown" MouseDoubleClick="LayerList_MouseDoubleClick">
+            <ListBox.ItemTemplate>
+                <DataTemplate>
+                    <Grid Margin="0,1">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="22" />
+                            <ColumnDefinition Width="58" />
+                            <ColumnDefinition Width="58" />
+                            <ColumnDefinition Width="58" />
+                            <ColumnDefinition Width="*" MinWidth="130" />
+                            <ColumnDefinition Width="140" />
+                            <ColumnDefinition Width="110" />
+                            <ColumnDefinition Width="110" />
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock x:Name="CurrentMark" Grid.Column="0" Text="&#x25B8;" FontSize="14" Foreground="{StaticResource AccentBrush}"
+                                   VerticalAlignment="Center" HorizontalAlignment="Center" Visibility="Hidden" ToolTip="Current layer" />
+
+                        <ToggleButton Grid.Column="1" Style="{StaticResource FlagToggle}" Foreground="#F2C14E"
+                                      Tag="{StaticResource GlyphOn}" Content="{StaticResource GlyphOff}"
+                                      IsChecked="{Binding IsVisible, Mode=TwoWay}" ToolTip="On / off: show or hide the layer" />
+                        <ToggleButton Grid.Column="2" Style="{StaticResource FlagToggle}" Foreground="#6CB6FF"
+                                      Tag="{StaticResource GlyphFrozen}" Content="{StaticResource GlyphThawed}"
+                                      IsChecked="{Binding IsFrozen, Mode=TwoWay}" ToolTip="Freeze: hidden and ignored by snapping" />
+                        <ToggleButton Grid.Column="3" Style="{StaticResource FlagToggle}" Foreground="#6CB6FF"
+                                      Tag="{StaticResource GlyphLocked}" Content="{StaticResource GlyphUnlocked}"
+                                      IsChecked="{Binding IsLocked, Mode=TwoWay}" ToolTip="Locked: visible but cannot be edited" />
+
+                        <TextBox x:Name="NameBox" Grid.Column="4" Margin="4,0" KeyDown="EditBox_KeyDown"
+                                 Text="{Binding Name, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+
+                        <Button Grid.Column="5" Margin="4,0" Cursor="Hand" Focusable="False" Click="ColorCell_Click"
+                                ToolTip="Click to change the layer colour">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Border Background="Transparent" Padding="2,2">
+                                        <StackPanel Orientation="Horizontal">
+                                            <Border Width="16" Height="16" Background="{Binding ColorHex}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" />
+                                            <TextBlock Margin="8,0,0,0" VerticalAlignment="Center" Text="{Binding ColorName}" />
+                                        </StackPanel>
+                                    </Border>
+                                </ControlTemplate>
+                            </Button.Template>
+                        </Button>
+
+                        <TextBlock Grid.Column="6" Margin="6,0,0,0" VerticalAlignment="Center" Text="{Binding Linetype}"
+                                   ToolTip="Other linetypes are not available yet: every line is drawn continuous" />
+
+                        <StackPanel Grid.Column="7" Orientation="Horizontal" Margin="4,0">
+                            <TextBox Width="58" KeyDown="EditBox_KeyDown" ToolTip="Lineweight in millimetres"
+                                     Text="{Binding LineweightText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                            <TextBlock Margin="5,0,0,0" VerticalAlignment="Center" Foreground="{StaticResource DimTextBrush}" Text="mm" />
+                        </StackPanel>
+                    </Grid>
+                    <DataTemplate.Triggers>
+                        <DataTrigger Binding="{Binding IsCurrent}" Value="True">
+                            <Setter TargetName="CurrentMark" Property="Visibility" Value="Visible" />
+                            <Setter TargetName="NameBox" Property="FontWeight" Value="SemiBold" />
+                        </DataTrigger>
+                    </DataTemplate.Triggers>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+
+        <TextBlock Grid.Row="3" Margin="0,8,0,0" Foreground="{StaticResource DimTextBrush}" TextWrapping="Wrap"
+                   Text="Double-click a layer to make it current. Every change here can be undone with Ctrl+Z in the drawing window." />
+    </Grid>
+</Window>

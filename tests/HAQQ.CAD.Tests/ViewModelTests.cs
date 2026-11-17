@@ -620,3 +620,73 @@ public class UpdaterTests : IDisposable
         Assert.Equal("old program", File.ReadAllText(program));    // put back
     }
 }
+
+public class LayerTableTests : IDisposable
+{
+    private readonly TempDirectory _temp = new();
+    public void Dispose() => _temp.Dispose();
+
+    private MainViewModel NewViewModel() => new(new FakeUi(), new RecoveryStore(_temp.File("recovery")));
+
+    [Fact]
+    public void Layer_command_asks_the_shell_to_show_the_layer_table()
+    {
+        var vm = NewViewModel();
+        int shown = 0;
+        vm.LayersRequested += (_, _) => shown++;
+        vm.RunCommand("LAYER");
+        vm.RunCommand("la");
+        Assert.Equal(2, shown);
+        Assert.Null(vm.Session.ActiveCommand);              // it opens a window; no command stays active
+        Assert.Contains("Command: LAYER", vm.History);
+    }
+
+    [Fact]
+    public void Rows_show_colour_names_and_linetype_and_can_make_themselves_current()
+    {
+        var vm = NewViewModel();
+        vm.AddLayerCommand.Execute(null);
+        var row = vm.Layers.Single(l => l.Name == "Layer 2");
+        Assert.Equal("White", row.ColorName);
+        Assert.Equal("Continuous", row.Linetype);
+        var changed = new List<string?>();
+        row.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+        row.ColorHex = "#FF0000";
+        Assert.Equal("Red", row.ColorName);
+        Assert.Contains(nameof(LayerViewModel.ColorName), changed);
+        row.ColorHex = "#123456";
+        Assert.Equal("#123456", row.ColorName);             // not a standard colour: shown as its code
+
+        Assert.False(row.IsCurrent);
+        row.MakeCurrent();
+        Assert.True(row.IsCurrent);
+        Assert.Equal("Layer 2", vm.CurrentLayerName);
+        row.IsFrozen = true;                                 // freeze toggle reaches the document
+        Assert.True(vm.Session.Document.FindLayer("Layer 2")!.IsFrozen);
+    }
+
+    [Fact]
+    public void Remove_unused_deletes_empty_layers_in_one_undo_step_and_keeps_used_current_and_layer_0()
+    {
+        var vm = NewViewModel();
+        var s = vm.Session;
+        vm.AddLayerCommand.Execute(null);                   // Layer 2: gets an object
+        vm.AddLayerCommand.Execute(null);                   // Layer 3: empty
+        vm.AddLayerCommand.Execute(null);                   // Layer 4: empty
+        var used = s.Document.FindLayer("Layer 2")!;
+        s.Document.AddEntity(new LineEntity(P(0, 0), P(1, 1)) { LayerId = used.Id });
+
+        vm.PurgeLayersCommand.Execute(null);
+        Assert.Equal(new[] { "0", "Layer 1", "Layer 2" }, s.Document.Layers.Select(l => l.Name).ToArray());
+        Assert.Contains(vm.History, h => h.Contains("2 unused layer(s) removed"));
+
+        s.Undo();
+        Assert.Equal(5, s.Document.Layers.Count);
+        Assert.Equal(new[] { "0", "Layer 1", "Layer 2", "Layer 3", "Layer 4" }, s.Document.Layers.Select(l => l.Name).ToArray());
+
+        vm.PurgeLayersCommand.Execute(null);
+        vm.PurgeLayersCommand.Execute(null);                // nothing left to remove
+        Assert.Contains(vm.History, h => h.Contains("No unused layers"));
+        Assert.Equal(3, s.Document.Layers.Count);
+    }
+}

@@ -31,6 +31,7 @@ public partial class MainWindow : Window
 
         DrawingCanvas.Attach(_viewModel);
         _viewModel.CloseRequested += (_, _) => Close();
+        _viewModel.LayersRequested += (_, _) => ShowLayers();
         // Scroll after the list itself has taken in the new line. Scrolling from inside the change
         // notification forces a layout while the list is still one line behind, which WPF rejects.
         _viewModel.History.CollectionChanged += (_, _) =>
@@ -226,10 +227,19 @@ public partial class MainWindow : Window
         DrawingCanvas.Focus();
     }
 
-    private void LayerList_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+    private LayersWindow? _layersWindow;
+
+    /// <summary>Shows the layer table (one window, brought to the front when it is already open).</summary>
+    private void ShowLayers()
     {
-        // Double-click a layer to make it current.
-        if (_viewModel.SetCurrentLayerCommand.CanExecute(null)) _viewModel.SetCurrentLayerCommand.Execute(null);
+        if (_layersWindow is { IsLoaded: true })
+        {
+            _layersWindow.Activate();
+            return;
+        }
+        _layersWindow = new LayersWindow(_viewModel) { Owner = this };
+        _layersWindow.Closed += (_, _) => _layersWindow = null;
+        _layersWindow.Show();
     }
 
     /// <summary>Enter commits an edit box and returns the keyboard to the drawing.</summary>

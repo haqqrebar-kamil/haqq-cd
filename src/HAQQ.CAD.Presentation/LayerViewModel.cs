@@ -11,6 +11,18 @@ public sealed class LayerViewModel : ObservableObject
     private string _colorHex = "#FFFFFF";
     private string _lineweightText = "";
     private bool _isVisible, _isLocked, _isFrozen, _isCurrent;
+    private string _linetype = "";
+
+    private static readonly Dictionary<string, string> ColorNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["#FFFFFF"] = "White", ["#FF0000"] = "Red", ["#FFFF00"] = "Yellow", ["#00FF00"] = "Green",
+        ["#00FFFF"] = "Cyan", ["#0000FF"] = "Blue", ["#FF00FF"] = "Magenta", ["#FF7F00"] = "Orange",
+        ["#808080"] = "Gray", ["#C0C0C0"] = "Light gray", ["#7FDF7F"] = "Light green", ["#7FBFFF"] = "Light blue",
+        ["#FF7F7F"] = "Light red", ["#BF7FFF"] = "Violet",
+    };
+
+    /// <summary>A plain name for a standard colour ("Red"); other colours are shown as #RRGGBB.</summary>
+    public static string ColorNameOf(string hex) => ColorNames.TryGetValue(hex, out string? name) ? name : hex.ToUpperInvariant();
 
     internal LayerViewModel(MainViewModel owner, Layer layer, bool isCurrent)
     {
@@ -87,6 +99,15 @@ public sealed class LayerViewModel : ObservableObject
         }
     }
 
+    /// <summary>Colour name for display beside the swatch.</summary>
+    public string ColorName => ColorNameOf(_colorHex);
+
+    /// <summary>Linetype name. Only shown: every line is still drawn continuous.</summary>
+    public string Linetype => _linetype;
+
+    /// <summary>Makes this the layer new objects are drawn on.</summary>
+    public void MakeCurrent() => _owner.Session.SetCurrentLayer(Id);
+
     public bool IsCurrent
     {
         get => _isCurrent;
@@ -96,7 +117,12 @@ public sealed class LayerViewModel : ObservableObject
     internal void Sync(Layer layer, bool isCurrent)
     {
         if (SetField(ref _name, layer.Name)) OnPropertyChanged(nameof(Name));
-        if (SetField(ref _colorHex, layer.Color.ToString())) OnPropertyChanged(nameof(ColorHex));
+        if (SetField(ref _colorHex, layer.Color.ToString()))
+        {
+            OnPropertyChanged(nameof(ColorHex));
+            OnPropertyChanged(nameof(ColorName));
+        }
+        if (SetField(ref _linetype, layer.Linetype)) OnPropertyChanged(nameof(Linetype));
         if (SetField(ref _lineweightText, layer.LineweightMm.ToString("0.##", CultureInfo.InvariantCulture))) OnPropertyChanged(nameof(LineweightText));
         if (SetField(ref _isVisible, layer.IsVisible)) OnPropertyChanged(nameof(IsVisible));
         if (SetField(ref _isLocked, layer.IsLocked)) OnPropertyChanged(nameof(IsLocked));

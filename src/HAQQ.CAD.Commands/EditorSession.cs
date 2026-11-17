@@ -410,6 +410,12 @@ public sealed class EditorSession
             case "EXIT":
                 ViewCommandRequested?.Invoke("Quit");
                 return true;
+            case "LAYER":
+            case "LA":
+            case "LAYERS":
+                Post("Command: LAYER");
+                ViewCommandRequested?.Invoke("Layers");
+                return true;
             case "Z":
             case "ZE":
             case "ZA":
@@ -654,6 +660,24 @@ public sealed class EditorSession
         string? blocker = Document.GetLayerRemovalBlocker(layerId);
         if (blocker is not null) { Post(blocker); return false; }
         return Execute(new RemoveLayerAction(layerId));
+    }
+
+    /// <summary>
+    /// Deletes every layer that can be deleted: no objects on it, not the current layer and not layer 0.
+    /// One undo step. Returns how many layers were removed.
+    /// </summary>
+    public int PurgeLayers()
+    {
+        var unused = Document.Layers.Where(l => Document.GetLayerRemovalBlocker(l.Id) is null).Select(l => l.Id).ToList();
+        if (unused.Count == 0)
+        {
+            Post("No unused layers to remove.");
+            return 0;
+        }
+        var actions = unused.Select(id => (IUndoableAction)new RemoveLayerAction(id)).ToArray();
+        if (!Execute(new CompositeAction("Purge layers", actions))) return 0;
+        Post($"{unused.Count} unused layer(s) removed.");
+        return unused.Count;
     }
 
     public bool SetCurrentLayer(Guid layerId)
