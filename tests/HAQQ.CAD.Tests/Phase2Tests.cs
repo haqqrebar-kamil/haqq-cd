@@ -3354,7 +3354,7 @@ public class LinetypeTests : IDisposable
         var s = vm.Session;
         Assert.Equal(new[] { "Continuous", "Dashed", "Short Dash", "Center", "Long Short Short", "Dash Dot", "Dotted", "Dash Dash Dot" }, vm.LinetypeNames.ToArray());
         Assert.Equal(new[] { "ByLayer", "ByBlock", "Continuous", "Dashed", "Short Dash", "Center", "Long Short Short", "Dash Dot", "Dotted", "Dash Dash Dot" }, vm.Properties.LinetypeNames.ToArray());
-        Assert.Null(vm.Properties.SelectedLinetype);        // nothing selected
+        Assert.Equal("ByLayer", vm.Properties.SelectedLinetype);        // nothing selected: the linetype of new objects
 
         var line = new LineEntity(P(0, 0), P(10, 0)) { LayerId = s.Document.CurrentLayerId };
         s.Document.AddEntity(line);

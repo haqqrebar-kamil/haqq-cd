@@ -87,6 +87,23 @@ public interface IPickedObjects
     IEnumerable<Guid> PickedObjects { get; }
 }
 
+/// <summary>A command that draws new objects (LINE, PLINE, RECTANG, CIRCLE, ARC): the Properties panel shows what the new object will get.</summary>
+public interface ICreatesObjects { }
+
+/// <summary>The properties a newly drawn object is given.</summary>
+public sealed class NewObjectProperties
+{
+    /// <summary>Layer for the object; null means the drawing's current layer.</summary>
+    public Guid? LayerId { get; set; }
+    public CadColor Color { get; set; } = CadColor.ByLayer;
+    public string Linetype { get; set; } = Linetypes.ByLayer;
+    public double LinetypeScale { get; set; } = 1.0;
+    /// <summary>Lineweight in millimetres; null means ByLayer.</summary>
+    public double? LineweightMm { get; set; }
+
+    public NewObjectProperties Clone() => (NewObjectProperties)MemberwiseClone();
+}
+
 /// <summary>An active polar tracking alignment: the cursor is locked onto a ray from <paramref name="From"/>.</summary>
 public readonly record struct PolarTrack(Point2D From, double AngleDegrees, Point2D Point);
 
@@ -208,6 +225,115 @@ public sealed class EditorSession
     /// </summary>
     public bool ContinuousLines { get; set; }
 
+    // ------------------------------------------------- properties of new objects
+
+    private bool _overrideSaved;
+    private Guid? _layerAfterCommand;
+
+    /// <summary>What every new object gets (the layer is the drawing's current layer). Lasts for the session.</summary>
+    public NewObjectProperties NewObjectDefaults { get; private set; } = new();
+
+    /// <summary>Changes made in the Properties panel while a drawing command runs: they apply to that command only.</summary>
+    public NewObjectProperties? NewObjectOverride { get; private set; }
+
+    /// <summary>True while a command that draws new objects is running.</summary>
+    public bool IsCreatingObjects => ActiveCommand is ICreatesObjects;
+
+    /// <summary>What the object being drawn (or the next one) will get.</summary>
+    public NewObjectProperties EffectiveNewObject => NewObjectOverride ?? NewObjectDefaults;
+
+    /// <summary>Layer the object being drawn (or the next one) goes on.</summary>
+    public Guid EffectiveNewObjectLayerId =>
+        EffectiveNewObject.LayerId is Guid id && Document.GetLayer(id) is not null ? id : Document.CurrentLayerId;
+
+    /// <summary>True when the running command has changes that were not saved for the objects that follow.</summary>
+    public bool HasUnsavedNewObjectChanges => NewObjectOverride is not null && !_overrideSaved;
+
+    /// <summary>Counts every change to the properties of new objects, so views know when to refresh.</summary>
+    public int NewObjectVersion { get; private set; }
+
+    /// <summary>
+    /// Changes a property of new objects. While a drawing command runs the change is for that command only
+    /// (see <see cref="SaveNewObjectChanges"/>); otherwise it is for every object drawn from now on.
+    /// </summary>
+    public void ChangeNewObject(Action<NewObjectProperties> change)
+    {
+        if (IsCreatingObjects)
+        {
+            NewObjectOverride ??= NewObjectDefaults.Clone();
+            change(NewObjectOverride);
+            _overrideSaved = false;
+        }
+        else
+        {
+            change(NewObjectDefaults);
+            if (NewObjectDefaults.LayerId is Guid layerId)
+            {
+                NewObjectDefaults.LayerId = null;
+                if (Document.GetLayer(layerId) is not null) SetCurrentLayer(layerId);
+            }
+        }
+        NewObjectVersion++;
+        RaiseStateChanged();
+    }
+
+    /// <summary>Makes the changes of the running command the settings for every object drawn after it as well.</summary>
+    public bool SaveNewObjectChanges()
+    {
+        if (NewObjectOverride is not { } changes) return false;
+        NewObjectDefaults = changes.Clone();
+        NewObjectDefaults.LayerId = null;
+        // The current layer is switched when the command ends, so the command's own undo step stays whole.
+        _layerAfterCommand = changes.LayerId;
+        _overrideSaved = true;
+        NewObjectVersion++;
+        Post("Saved: new objects will use these properties.");
+        RaiseStateChanged();
+        return true;
+    }
+
+    /// <summary>Makes the properties of an existing object the settings for new objects (its layer becomes current).</summary>
+    public void UseForNewObjects(Entity source)
+    {
+        NewObjectDefaults = new NewObjectProperties
+        {
+            Color = source.Color,
+            Linetype = source.Linetype,
+            LinetypeScale = source.LinetypeScale,
+            LineweightMm = source.LineweightMm,
+        };
+        if (ActiveCommand is null) { if (Document.GetLayer(source.LayerId) is not null) SetCurrentLayer(source.LayerId); }
+        else _layerAfterCommand = source.LayerId;
+        NewObjectVersion++;
+        Post("Saved: new objects will use these properties.");
+        RaiseStateChanged();
+    }
+
+    /// <summary>Gives a new object its layer, colour, linetype, linetype scale and lineweight.</summary>
+    public void ApplyNewObjectProperties(Entity entity)
+    {
+        var p = EffectiveNewObject;
+        entity.LayerId = EffectiveNewObjectLayerId;
+        entity.Color = p.Color;
+        entity.Linetype = Linetypes.IsReserved(p.Linetype) ? p.Linetype : Document.FindLinetype(p.Linetype)?.Name ?? Linetypes.ByLayer;
+        entity.LinetypeScale = p.LinetypeScale > 0 && double.IsFinite(p.LinetypeScale) ? p.LinetypeScale : 1.0;
+        entity.LineweightMm = p.LineweightMm;
+    }
+
+    /// <summary>A command has ended: its one-off property changes end with it.</summary>
+    private void EndNewObjectChanges()
+    {
+        bool had = NewObjectOverride is not null;
+        NewObjectOverride = null;
+        _overrideSaved = false;
+        if (had) NewObjectVersion++;
+        if (_layerAfterCommand is Guid layerId)
+        {
+            _layerAfterCommand = null;
+            if (Document.GetLayer(layerId) is not null) SetCurrentLayer(layerId);
+        }
+    }
+
     /// <summary>True for objects to draw highlighted: the selection, and whatever the active command has picked.</summary>
     public bool IsHighlighted(Guid id) =>
         Selection.Contains(id) || (ActiveCommand is IPickedObjects picked && picked.PickedObjects.Contains(id));
@@ -283,6 +409,11 @@ public sealed class EditorSession
         OffsetDistance = null;
         FilletRadius = 0;
         ChamferDistances = (0, 0);
+        NewObjectDefaults = new NewObjectProperties();
+        NewObjectOverride = null;
+        _overrideSaved = false;
+        _layerAfterCommand = null;
+        NewObjectVersion++;
         DocumentReplaced?.Invoke(this, EventArgs.Empty);
         RaiseStateChanged();
     }
@@ -473,6 +604,7 @@ public sealed class EditorSession
     {
         if (ActiveCommand?.LastPoint is { } last) LastPoint = last;
         if (result == CommandResult.Finished) ActiveCommand = null;
+        if (ActiveCommand is null) EndNewObjectChanges();
         if (ActiveCommand is null) SnapOverride = null;
         if (ActiveCommand is null) CurrentSnap = null;
         RaiseStateChanged();
@@ -485,6 +617,7 @@ public sealed class EditorSession
         {
             command.OnCancel();
             ActiveCommand = null;
+            EndNewObjectChanges();
             SnapOverride = null;
             CurrentSnap = null;
             Post("*Cancel*");

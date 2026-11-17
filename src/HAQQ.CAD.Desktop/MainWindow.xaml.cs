@@ -271,6 +271,22 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>After a choice in a Properties drop-down the keyboard goes back to the drawing, so a command in progress carries on.</summary>
+    private void PropertyCombo_DropDownClosed(object? sender, EventArgs e) => DrawingCanvas.Focus();
+
+    /// <summary>Save in the Properties panel: what is shown becomes the properties of every new object.</summary>
+    private void PropertiesSave_Click(object sender, RoutedEventArgs e)
+    {
+        // The button does not take the keyboard, so a value still being typed is taken in first.
+        if (Keyboard.FocusedElement is TextBox box) box.GetBindingExpression(TextBox.TextProperty)?.UpdateSource();
+        // Typed values are applied through the dispatcher; save after them.
+        Dispatcher.BeginInvoke(new Action(() =>
+        {
+            _viewModel.Properties.Save();
+            DrawingCanvas.Focus();
+        }), DispatcherPriority.Background);
+    }
+
     /// <summary>Enter commits an edit box and returns the keyboard to the drawing.</summary>
     private void EditBox_KeyDown(object sender, KeyEventArgs e)
     {

@@ -21,6 +21,21 @@ public sealed class LayerViewModel : ObservableObject
         ["#FF7F7F"] = "Light red", ["#BF7FFF"] = "Violet",
     };
 
+    /// <summary>The standard colours (#RRGGBB) that have a plain name.</summary>
+    public static IReadOnlyList<string> StandardColors { get; } = new[]
+    {
+        "#FFFFFF", "#FF0000", "#FFFF00", "#00FF00", "#00FFFF", "#0000FF", "#FF00FF",
+        "#FF7F00", "#808080", "#C0C0C0", "#7FDF7F", "#7FBFFF", "#FF7F7F", "#BF7FFF",
+    };
+
+    /// <summary>The #RRGGBB value of a colour name ("Red"), or null.</summary>
+    public static string? ColorFromName(string? name)
+    {
+        foreach (var pair in ColorNames)
+            if (string.Equals(pair.Value, name?.Trim(), StringComparison.OrdinalIgnoreCase)) return pair.Key;
+        return null;
+    }
+
     /// <summary>A plain name for a standard colour ("Red"); other colours are shown as #RRGGBB.</summary>
     public static string ColorNameOf(string hex) => ColorNames.TryGetValue(hex, out string? name) ? name : hex.ToUpperInvariant();
 

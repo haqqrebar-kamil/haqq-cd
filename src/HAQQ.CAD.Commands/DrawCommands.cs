@@ -38,16 +38,16 @@ public abstract class CadCommandBase : ICadCommand
         return CommandResult.Continue;
     }
 
-    /// <summary>Gives a new entity the current layer and ByLayer properties.</summary>
+    /// <summary>Gives a new entity the properties set for new objects (layer, colour, linetype, lineweight).</summary>
     protected T Prepare<T>(T entity) where T : Entity
     {
-        entity.LayerId = Document.CurrentLayerId;
+        Session.ApplyNewObjectProperties(entity);
         return entity;
     }
 }
 
 /// <summary>LINE: a chain of independent line segments. The whole chain is one undo step.</summary>
-public sealed class LineCommand : CadCommandBase, ITangentAware
+public sealed class LineCommand : CadCommandBase, ITangentAware, ICreatesObjects
 {
     private readonly List<Point2D> _points = new();
     private readonly List<LineEntity> _segments = new();
@@ -224,7 +224,7 @@ public sealed class LineCommand : CadCommandBase, ITangentAware
 /// Close, Length (a straight segment of a given length continuing the previous direction),
 /// Halfwidth, Width and Undo.
 /// </summary>
-public sealed class PolylineCommand : CadCommandBase
+public sealed class PolylineCommand : CadCommandBase, ICreatesObjects
 {
     private enum Ask { Point, Length, StartWidth, EndWidth, StartHalfwidth, EndHalfwidth }
 
@@ -463,7 +463,7 @@ public sealed class PolylineCommand : CadCommandBase
 /// RECTANG: a closed polyline from two opposite corners. Before the first corner: Chamfer, Fillet
 /// and Width. For the other corner: Area, Dimensions and Rotation. Holding Shift makes a square.
 /// </summary>
-public sealed class RectangleCommand : CadCommandBase, IShiftConstraint
+public sealed class RectangleCommand : CadCommandBase, IShiftConstraint, ICreatesObjects
 {
     private enum Stage
     {
@@ -744,7 +744,7 @@ public sealed class RectangleCommand : CadCommandBase, IShiftConstraint
 }
 
 /// <summary>CIRCLE: centre and radius/diameter, two points on a diameter, or three points on the circle.</summary>
-public sealed class CircleCommand : CadCommandBase
+public sealed class CircleCommand : CadCommandBase, ICreatesObjects
 {
     private enum Mode { CenterRadius, TwoPoint, ThreePoint, TanTanRadius, TanTanTan }
 

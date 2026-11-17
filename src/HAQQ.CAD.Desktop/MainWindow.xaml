@@ -85,6 +85,32 @@
                     <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconZoom}" Content="Extents" Command="{Binding ZoomExtentsCommand}" ToolTip="Zoom extents (ZOOM, double-click the wheel)" />
                     <Border Width="1" Margin="6,6" Background="{StaticResource BorderBrush}" />
                     <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconLayers}" Content="Layers" Command="{Binding RunCommandCommand}" CommandParameter="LAYER" ToolTip="LAYER (LA): open the layer table" />
+                    <Border Width="1" Margin="6,6,12,6" Background="{StaticResource BorderBrush}" />
+                    <!-- Layer, colour, linetype and lineweight: of new objects, or of what is selected -->
+                    <StackPanel VerticalAlignment="Center" Margin="0,0,10,0" Width="160">
+                        <TextBlock Text="Layer" Foreground="{StaticResource DimTextBrush}" FontSize="11" Margin="1,0,0,3" />
+                        <ComboBox DropDownClosed="PropertyCombo_DropDownClosed" ItemsSource="{Binding Properties.LayerNames}"
+                                  SelectedItem="{Binding Properties.SelectedLayerName, Mode=TwoWay}"
+                                  ToolTip="The layer new objects are drawn on. With objects selected: their layer." />
+                    </StackPanel>
+                    <StackPanel VerticalAlignment="Center" Margin="0,0,10,0" Width="120">
+                        <TextBlock Text="Color" Foreground="{StaticResource DimTextBrush}" FontSize="11" Margin="1,0,0,3" />
+                        <ComboBox DropDownClosed="PropertyCombo_DropDownClosed" ItemsSource="{Binding Properties.ColorNames}"
+                                  SelectedItem="{Binding Properties.SelectedColor, Mode=TwoWay}"
+                                  ToolTip="Colour of new objects (ByLayer uses the layer colour). With objects selected: their colour." />
+                    </StackPanel>
+                    <StackPanel VerticalAlignment="Center" Margin="0,0,10,0" Width="140">
+                        <TextBlock Text="Linetype" Foreground="{StaticResource DimTextBrush}" FontSize="11" Margin="1,0,0,3" />
+                        <ComboBox DropDownClosed="PropertyCombo_DropDownClosed" ItemsSource="{Binding Properties.LinetypeNames}"
+                                  SelectedItem="{Binding Properties.SelectedLinetype, Mode=TwoWay}"
+                                  ToolTip="Linetype of new objects (ByLayer uses the layer linetype). With objects selected: their linetype." />
+                    </StackPanel>
+                    <StackPanel VerticalAlignment="Center" Margin="0,0,10,0" Width="110">
+                        <TextBlock Text="Lineweight" Foreground="{StaticResource DimTextBrush}" FontSize="11" Margin="1,0,0,3" />
+                        <ComboBox DropDownClosed="PropertyCombo_DropDownClosed" ItemsSource="{Binding Properties.LineweightNames}"
+                                  SelectedItem="{Binding Properties.SelectedLineweight, Mode=TwoWay}"
+                                  ToolTip="Line thickness of new objects in millimetres (ByLayer uses the layer lineweight). With objects selected: their lineweight." />
+                    </StackPanel>
                 </StackPanel>
             </TabItem>
             <TabItem Header="DRAW">
@@ -206,21 +232,33 @@
                         <RowDefinition Height="*" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
                     <TextBlock Grid.Row="0" Style="{StaticResource PanelHeader}" Text="PROPERTIES" />
 
                     <StackPanel Grid.Row="1" Margin="8,0,8,6">
-                        <TextBlock Text="{Binding Properties.Header}" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,8" />
+                        <TextBlock Text="{Binding Properties.Header}" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,3" />
+                        <TextBlock Text="{Binding Properties.Hint}" Foreground="{StaticResource DimTextBrush}" TextWrapping="Wrap" Margin="0,0,0,8" />
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="96" />
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
                             <TextBlock Grid.Column="0" Style="{StaticResource FieldLabel}" Text="Layer" />
-                            <ComboBox Grid.Column="1" ItemsSource="{Binding Properties.LayerNames}"
+                            <ComboBox Grid.Column="1" DropDownClosed="PropertyCombo_DropDownClosed" ItemsSource="{Binding Properties.LayerNames}"
                                       SelectedItem="{Binding Properties.SelectedLayerName, Mode=TwoWay}"
-                                      ToolTip="Layer of the selected objects. With nothing selected: the current layer for new objects." />
+                                      ToolTip="Layer of the selected objects. While drawing: the layer of the object being drawn. Otherwise: the current layer for new objects." />
+                        </Grid>
+                        <Grid Margin="0,4,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="96" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Style="{StaticResource FieldLabel}" Text="Color" />
+                            <ComboBox Grid.Column="1" DropDownClosed="PropertyCombo_DropDownClosed" ItemsSource="{Binding Properties.ColorNames}"
+                                      SelectedItem="{Binding Properties.SelectedColor, Mode=TwoWay}"
+                                      ToolTip="ByLayer uses the colour of the layer." />
                         </Grid>
                         <Grid Margin="0,4,0,0">
                             <Grid.ColumnDefinitions>
@@ -228,10 +266,19 @@
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
                             <TextBlock Grid.Column="0" Style="{StaticResource FieldLabel}" Text="Linetype" />
-                            <ComboBox Grid.Column="1" ItemsSource="{Binding Properties.LinetypeNames}"
+                            <ComboBox Grid.Column="1" DropDownClosed="PropertyCombo_DropDownClosed" ItemsSource="{Binding Properties.LinetypeNames}"
                                       SelectedItem="{Binding Properties.SelectedLinetype, Mode=TwoWay}"
-                                      IsEnabled="{Binding Properties.HasSelection}"
-                                      ToolTip="Linetype of the selected objects. ByLayer uses the layer's linetype." />
+                                      ToolTip="ByLayer uses the linetype of the layer." />
+                        </Grid>
+                        <Grid Margin="0,4,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="96" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Style="{StaticResource FieldLabel}" Text="Lineweight" />
+                            <ComboBox Grid.Column="1" DropDownClosed="PropertyCombo_DropDownClosed" ItemsSource="{Binding Properties.LineweightNames}"
+                                      SelectedItem="{Binding Properties.SelectedLineweight, Mode=TwoWay}"
+                                      ToolTip="Line thickness in millimetres. ByLayer uses the lineweight of the layer." />
                         </Grid>
                     </StackPanel>
 
@@ -261,8 +308,13 @@
                         </ItemsControl>
                     </ScrollViewer>
 
-                    <TextBlock Grid.Row="3" Style="{StaticResource PanelHeader}" Text="OBJECT INFORMATION" />
-                    <TextBlock Grid.Row="4" Margin="8,0,8,10" Text="{Binding StatusText}" TextWrapping="Wrap" />
+                    <!-- Save: the properties shown become the properties of every new object -->
+                    <Button Grid.Row="3" Style="{StaticResource PanelButton}" Margin="8,4,8,6" Content="Save for all new objects"
+                            Click="PropertiesSave_Click" IsEnabled="{Binding Properties.CanSave}"
+                            ToolTip="Without Save, a change made while drawing is for that one object, and a change to a selected object is for that object only. Save makes the properties shown here the ones every new object gets." />
+
+                    <TextBlock Grid.Row="4" Style="{StaticResource PanelHeader}" Text="OBJECT INFORMATION" />
+                    <TextBlock Grid.Row="5" Margin="8,0,8,10" Text="{Binding StatusText}" TextWrapping="Wrap" />
                 </Grid>
             </Border>
         </Grid>

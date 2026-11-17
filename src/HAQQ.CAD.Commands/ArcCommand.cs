@@ -11,7 +11,7 @@ namespace HAQQ.CAD.Commands;
 /// angle runs counter-clockwise from the start point, a negative one clockwise; a negative chord
 /// length or radius gives the major arc (more than 180 degrees).
 /// </summary>
-public sealed class ArcCommand : CadCommandBase
+public sealed class ArcCommand : CadCommandBase, ICreatesObjects
 {
     private enum Stage
     {

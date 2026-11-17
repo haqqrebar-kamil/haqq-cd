@@ -69,7 +69,7 @@ public class MainViewModelTests : IDisposable
         Assert.Equal(6, s.Document.EntityCount);
 
         s.SelectAt(P(60, 0), 0.5);
-        vm.Properties.Rows.Single(r => r.Label == "Color").Value = "#00FF00";
+        vm.Properties.SelectedColor = "Green";
         s.ClearSelection();
 
         Type(vm, "U");                                                    // undo the colour change...
@@ -297,8 +297,10 @@ public class MainViewModelTests : IDisposable
         s.SelectAll();
         Assert.Equal("2 objects", props.Header);
         Assert.Null(props.SelectedLayerName);                             // layers differ
-        Assert.Equal("ByLayer", Row("Color").Value);
-        Row("Color").Value = "#FF8000";
+        Assert.Equal("ByLayer", props.SelectedColor);
+        props.SelectedColor = "#FF8000";
+        Assert.Equal("#FF8000", props.SelectedColor);                     // not a standard colour: shown by its code
+        Assert.Contains("#FF8000", props.ColorNames);
         Assert.True(s.Document.Entities.All(e => e.Color == CadColor.FromRgb(255, 128, 0)));
         vm.UndoCommand.Execute(null);
         Assert.True(s.Document.Entities.All(e => e.Color == CadColor.ByLayer));
@@ -472,7 +474,8 @@ public class DefaultLayerTests : IDisposable
         vm.Session.SubmitEnter();
         Assert.Equal(doc.FindLayer("Layer 1")!.Id, doc.Entities[0].LayerId);
 
-        vm.Properties.SelectedLayerName = "0";                            // nothing selected: changes the current layer
+        vm.Session.Cancel();                                              // Enter started the next LINE; end it
+        vm.Properties.SelectedLayerName = "0";                            // nothing selected, no command: changes the current layer
         Assert.Equal("0", doc.GetLayer(doc.CurrentLayerId)!.Name);
         Assert.Equal("0", vm.Properties.SelectedLayerName);
         Assert.Equal(doc.FindLayer("Layer 1")!.Id, doc.Entities[0].LayerId);   // existing objects stay where they are
@@ -893,3 +896,153 @@ public class LinetypeManagerTests
         Assert.NotNull(vm.Session.ActiveCommand);
     }
 }
+
+public class NewObjectPropertiesTests : IDisposable
+{
+    private readonly TempDirectory _temp = new();
+    public void Dispose() => _temp.Dispose();
+
+    private MainViewModel NewViewModel()
+    {
+        var vm = new MainViewModel(new FakeUi(), new RecoveryStore(_temp.File("recovery")));
+        vm.Session.Document.Settings.Format = LengthFormat.Decimal;
+        return vm;
+    }
+
+    private static void Line(MainViewModel vm, string from, string to)
+    {
+        vm.Session.SubmitText(from);
+        vm.Session.SubmitText(to);
+    }
+
+    [Fact]
+    public void While_drawing_the_panel_shows_the_new_object_and_a_change_is_for_that_one_only()
+    {
+        var vm = NewViewModel();
+        var s = vm.Session;
+        var props = vm.Properties;
+        s.AddLayer("Rebar");
+        Assert.Equal("No selection", props.Header);
+        Assert.Equal("ByLayer", props.SelectedColor);
+        Assert.Equal("ByLayer", props.SelectedLinetype);
+        Assert.Equal("ByLayer", props.SelectedLineweight);
+        Assert.False(props.CanSave);
+
+        vm.RunCommand("LINE");
+        Assert.Equal("LINE (new object)", props.Header);
+        Assert.Equal("Layer 1", props.SelectedLayerName);
+        props.SelectedColor = "Red";
+        props.SelectedLinetype = "Dashed";
+        props.SelectedLineweight = "0.50 mm";
+        props.SelectedLayerName = "Rebar";
+        props.Rows.Single(r => r.Label == "Linetype scale").Value = "2";
+        Assert.True(props.CanSave);
+        Assert.Equal("Red", props.SelectedColor);
+        Assert.Equal("Rebar", props.SelectedLayerName);
+        Assert.Equal("Layer 1", s.Document.GetLayer(s.Document.CurrentLayerId)!.Name);    // the current layer is untouched
+        Line(vm, "0,0", "10,0");                                                           // LINE ends at the second point
+
+        var first = s.Document.Entities.Single();
+        Assert.Equal(CadColor.FromRgb(255, 0, 0), first.Color);
+        Assert.Equal("Dashed", first.Linetype);
+        Assert.Equal(0.5, first.LineweightMm);
+        Assert.Equal(2.0, first.LinetypeScale);
+        Assert.Equal("Rebar", s.Document.GetLayer(first.LayerId)!.Name);
+
+        // Not saved: the next line is back to the usual properties.
+        Assert.Equal("No selection", props.Header);
+        Assert.Equal("ByLayer", props.SelectedColor);
+        Assert.Equal("Layer 1", props.SelectedLayerName);
+        vm.RunCommand("LINE");
+        Line(vm, "0,5", "10,5");
+        var second = s.Document.Entities.Single(e => e.Id != first.Id);
+        Assert.Equal(CadColor.ByLayer, second.Color);
+        Assert.Equal("ByLayer", second.Linetype);
+        Assert.Null(second.LineweightMm);
+        Assert.Equal("Layer 1", s.Document.GetLayer(second.LayerId)!.Name);
+
+        s.Undo();                                                                          // one step each
+        Assert.Equal(1, s.Document.EntityCount);
+    }
+
+    [Fact]
+    public void Save_while_drawing_makes_the_change_stick_for_every_new_object()
+    {
+        var vm = NewViewModel();
+        var s = vm.Session;
+        var props = vm.Properties;
+        s.AddLayer("Rebar");
+
+        vm.RunCommand("CIRCLE");
+        props.SelectedColor = "Cyan";
+        props.SelectedLayerName = "Rebar";
+        Assert.True(props.Save());
+        Assert.False(props.CanSave);                                                       // nothing left to save
+        s.SubmitText("0,0");
+        s.SubmitText("5");
+        Assert.Equal("Rebar", s.Document.GetLayer(s.Document.CurrentLayerId)!.Name);       // switched when the command ended
+        Assert.Equal("Cyan", props.SelectedColor);
+
+        vm.RunCommand("LINE");
+        Line(vm, "0,0", "10,0");
+        Assert.Equal(2, s.Document.EntityCount);
+        Assert.True(s.Document.Entities.All(e => e.Color == CadColor.FromRgb(0, 255, 255)));
+        Assert.True(s.Document.Entities.All(e => s.Document.GetLayer(e.LayerId)!.Name == "Rebar"));
+
+        // With no command running a change is for all new objects straight away.
+        props.SelectedColor = "ByLayer";
+        vm.RunCommand("LINE");
+        Line(vm, "0,9", "10,9");
+        Assert.Equal(1, s.Document.Entities.Count(e => e.Color == CadColor.ByLayer));
+    }
+
+    [Fact]
+    public void Selected_object_changes_alone_and_Save_copies_its_properties_to_new_objects()
+    {
+        var vm = NewViewModel();
+        var s = vm.Session;
+        var props = vm.Properties;
+        var rebar = s.AddLayer("Rebar")!;
+        vm.RunCommand("LINE"); Line(vm, "0,0", "10,0");
+        vm.RunCommand("LINE"); Line(vm, "0,5", "10,5");
+        var a = s.Document.Entities[0];
+
+        s.SelectAt(P(5, 0), 0.5);
+        Assert.Equal("Line", props.Header);
+        props.SelectedColor = "Yellow";
+        props.SelectedLineweight = "0.70 mm";
+        props.SelectedLayerName = "Rebar";
+        a = s.Document.GetEntity(a.Id)!;
+        Assert.Equal(CadColor.FromRgb(255, 255, 0), a.Color);
+        Assert.Equal(0.7, a.LineweightMm);
+        Assert.Equal(rebar.Id, a.LayerId);
+        Assert.Equal(1, s.Document.Entities.Count(e => e.Color != CadColor.ByLayer));     // the other line is untouched
+        Assert.Equal("0.70 mm", props.SelectedLineweight);
+
+        // Without Save a new line is still plain.
+        s.ClearSelection();
+        vm.RunCommand("LINE"); Line(vm, "0,7", "10,7");
+        Assert.Equal(1, s.Document.Entities.Count(e => e.Color != CadColor.ByLayer));
+
+        s.SelectAt(P(5, 0), 0.5);
+        Assert.True(props.CanSave);
+        Assert.True(props.Save());
+        s.ClearSelection();
+        Assert.Equal("Yellow", props.SelectedColor);
+        Assert.Equal("Rebar", props.SelectedLayerName);
+        vm.RunCommand("LINE"); Line(vm, "0,9", "10,9");
+        Assert.Equal(2, s.Document.Entities.Count(e => e.Color == CadColor.FromRgb(255, 255, 0) && e.LayerId == rebar.Id && e.LineweightMm == 0.7));
+    }
+
+    [Fact]
+    public void Layer_box_keeps_its_value_when_the_layer_list_changes()
+    {
+        var vm = NewViewModel();
+        var raised = new List<string?>();
+        vm.Properties.PropertyChanged += (_, e) => raised.Add(e.PropertyName);
+        vm.Session.AddLayer("Rebar");                                                      // the list changes, the current layer does not
+        Assert.Equal("Layer 1", vm.Properties.SelectedLayerName);
+        Assert.Contains(nameof(PropertiesViewModel.SelectedLayerName), raised);            // the drop-down is told again
+    }
+}
+
