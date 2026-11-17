@@ -1,4 +1,4 @@
-# HCAD file format — schema version 3
+# HCAD file format — schema version 4
 
 `.hcad` is the native drawing format of HAQQ CAD: a single UTF-8 JSON document.
 
@@ -16,7 +16,7 @@ The reader and writer live in `src/HAQQ.CAD.Documents/HcadSerializer.cs`.
 ```json
 {
   "format": "HCAD",
-  "schemaVersion": 3,
+  "schemaVersion": 4,
   "minReaderVersion": 1,
   "generator": "HAQQ CAD 0.1.0",
   "recovery": { "originalPath": "C:\\Jobs\\footing.hcad", "savedUtc": "2026-11-14T06:30:00.000Z" },
@@ -112,6 +112,21 @@ identical 64-bit value, so saving and reopening is bit-for-bit lossless. Screen 
   `%LOCALAPPDATA%\HAQQ CAD\Recovery\<document id>.hcad-recovery`. A snapshot is an ordinary HCAD document
   plus the `recovery` block. It is deleted after a successful save or a clean close; a snapshot left by a
   crash is offered for recovery at the next start.
+
+## Linetypes (schema 4)
+
+Additive, so `minReaderVersion` is unchanged: an older program opens the file, draws everything continuous and,
+if it saves, drops the custom definitions (layers and objects keep their linetype names).
+
+- `document.linetypes`: the linetypes defined in the drawing, each `{ "name", "description", "pattern": [dash, gap, dash, gap, ...] }`.
+  Lengths are in drawing units; a dash of 0 is a dot; every gap is greater than 0. The built-in linetypes
+  `Continuous`, `Dashed` (0.5, 0.25) and `Center` (1.25, 0.25, 0.25, 0.25) are never stored.
+- `document.units.linetypeScale`: the drawing's linetype scale (default 1). Every pattern length is multiplied by it.
+- Layer `linetype`: a linetype name.
+- Entity `linetype`: `ByLayer` (use the layer's), `ByBlock` (use the containing block's; drawn continuous until
+  blocks exist) or a linetype name. A name that is not in the table is kept and drawn continuous.
+- Entity `linetypeScale`: optional, written only when it is not 1; multiplies the drawing's scale for that object.
+- A linetype entry that cannot be read is skipped with a warning.
 
 ## Planned evolution (not implemented yet)
 

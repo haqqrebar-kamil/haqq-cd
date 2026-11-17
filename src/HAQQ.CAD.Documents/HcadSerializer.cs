@@ -40,7 +40,7 @@ public static class HcadSerializer
     public const string FormatName = "HCAD";
 
     /// <summary>Schema version written by this build.</summary>
-    public const int SchemaVersion = 3;
+    public const int SchemaVersion = 4;
 
     /// <summary>
     /// Oldest reader that can safely open files written by this build. A file whose
@@ -92,7 +92,23 @@ public static class HcadSerializer
         w.WriteNumber("fractionDenominator", s.FractionDenominator);
         w.WriteNumber("gridSpacing", s.GridSpacing);
         w.WriteNumber("snapSpacing", s.SnapSpacing);
+        w.WriteNumber("linetypeScale", s.LinetypeScale);
         w.WriteEndObject();
+
+        // Linetypes defined in this drawing (the built-in ones are not stored).
+        w.WriteStartArray("linetypes");
+        foreach (var linetype in document.LinetypeTable)
+        {
+            if (Linetypes.IsBuiltIn(linetype.Name)) continue;
+            w.WriteStartObject();
+            w.WriteString("name", linetype.Name);
+            w.WriteString("description", linetype.Description);
+            w.WriteStartArray("pattern");
+            foreach (double v in linetype.Pattern) w.WriteNumberValue(v);
+            w.WriteEndArray();
+            w.WriteEndObject();
+        }
+        w.WriteEndArray();
 
         var m = document.Metadata;
         w.WriteStartObject("metadata");
@@ -142,6 +158,7 @@ public static class HcadSerializer
         w.WriteString("layerId", entity.LayerId);
         w.WriteString("color", entity.Color.ToString());
         w.WriteString("linetype", entity.Linetype);
+        if (entity.LinetypeScale != 1.0) w.WriteNumber("linetypeScale", entity.LinetypeScale);
         if (entity.LineweightMm is double lw) w.WriteNumber("lineweightMm", lw); else w.WriteNull("lineweightMm");
         if (entity.CustomProperties.Count > 0) WriteProperties(w, "properties", entity.CustomProperties);
 
@@ -310,6 +327,27 @@ public static class HcadSerializer
             if (units.TryGetProperty("fractionDenominator", out var fd)) s.FractionDenominator = Math.Max(1, fd.GetInt32());
             if (units.TryGetProperty("gridSpacing", out var gs) && gs.GetDouble() > 0) s.GridSpacing = gs.GetDouble();
             if (units.TryGetProperty("snapSpacing", out var ss) && ss.GetDouble() > 0) s.SnapSpacing = ss.GetDouble();
+            if (units.TryGetProperty("linetypeScale", out var lts) && lts.ValueKind == JsonValueKind.Number &&
+                lts.GetDouble() > 0 && double.IsFinite(lts.GetDouble())) s.LinetypeScale = lts.GetDouble();
+        }
+
+        if (doc.TryGetProperty("linetypes", out var linetypes) && linetypes.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var lt in linetypes.EnumerateArray())
+            {
+                string name = lt.ValueKind == JsonValueKind.Object ? GetString(lt, "name") : "";
+                try
+                {
+                    var pattern = new List<double>();
+                    if (lt.TryGetProperty("pattern", out var pat) && pat.ValueKind == JsonValueKind.Array)
+                        foreach (var v in pat.EnumerateArray()) pattern.Add(v.GetDouble());
+                    document.AddLinetype(new LinetypeDefinition(name, GetString(lt, "description"), pattern));
+                }
+                catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or FormatException)
+                {
+                    warnings.Add($"Linetype \"{name}\" could not be read and was skipped ({ex.Message})");
+                }
+            }
         }
 
         if (doc.TryGetProperty("metadata", out var meta) && meta.ValueKind == JsonValueKind.Object)
@@ -470,6 +508,8 @@ public static class HcadSerializer
         if (CadColor.TryParse(GetString(e, "color"), out var color)) entity.Color = color;
         string linetype = GetString(e, "linetype");
         if (linetype.Length > 0) entity.Linetype = linetype;
+        if (e.TryGetProperty("linetypeScale", out var els) && els.ValueKind == JsonValueKind.Number &&
+            els.GetDouble() > 0 && double.IsFinite(els.GetDouble())) entity.LinetypeScale = els.GetDouble();
         if (e.TryGetProperty("lineweightMm", out var lw) && lw.ValueKind == JsonValueKind.Number) entity.LineweightMm = lw.GetDouble();
         ReadProperties(e, "properties", entity.CustomProperties);
         return entity;

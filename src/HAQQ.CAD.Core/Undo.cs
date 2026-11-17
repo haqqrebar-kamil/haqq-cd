@@ -279,3 +279,36 @@ public sealed class CompositeAction : IUndoableAction
         for (int i = _actions.Count - 1; i >= 0; i--) _actions[i].Undo(document);
     }
 }
+
+public sealed class AddLinetypeAction : IUndoableAction
+{
+    private readonly LinetypeDefinition _linetype;
+
+    public AddLinetypeAction(LinetypeDefinition linetype) => _linetype = linetype;
+
+    public string Name => "New linetype";
+    public void Do(DrawingDocument document) => document.AddLinetype(_linetype);
+    public void Undo(DrawingDocument document) => document.RemoveLinetype(_linetype.Name);
+}
+
+public sealed class RemoveLinetypeAction : IUndoableAction
+{
+    private readonly string _name;
+    private LinetypeDefinition? _removed;
+    private int _index;
+
+    public RemoveLinetypeAction(string name) => _name = name;
+
+    public string Name => "Delete linetype";
+
+    public void Do(DrawingDocument document)
+    {
+        _removed = document.FindLinetype(_name);
+        _index = document.RemoveLinetype(_name);
+    }
+
+    public void Undo(DrawingDocument document)
+    {
+        if (_removed is not null) document.AddLinetype(_removed, _index);
+    }
+}

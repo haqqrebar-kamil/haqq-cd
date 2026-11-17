@@ -38,6 +38,17 @@ internal sealed class WpfRenderSurface : IRenderSurface
             LineJoin = PenLineJoin.Round,
         };
         if (style.Dashed) pen.DashStyle = Dashes;
+        else if (style.Pattern is { Length: >= 2 } pattern)
+        {
+            // WPF measures dashes in multiples of the pen width. A dot (dash of 0) is drawn one pixel long.
+            double width = Math.Max(style.Width, 0.1);
+            var dashes = new double[pattern.Length];
+            for (int i = 0; i < pattern.Length; i++)
+                dashes[i] = Math.Max(pattern[i], i % 2 == 0 ? 1.0 : 0.5) / width;
+            var dashStyle = new DashStyle(dashes, 0);
+            dashStyle.Freeze();
+            pen.DashStyle = dashStyle;
+        }
         pen.Freeze();
         if (_pens.Count > 512) _pens.Clear(); // wide polylines need a new pen per zoom level; keep the cache bounded
         _pens[style] = pen;

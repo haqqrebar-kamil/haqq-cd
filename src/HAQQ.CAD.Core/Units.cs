@@ -42,6 +42,9 @@ public sealed class DrawingSettings
     /// <summary>Increment the cursor jumps to when SNAP mode is on, in model units.</summary>
     public double SnapSpacing { get; set; } = 1.0;
 
+    /// <summary>Scales every linetype pattern in the drawing (LTSCALE). 1 = lengths as defined, in drawing units.</summary>
+    public double LinetypeScale { get; set; } = 1.0;
+
     public DrawingSettings Clone() => (DrawingSettings)MemberwiseClone();
 }
 

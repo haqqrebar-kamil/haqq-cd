@@ -97,6 +97,23 @@ public sealed class MainViewModel : ObservableObject
     public PropertiesViewModel Properties { get; }
 
     public ObservableCollection<LayerViewModel> Layers { get; } = new();
+
+    /// <summary>Names of the drawing's linetypes (built-in and custom), for the layer table.</summary>
+    public ObservableCollection<string> LinetypeNames { get; } = new();
+
+    /// <summary>Brings <paramref name="target"/> in line with <paramref name="wanted"/> with as few changes as possible, so that lists bound to it keep their selection.</summary>
+    internal static void SyncNames(ObservableCollection<string> target, IReadOnlyList<string> wanted)
+    {
+        if (target.SequenceEqual(wanted)) return;
+        for (int i = target.Count - 1; i >= 0; i--)
+            if (!wanted.Contains(target[i])) target.RemoveAt(i);
+        for (int i = 0; i < wanted.Count; i++)
+        {
+            if (i < target.Count && target[i] == wanted[i]) continue;
+            int at = target.IndexOf(wanted[i]);
+            if (at >= 0) target.Move(at, i); else target.Insert(i, wanted[i]);
+        }
+    }
     public ObservableCollection<string> History { get; } = new();
     public ObservableCollection<string> ExplorerItems { get; } = new();
 
@@ -812,6 +829,8 @@ public sealed class MainViewModel : ObservableObject
 
     private void SyncLayers(DrawingDocument doc)
     {
+        SyncNames(LinetypeNames, doc.LinetypeTable.Select(l => l.Name).ToList());
+
         bool same = Layers.Count == doc.Layers.Count;
         for (int i = 0; same && i < Layers.Count; i++) same = Layers[i].Id == doc.Layers[i].Id;
 

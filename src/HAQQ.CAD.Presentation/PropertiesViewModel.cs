@@ -76,6 +76,49 @@ public sealed class PropertiesViewModel : ObservableObject
     public ObservableCollection<PropertyRow> Rows { get; } = new();
     public ObservableCollection<string> LayerNames { get; } = new();
 
+    /// <summary>ByLayer, ByBlock and the drawing's linetypes: the choices for the selected objects.</summary>
+    public ObservableCollection<string> LinetypeNames { get; } = new();
+
+    private string? _selectedLinetype;
+
+    /// <summary>Linetype of the selection (null when it varies or nothing is selected); setting it changes the selected objects.</summary>
+    public string? SelectedLinetype
+    {
+        get => _selectedLinetype;
+        set
+        {
+            if (value == _selectedLinetype || string.IsNullOrEmpty(value)) return;
+            string? name = Linetypes.IsReserved(value)
+                ? (string.Equals(value, Linetypes.ByBlock, StringComparison.OrdinalIgnoreCase) ? Linetypes.ByBlock : Linetypes.ByLayer)
+                : _session.Document.FindLinetype(value)?.Name;
+            if (name is null || _session.Selection.Count == 0 ||
+                !_session.ModifyEntities(_session.Selection.Ids.ToList(), e => e.Linetype = name, "Change linetype"))
+                OnPropertyChanged();
+        }
+    }
+
+    private void SetLinetype(string? name)
+    {
+        if (_selectedLinetype == name) return;
+        _selectedLinetype = name;
+        OnPropertyChanged(nameof(SelectedLinetype));
+    }
+
+    private PropertyRow LinetypeScaleRow(IReadOnlyList<Entity> entities)
+    {
+        var scales = entities.Select(e => e.LinetypeScale).Distinct().ToList();
+        var ids = entities.Select(e => e.Id).ToList();
+        return Editable("Linetype scale", scales.Count == 1 ? scales[0].ToString("0.####", CultureInfo.InvariantCulture) : Varies, text =>
+        {
+            if (!double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out double scale) || !(scale > 0) || !double.IsFinite(scale))
+            {
+                _session.Post("The linetype scale must be a number more than 0.");
+                return false;
+            }
+            return _session.ModifyEntities(ids, e => e.LinetypeScale = scale, "Change linetype scale");
+        });
+    }
+
     public string Header
     {
         get => _header;
@@ -123,6 +166,10 @@ public sealed class PropertiesViewModel : ObservableObject
             foreach (string n in names) LayerNames.Add(n);
         }
 
+        var linetypeNames = new List<string> { Linetypes.ByLayer, Linetypes.ByBlock };
+        linetypeNames.AddRange(doc.LinetypeTable.Select(l => l.Name));
+        MainViewModel.SyncNames(LinetypeNames, linetypeNames);
+
         var entities = _session.GetSelectedEntities();
         Rows.Clear();
         HasSelection = entities.Count > 0;
@@ -130,6 +177,7 @@ public sealed class PropertiesViewModel : ObservableObject
         if (entities.Count == 0)
         {
             Header = "No selection";
+            SetLinetype(null);
             SetLayerName(doc.GetLayer(doc.CurrentLayerId)?.Name);
             return;
         }
@@ -139,6 +187,9 @@ public sealed class PropertiesViewModel : ObservableObject
 
         var layerIds = entities.Select(e => e.LayerId).Distinct().ToList();
         SetLayerName(layerIds.Count == 1 ? doc.GetLayer(layerIds[0])?.Name : null);
+
+        var linetypes = entities.Select(e => e.Linetype).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        SetLinetype(linetypes.Count == 1 ? LinetypeNames.FirstOrDefault(n => string.Equals(n, linetypes[0], StringComparison.OrdinalIgnoreCase)) : null);
 
         var colors = entities.Select(e => e.Color).Distinct().ToList();
         var idList = entities.Select(e => e.Id).ToList();
@@ -159,6 +210,7 @@ public sealed class PropertiesViewModel : ObservableObject
             foreach (var group in entities.GroupBy(e => e.TypeName).OrderBy(g => g.Key))
                 Rows.Add(new PropertyRow(Capitalize(group.Key) + "s", group.Count().ToString(CultureInfo.InvariantCulture)));
             Rows.Add(colorRow);
+            Rows.Add(LinetypeScaleRow(entities));
             return;
         }
 
@@ -167,7 +219,7 @@ public sealed class PropertiesViewModel : ObservableObject
         Header = Capitalize(entity.TypeName);
         Rows.Add(new PropertyRow("Type", Capitalize(entity.TypeName)));
         Rows.Add(colorRow);
-        Rows.Add(new PropertyRow("Linetype", entity.Linetype));
+        Rows.Add(LinetypeScaleRow(entities));
 
         switch (entity)
         {

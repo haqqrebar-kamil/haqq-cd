@@ -36,6 +36,7 @@
     <Geometry x:Key="IconFillet">M3,17 L3,9 A6,6 0 0 1 9,3 L17,3</Geometry>
     <Geometry x:Key="IconChamfer">M3,17 L3,9 L9,3 L17,3</Geometry>
     <Geometry x:Key="IconJoin">M2,15 L7,9 M9,7 L12,7 M14,7 L18,12 M7,9 L9,7 M12,7 L14,7 M6.2,8.2 L7.8,9.8 M8.2,6.2 L9.8,7.8 M11.2,6 L11.2,8 M14.8,6.2 L13.2,7.8</Geometry>
+    <Geometry x:Key="IconLinetype">M2,5 L18,5 M2,10 L6,10 M9,10 L13,10 M16,10 L18,10 M2,15 L8,15 M10.5,15 L11.5,15 M14,15 L18,15</Geometry>
     <Geometry x:Key="IconExplode">M10,10 L4,4 M10,10 L16,4 M10,10 L4,16 M10,10 L16,16 M4,4 L4,7 M4,4 L7,4 M16,4 L13,4 M16,4 L16,7 M4,16 L4,13 M4,16 L7,16 M16,16 L13,16 M16,16 L16,13</Geometry>
     <Geometry x:Key="IconMirror">M10,2 L10,18 M8,5 L8,15 L2,15 Z M12,5 L12,15 L18,15 Z</Geometry>
     <Geometry x:Key="IconScale">M3,17 L3,9 L11,9 L11,17 Z M3,17 L17,17 L17,3 L3,3 L3,9 M12,8 L16,4 M13,4 L16,4 L16,7</Geometry>

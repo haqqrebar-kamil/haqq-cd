@@ -24,6 +24,9 @@ public abstract class Entity
     public CadColor Color { get; set; } = CadColor.ByLayer;
     public string Linetype { get; set; } = Linetypes.ByLayer;
 
+    /// <summary>Scales this object's linetype pattern, on top of the drawing's linetype scale.</summary>
+    public double LinetypeScale { get; set; } = 1.0;
+
     /// <summary>Lineweight in millimetres; null means ByLayer.</summary>
     public double? LineweightMm { get; set; }
 
@@ -60,6 +63,7 @@ public abstract class Entity
         target.LayerId = LayerId;
         target.Color = Color;
         target.Linetype = Linetype;
+        target.LinetypeScale = LinetypeScale;
         target.LineweightMm = LineweightMm;
         foreach (var pair in CustomProperties) target.CustomProperties[pair.Key] = pair.Value;
         return target;

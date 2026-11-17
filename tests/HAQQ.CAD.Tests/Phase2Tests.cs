@@ -3143,3 +3143,250 @@ public class JoinTests
         Assert.Equal(2, s.Document.EntityCount);
     }
 }
+
+public class LinetypeTests : IDisposable
+{
+    private readonly TempDirectory _temp = new();
+    public void Dispose() => _temp.Dispose();
+
+    private static EditorSession Session()
+    {
+        var s = new EditorSession();
+        s.Document.Settings.Format = LengthFormat.Decimal;
+        return s;
+    }
+
+    private static LineEntity AddLine(EditorSession s, double x1, double y1, double x2, double y2)
+    {
+        var line = new LineEntity(P(x1, y1), P(x2, y2)) { LayerId = s.Document.CurrentLayerId };
+        s.Document.AddEntity(line);
+        return line;
+    }
+
+    [Fact]
+    public void Every_drawing_has_continuous_dashed_and_center()
+    {
+        var doc = new DrawingDocument();
+        Assert.Equal(new[] { "Continuous", "Dashed", "Center" }, doc.LinetypeTable.Select(l => l.Name).ToArray());
+        Assert.True(doc.FindLinetype("continuous")!.IsContinuous);
+        Assert.Equal(new[] { 0.5, 0.25 }, doc.FindLinetype("DASHED")!.Pattern.ToArray());
+        Assert.Equal(2.0, doc.FindLinetype("Center")!.PatternLength, 12);
+        Assert.NotNull(doc.GetLinetypeRemovalBlocker("Dashed"));           // built-in
+        Assert.NotNull(doc.GetLinetypeRemovalBlocker("nope"));
+    }
+
+    [Fact]
+    public void Patterns_typed_as_dash_gap_pairs_or_with_negative_gaps()
+    {
+        Assert.True(LinetypeDefinition.TryParsePattern("0.5, 0.25", out var a));
+        Assert.Equal(new[] { 0.5, 0.25 }, a);
+        Assert.True(LinetypeDefinition.TryParsePattern("1 0.25 0 0.25", out var b));      // dash, gap, dot, gap
+        Assert.Equal(new[] { 1, 0.25, 0, 0.25 }, b);
+        Assert.True(LinetypeDefinition.TryParsePattern("A,.5,-.25,0,-.25", out var c));   // classic form
+        Assert.Equal(new[] { 0.5, 0.25, 0, 0.25 }, c);
+
+        foreach (string bad in new[] { "", "0.5", "0.5,0", "0,0", "x,1", "0.5,-0.25,-0.25", "-0.5,0.25", "1,1,1" })
+            Assert.False(LinetypeDefinition.TryParsePattern(bad, out _), bad);
+        Assert.Throws<ArgumentException>(() => new LinetypeDefinition("X", "", new[] { 1.0 }));
+    }
+
+    [Fact]
+    public void Bylayer_follows_the_layer_object_linetype_overrides_and_byblock_is_continuous_for_now()
+    {
+        var s = Session();
+        var line = AddLine(s, 0, 0, 10, 0);
+        var doc = s.Document;
+        Assert.Equal("ByLayer", line.Linetype);
+        Assert.True(doc.ResolveLinetype(line).IsContinuous);
+
+        s.UpdateLayer(doc.CurrentLayerId, l => l.Linetype = "Dashed");
+        Assert.Equal("Dashed", doc.ResolveLinetype(doc.GetEntity(line.Id)!).Name);
+
+        s.ModifyEntities(new[] { line.Id }, e => e.Linetype = "Center", "t");
+        Assert.Equal("Center", doc.ResolveLinetype(doc.GetEntity(line.Id)!).Name);
+
+        s.ModifyEntities(new[] { line.Id }, e => e.Linetype = Linetypes.ByBlock, "t");
+        Assert.True(doc.ResolveLinetype(doc.GetEntity(line.Id)!).IsContinuous);          // no blocks yet
+
+        s.ModifyEntities(new[] { line.Id }, e => e.Linetype = "Missing", "t");
+        Assert.True(doc.ResolveLinetype(doc.GetEntity(line.Id)!).IsContinuous);          // unknown name: solid
+    }
+
+    [Fact]
+    public void Linetype_command_creates_lists_and_deletes_custom_linetypes_with_undo()
+    {
+        var s = Session();
+        var messages = CaptureMessages(s);
+        s.StartCommand("LINETYPE");
+        s.SubmitKeyword("NEW");
+        s.SubmitText("Dashed");                             // taken
+        Assert.Contains(messages, m => m.Contains("already a linetype"));
+        s.SubmitText("Rebar hidden");                       // names may have spaces
+        s.SubmitText("oops");                               // not a pattern
+        Assert.NotNull(s.ActiveCommand);
+        s.SubmitText("0.75, 0.2, 0, 0.2");                  // read as a pattern, not as coordinates
+        Assert.Null(s.ActiveCommand);
+        var custom = s.Document.FindLinetype("rebar hidden")!;
+        Assert.Equal(new[] { 0.75, 0.2, 0, 0.2 }, custom.Pattern.ToArray());
+
+        s.StartCommand("LT");
+        s.SubmitEnter();                                    // List
+        Assert.Contains(messages, m => m.Contains("Rebar hidden: 0.75, 0.2, 0, 0.2"));
+        Assert.Contains(messages, m => m.Contains("Linetype scale: 1"));
+
+        var line = AddLine(s, 0, 0, 10, 0);
+        s.ModifyEntities(new[] { line.Id }, e => e.Linetype = "Rebar hidden", "t");
+        s.StartCommand("LINETYPE");
+        s.SubmitKeyword("DELETE");
+        s.SubmitText("Rebar hidden");                       // in use: refused
+        Assert.NotNull(s.Document.FindLinetype("Rebar hidden"));
+        Assert.Contains(messages, m => m.Contains("used by objects"));
+
+        s.ModifyEntities(new[] { line.Id }, e => e.Linetype = "ByLayer", "t");
+        s.StartCommand("LINETYPE");
+        s.SubmitKeyword("D");
+        s.SubmitText("rebar hidden");
+        Assert.Null(s.Document.FindLinetype("Rebar hidden"));
+        s.Undo();
+        Assert.NotNull(s.Document.FindLinetype("Rebar hidden"));
+        Assert.Equal(4, s.Document.LinetypeTable.Count);
+
+        s.StartCommand("LINETYPE");
+        s.SubmitKeyword("D");
+        s.SubmitText("Center");
+        Assert.Contains(messages, m => m.Contains("built-in"));
+    }
+
+    [Fact]
+    public void Ltscale_and_object_scale_change_the_drawn_pattern_and_can_be_undone()
+    {
+        var s = Session();
+        var line = AddLine(s, 0, 0, 100, 0);
+        s.UpdateLayer(s.Document.CurrentLayerId, l => l.Linetype = "Dashed");
+
+        var view = new ViewTransform();
+        view.SetViewport(800, 600);
+        view.ZoomExtents(new BoundingBox(0, -10, 100, 10));
+        double zoom = view.Scale;
+
+        double[] Drawn()
+        {
+            var surface = new RecordingSurface();
+            new SceneRenderer().Render(surface, s.Document, view, new RenderOptions { ShowGrid = false });
+            var style = surface.Lines.Single().Style;
+            Assert.False(style.Dashed);
+            return style.Pattern!;
+        }
+
+        var normal = Drawn();
+        Assert.Equal(2, normal.Length);
+        Assert.True(Math.Abs(normal[0] - 0.5 * zoom) <= 0.5 * zoom * 0.01);   // within the half-percent rounding
+        Assert.True(Math.Abs(normal[1] - 0.25 * zoom) <= 0.25 * zoom * 0.01);
+
+        s.StartCommand("LTSCALE");
+        Assert.Contains("<1>", s.Prompt);
+        s.SubmitText("4");
+        Assert.Equal(4.0, s.Document.Settings.LinetypeScale);
+        Assert.True(Math.Abs(Drawn()[0] - 4 * 0.5 * zoom) <= 4 * 0.5 * zoom * 0.01);
+
+        s.ModifyEntities(new[] { line.Id }, e => e.LinetypeScale = 0.5, "t");
+        Assert.True(Math.Abs(Drawn()[0] - 2 * 0.5 * zoom) <= 2 * 0.5 * zoom * 0.01);
+
+        s.Undo();
+        s.Undo();
+        Assert.Equal(1.0, s.Document.Settings.LinetypeScale);
+
+        s.StartCommand("LTS");
+        s.SubmitText("0");
+        Assert.NotNull(s.ActiveCommand);                    // refused
+        s.Cancel();
+    }
+
+    [Fact]
+    public void A_pattern_too_fine_to_see_is_drawn_solid_and_the_same_zoom_reuses_the_same_pattern()
+    {
+        var renderer = new SceneRenderer();
+        var dashed = Linetypes.BuiltIn[1];
+        Assert.Null(renderer.PixelPattern(dashed, 1.0));                   // 0.75 px repeat
+        Assert.Null(renderer.PixelPattern(Linetypes.BuiltIn[0], 100));     // continuous
+        Assert.Null(renderer.PixelPattern(dashed, double.NaN));
+        var a = renderer.PixelPattern(dashed, 40.0)!;
+        var b = renderer.PixelPattern(dashed, 40.01)!;                     // same rounding step
+        Assert.Same(a, b);
+        Assert.NotSame(a, renderer.PixelPattern(dashed, 80.0));
+        Assert.Equal(new RenderStyle(1, 2, 3, 1, false, a), new RenderStyle(1, 2, 3, 1, false, b));   // equal styles: one pen
+    }
+
+    [Fact]
+    public void Custom_linetypes_scales_and_object_settings_survive_save_and_open()
+    {
+        var s = Session();
+        s.AddLinetype("Rebar hidden", "Custom", new[] { 0.75, 0.2, 0, 0.2 });
+        s.SetLinetypeScale(12);
+        s.UpdateLayer(s.Document.CurrentLayerId, l => l.Linetype = "Rebar hidden");
+        var a = AddLine(s, 0, 0, 10, 0);
+        var b = AddLine(s, 0, 5, 10, 5);
+        s.ModifyEntities(new[] { b.Id }, e => { e.Linetype = Linetypes.ByBlock; e.LinetypeScale = 2.5; }, "t");
+
+        byte[] bytes = HcadSerializer.SaveToBytes(s.Document);
+        string json = System.Text.Encoding.UTF8.GetString(bytes);
+        Assert.Contains("\"linetypes\"", json);
+        Assert.DoesNotContain("\"name\": \"Dashed\"", json);               // built-in linetypes are not stored
+        var loaded = HcadSerializer.LoadFromBytes(bytes);
+        Assert.Empty(loaded.Warnings);
+        var doc = loaded.Document;
+        Assert.Equal(new[] { "Continuous", "Dashed", "Center", "Rebar hidden" }, doc.LinetypeTable.Select(l => l.Name).ToArray());
+        Assert.Equal(new[] { 0.75, 0.2, 0, 0.2 }, doc.FindLinetype("Rebar hidden")!.Pattern.ToArray());
+        Assert.Equal(12.0, doc.Settings.LinetypeScale);
+        Assert.Equal("Rebar hidden", doc.GetLayer(doc.CurrentLayerId)!.Linetype);
+        Assert.Equal("ByLayer", doc.GetEntity(a.Id)!.Linetype);
+        Assert.Equal(1.0, doc.GetEntity(a.Id)!.LinetypeScale);
+        Assert.Equal("ByBlock", doc.GetEntity(b.Id)!.Linetype);
+        Assert.Equal(2.5, doc.GetEntity(b.Id)!.LinetypeScale);
+        Assert.Equal("Rebar hidden", doc.ResolveLinetype(doc.GetEntity(a.Id)!).Name);
+
+        // A damaged linetype entry is skipped with a warning; the drawing still opens.
+        string broken = json.Replace("0.75", "-3");
+        var repaired = HcadSerializer.LoadFromBytes(System.Text.Encoding.UTF8.GetBytes(broken));
+        Assert.Contains(repaired.Warnings, w => w.Contains("Rebar hidden"));
+        Assert.Null(repaired.Document.FindLinetype("Rebar hidden"));
+        Assert.Equal(2, repaired.Document.EntityCount);
+    }
+
+    [Fact]
+    public void Properties_panel_and_layer_table_set_linetypes()
+    {
+        var vm = new MainViewModel(new FakeUi(), new RecoveryStore(_temp.File("recovery")));
+        var s = vm.Session;
+        Assert.Equal(new[] { "Continuous", "Dashed", "Center" }, vm.LinetypeNames.ToArray());
+        Assert.Equal(new[] { "ByLayer", "ByBlock", "Continuous", "Dashed", "Center" }, vm.Properties.LinetypeNames.ToArray());
+        Assert.Null(vm.Properties.SelectedLinetype);        // nothing selected
+
+        var line = new LineEntity(P(0, 0), P(10, 0)) { LayerId = s.Document.CurrentLayerId };
+        s.Document.AddEntity(line);
+        s.Selection.Add(line.Id);
+        Assert.Equal("ByLayer", vm.Properties.SelectedLinetype);
+        vm.Properties.SelectedLinetype = "Dashed";
+        Assert.Equal("Dashed", s.Document.GetEntity(line.Id)!.Linetype);
+        Assert.Equal("Dashed", vm.Properties.SelectedLinetype);
+        vm.Properties.Rows.Single(r => r.Label == "Linetype scale").Value = "3";
+        Assert.Equal(3.0, s.Document.GetEntity(line.Id)!.LinetypeScale);
+        vm.Properties.Rows.Single(r => r.Label == "Linetype scale").Value = "0";          // refused
+        Assert.Equal(3.0, s.Document.GetEntity(line.Id)!.LinetypeScale);
+        vm.Properties.SelectedLinetype = "ByBlock";
+        Assert.Equal("ByBlock", s.Document.GetEntity(line.Id)!.Linetype);
+
+        var row = vm.Layers.Single(l => l.IsCurrent);
+        row.Linetype = "Center";
+        Assert.Equal("Center", s.Document.GetLayer(row.Id)!.Linetype);
+        row.Linetype = "No such linetype";                  // ignored
+        Assert.Equal("Center", row.Linetype);
+
+        s.AddLinetype("Mine", "Custom", new[] { 1.0, 0.5 });
+        Assert.Contains("Mine", vm.LinetypeNames);
+        Assert.Contains("Mine", vm.Properties.LinetypeNames);
+        Assert.Equal("ByBlock", vm.Properties.SelectedLinetype);            // selection kept while the list grew
+        s.Undo();
+        Assert.DoesNotContain("Mine", vm.LinetypeNames);
+    }
+}

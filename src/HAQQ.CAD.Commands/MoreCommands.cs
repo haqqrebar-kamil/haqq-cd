@@ -219,3 +219,87 @@ public sealed class LineModeCommand : CadCommandBase
         return CommandResult.Finished;
     }
 }
+
+/// <summary>
+/// LINETYPE: lists the linetypes of the drawing, creates a custom one (name, then dash and gap lengths) or
+/// deletes one that is not in use.
+/// </summary>
+public sealed class LinetypeCommand : CadCommandBase, IRawTextCommand
+{
+    private enum Stage { Option, NewName, NewPattern, DeleteName }
+
+    private Stage _stage = Stage.Option;
+    private string _name = "";
+
+    public override string Name => "LINETYPE";
+
+    public override string Prompt => _stage switch
+    {
+        Stage.Option => "LINETYPE  Enter an option [New/Delete/List] <List>:",
+        Stage.NewName => "LINETYPE  Enter a name for the new linetype:",
+        Stage.NewPattern => $"LINETYPE  Enter dash and gap lengths for \"{_name}\" in turn, e.g. 0.5, 0.25  (0 = dot):",
+        _ => "LINETYPE  Enter the name of the linetype to delete:",
+    };
+
+    public override IReadOnlyList<string> Options => _stage == Stage.Option ? new[] { "New", "Delete", "List" } : Array.Empty<string>();
+
+    public bool WantsRawText => _stage != Stage.Option;
+
+    public override CommandResult OnInput(CommandInput input)
+    {
+        if (_stage != Stage.Option) return CommandResult.Finished;            // Enter with nothing typed: leave
+        switch (input)
+        {
+            case CommandInput.KeywordInput k when Matches(k.Keyword, "NEW"):
+                _stage = Stage.NewName;
+                return CommandResult.Continue;
+            case CommandInput.KeywordInput k when Matches(k.Keyword, "DELETE"):
+                _stage = Stage.DeleteName;
+                return CommandResult.Continue;
+            case CommandInput.KeywordInput k when Matches(k.Keyword, "LIST"):
+            case CommandInput.EnterInput:
+                foreach (var linetype in Document.LinetypeTable) Session.Post("  " + linetype);
+                Session.Post($"  Linetype scale: {Document.Settings.LinetypeScale:0.####} (change it with LTSCALE)");
+                return CommandResult.Finished;
+            default:
+                return Invalid("Enter New, Delete or List.");
+        }
+    }
+
+    public CommandResult OnRawText(string text)
+    {
+        switch (_stage)
+        {
+            case Stage.NewName:
+                if (Linetypes.IsReserved(text) || Document.FindLinetype(text) is not null)
+                    return Invalid($"There is already a linetype named \"{text}\". Enter another name.");
+                if (text.Contains(',')) return Invalid("A linetype name cannot contain a comma.");
+                _name = text;
+                _stage = Stage.NewPattern;
+                return CommandResult.Continue;
+
+            case Stage.NewPattern:
+                if (!LinetypeDefinition.TryParsePattern(text, out var pattern) || pattern.Length == 0)
+                    return Invalid("Enter pairs of dash and gap lengths, for example 0.5, 0.25 or 1, 0.25, 0, 0.25. Gaps must be more than 0.");
+                return Session.AddLinetype(_name, "Custom", pattern) ? CommandResult.Finished : CommandResult.Continue;
+
+            default:
+                Session.DeleteLinetype(text);
+                return CommandResult.Finished;
+        }
+    }
+}
+
+/// <summary>LTSCALE: the drawing's linetype scale. Larger makes every dash and gap longer.</summary>
+public sealed class LinetypeScaleCommand : CadCommandBase
+{
+    public override string Name => "LTSCALE";
+    public override string Prompt => $"LTSCALE  Enter new linetype scale <{Document.Settings.LinetypeScale:0.####}>:";
+
+    public override CommandResult OnInput(CommandInput input)
+    {
+        if (input is CommandInput.EnterInput) return CommandResult.Finished;
+        if (input is not CommandInput.NumberInput n) return Invalid("Type a number more than 0.");
+        return Session.SetLinetypeScale(n.Value) ? CommandResult.Finished : CommandResult.Continue;
+    }
+}

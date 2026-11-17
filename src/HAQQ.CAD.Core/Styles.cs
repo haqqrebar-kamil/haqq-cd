@@ -49,12 +49,108 @@ public readonly record struct CadColor(CadColorKind Kind, byte R, byte G, byte B
     }
 }
 
-/// <summary>Well-known linetype names. Phase 1 stores linetype names; only continuous lines are rendered.</summary>
+/// <summary>Well-known linetype names.</summary>
 public static class Linetypes
 {
+    /// <summary>Object setting: use the linetype of the object's layer.</summary>
     public const string ByLayer = "ByLayer";
+
+    /// <summary>
+    /// Object setting: use the linetype of the block the object is in. HAQQ CAD has no blocks yet, so an
+    /// object set to ByBlock is drawn continuous; the setting is stored for when blocks exist.
+    /// </summary>
     public const string ByBlock = "ByBlock";
+
     public const string Continuous = "Continuous";
+    public const string Dashed = "Dashed";
+    public const string Center = "Center";
+
+    public static bool IsReserved(string? name) =>
+        string.Equals(name, ByLayer, StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(name, ByBlock, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>The linetypes every drawing has. Lengths are in drawing units.</summary>
+    public static IReadOnlyList<LinetypeDefinition> BuiltIn { get; } = new[]
+    {
+        new LinetypeDefinition(Continuous, "Solid line", Array.Empty<double>()),
+        new LinetypeDefinition(Dashed, "Dashed __ __ __ __ __", new[] { 0.5, 0.25 }),
+        new LinetypeDefinition(Center, "Center ____ _ ____ _ ____", new[] { 1.25, 0.25, 0.25, 0.25 }),
+    };
+
+    public static bool IsBuiltIn(string? name) =>
+        BuiltIn.Any(l => string.Equals(l.Name, name, StringComparison.OrdinalIgnoreCase));
+}
+
+/// <summary>
+/// A linetype: a repeating pattern of dashes and gaps. <see cref="Pattern"/> alternates dash length, gap length,
+/// dash, gap... in drawing units; a dash of 0 is a dot. An empty pattern is a continuous line.
+/// </summary>
+public sealed class LinetypeDefinition
+{
+    public LinetypeDefinition(string name, string description, IEnumerable<double> pattern)
+    {
+        if (string.IsNullOrWhiteSpace(name)) throw new ArgumentException("Linetype name is required.", nameof(name));
+        Name = name.Trim();
+        Description = description ?? "";
+        Pattern = pattern.ToArray();
+        if (!IsValidPattern(Pattern)) throw new ArgumentException("Invalid linetype pattern.", nameof(pattern));
+    }
+
+    public string Name { get; }
+    public string Description { get; }
+    public IReadOnlyList<double> Pattern { get; }
+
+    public bool IsContinuous => Pattern.Count == 0;
+
+    /// <summary>Length of one repeat of the pattern, in drawing units.</summary>
+    public double PatternLength => Pattern.Sum();
+
+    /// <summary>Pairs of dash (0 or more) and gap (more than 0); at least one pair, or none for continuous.</summary>
+    public static bool IsValidPattern(IReadOnlyList<double> pattern)
+    {
+        if (pattern.Count == 0) return true;
+        if (pattern.Count % 2 != 0 || pattern.Count > 24) return false;
+        for (int i = 0; i < pattern.Count; i++)
+        {
+            double v = pattern[i];
+            if (!double.IsFinite(v) || v < 0) return false;
+            if (i % 2 == 1 && v <= 0) return false;                 // a gap must have length
+        }
+        return pattern.Sum() > 0;
+    }
+
+    /// <summary>
+    /// Reads a pattern typed by the user. Either dash and gap lengths in turn ("0.5, 0.25" or "1 0.25 0 0.25",
+    /// 0 = dot), or the classic form where gaps are negative ("0.5,-0.25").
+    /// </summary>
+    public static bool TryParsePattern(string? text, out double[] pattern)
+    {
+        pattern = Array.Empty<double>();
+        if (string.IsNullOrWhiteSpace(text)) return false;
+        var values = new List<double>();
+        foreach (string part in text.Split(new[] { ',', ' ', ';', '\t' }, StringSplitOptions.RemoveEmptyEntries))
+        {
+            if (part.Equals("A", StringComparison.OrdinalIgnoreCase)) continue;      // alignment code of the classic form
+            if (!double.TryParse(part, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double v) ||
+                !double.IsFinite(v)) return false;
+            values.Add(v);
+        }
+        if (values.Count == 0) return false;
+
+        if (values.Any(v => v < 0))
+        {
+            // Classic form: positive or zero = dash or dot, negative = gap, strictly in turn, starting with a dash.
+            for (int i = 0; i < values.Count; i++)
+                if (i % 2 == 0 ? values[i] < 0 : values[i] >= 0) return false;
+            for (int i = 1; i < values.Count; i += 2) values[i] = -values[i];
+        }
+        if (values.Count % 2 != 0 || !IsValidPattern(values)) return false;
+        pattern = values.ToArray();
+        return true;
+    }
+
+    public override string ToString() =>
+        IsContinuous ? Name : Name + ": " + string.Join(", ", Pattern.Select(v => v.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture)));
 }
 
 /// <summary>A drawing layer.</summary>

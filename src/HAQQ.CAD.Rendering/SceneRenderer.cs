@@ -5,7 +5,12 @@ using HAQQ.CAD.Snapping;
 namespace HAQQ.CAD.Rendering;
 
 /// <summary>Stroke description handed to the drawing surface.</summary>
-public readonly record struct RenderStyle(byte R, byte G, byte B, double Width = 1.0, bool Dashed = false);
+/// <param name="Dashed">The fixed short dashes used for previews and the selection highlight.</param>
+/// <param name="Pattern">
+/// A linetype pattern in pixels: dash, gap, dash, gap... (a dash of 0 is a dot); null for a solid line. The same
+/// array instance is handed out for the same linetype at the same zoom, so styles compare equal and pens can be cached.
+/// </param>
+public readonly record struct RenderStyle(byte R, byte G, byte B, double Width = 1.0, bool Dashed = false, double[]? Pattern = null);
 
 /// <summary>
 /// Minimal immediate-mode 2D surface. The CAD renderer only talks to this interface, so the
@@ -106,7 +111,7 @@ public sealed class SceneRenderer
                 continue;
             }
 
-            DrawEntity(surface, entity, view, ResolveStyle(entity, layer));
+            DrawEntity(surface, entity, view, WithLinetype(ResolveStyle(entity, layer), document, entity, view));
             drawn++;
         }
 
@@ -177,6 +182,42 @@ public sealed class SceneRenderer
     }
 
     /// <summary>Resolves ByLayer/ByBlock colour to a visible stroke on the dark canvas.</summary>
+    /// <summary>A repeat shorter than this many pixels cannot be seen as dashes: the line is drawn solid.</summary>
+    public const double MinPatternPixels = 4.0;
+
+    private readonly Dictionary<(LinetypeDefinition Linetype, long Step), double[]> _patterns = new();
+
+    /// <summary>Adds the object's linetype pattern, scaled to pixels, to <paramref name="style"/>.</summary>
+    private RenderStyle WithLinetype(RenderStyle style, DrawingDocument document, Entity entity, ViewTransform view)
+    {
+        var linetype = document.ResolveLinetype(entity);
+        if (linetype.IsContinuous) return style;
+        double scale = document.Settings.LinetypeScale * entity.LinetypeScale * view.Scale;      // pixels per pattern unit
+        return PixelPattern(linetype, scale) is { } pattern ? style with { Pattern = pattern } : style;
+    }
+
+    /// <summary>
+    /// The pattern of <paramref name="linetype"/> in pixels at <paramref name="scale"/> pixels per unit, or null when
+    /// it would be too fine to see (or the scale is not usable), in which case the line is drawn solid.
+    /// </summary>
+    public double[]? PixelPattern(LinetypeDefinition linetype, double scale)
+    {
+        if (linetype.IsContinuous || !(scale > 0) || !double.IsFinite(scale)) return null;
+        double repeat = linetype.PatternLength * scale;
+        if (!(repeat >= MinPatternPixels) || repeat > 1e7) return null;
+
+        // Zoom changes smoothly; round the scale to about half a percent so that pens can be reused.
+        long step = (long)Math.Round(Math.Log(scale) * 200.0);
+        if (_patterns.TryGetValue((linetype, step), out var cached)) return cached;
+
+        double rounded = Math.Exp(step / 200.0);
+        var pixels = new double[linetype.Pattern.Count];
+        for (int i = 0; i < pixels.Length; i++) pixels[i] = linetype.Pattern[i] * rounded;
+        if (_patterns.Count > 256) _patterns.Clear();
+        _patterns[(linetype, step)] = pixels;
+        return pixels;
+    }
+
     public static RenderStyle ResolveStyle(Entity entity, Layer layer)
     {
         var color = entity.Color.IsExplicit ? entity.Color : layer.Color;

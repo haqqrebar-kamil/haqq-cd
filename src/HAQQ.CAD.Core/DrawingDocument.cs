@@ -34,6 +34,7 @@ public sealed class DocumentMetadata
 public sealed class DrawingDocument
 {
     private readonly List<Layer> _layers = new();
+    private readonly List<LinetypeDefinition> _linetypes = new(Linetypes.BuiltIn);
     private readonly Dictionary<Guid, Entity> _entities = new();
     private readonly Dictionary<Guid, long> _order = new();
     private readonly SpatialIndex _index = new();
@@ -128,6 +129,63 @@ public sealed class DrawingDocument
     // ------------------------------------------------------------------ layers
 
     public IReadOnlyList<Layer> Layers => _layers;
+
+    // ------------------------------------------------------------ linetypes
+
+    /// <summary>The built-in linetypes followed by the ones defined in this drawing.</summary>
+    public IReadOnlyList<LinetypeDefinition> LinetypeTable => _linetypes;
+
+    public LinetypeDefinition? FindLinetype(string? name)
+    {
+        foreach (var linetype in _linetypes)
+            if (string.Equals(linetype.Name, name?.Trim(), StringComparison.OrdinalIgnoreCase)) return linetype;
+        return null;
+    }
+
+    /// <summary>Adds a linetype defined by the user. The name must be new and not ByLayer / ByBlock.</summary>
+    public void AddLinetype(LinetypeDefinition linetype, int? index = null)
+    {
+        if (Linetypes.IsReserved(linetype.Name)) throw new InvalidOperationException($"\"{linetype.Name}\" cannot be used as a linetype name.");
+        if (FindLinetype(linetype.Name) is not null) throw new InvalidOperationException($"Linetype \"{linetype.Name}\" already exists.");
+        if (index is int i && i >= Linetypes.BuiltIn.Count && i <= _linetypes.Count) _linetypes.Insert(i, linetype); else _linetypes.Add(linetype);
+        OnChanged(DocumentChangeKind.Layers);
+    }
+
+    /// <summary>Why a linetype cannot be removed, or null when removal is allowed.</summary>
+    public string? GetLinetypeRemovalBlocker(string? name)
+    {
+        var linetype = FindLinetype(name);
+        if (linetype is null) return $"There is no linetype named \"{name}\".";
+        if (Linetypes.IsBuiltIn(linetype.Name)) return $"\"{linetype.Name}\" is a built-in linetype and cannot be deleted.";
+        foreach (var layer in _layers)
+            if (string.Equals(layer.Linetype, linetype.Name, StringComparison.OrdinalIgnoreCase)) return $"Linetype \"{linetype.Name}\" is used by layer \"{layer.Name}\".";
+        foreach (var e in _entities.Values)
+            if (string.Equals(e.Linetype, linetype.Name, StringComparison.OrdinalIgnoreCase)) return $"Linetype \"{linetype.Name}\" is used by objects in the drawing.";
+        return null;
+    }
+
+    /// <summary>Removes a user-defined linetype and returns its position in the table.</summary>
+    public int RemoveLinetype(string name)
+    {
+        string? blocker = GetLinetypeRemovalBlocker(name);
+        if (blocker is not null) throw new InvalidOperationException(blocker);
+        int index = _linetypes.FindIndex(l => string.Equals(l.Name, name.Trim(), StringComparison.OrdinalIgnoreCase));
+        _linetypes.RemoveAt(index);
+        OnChanged(DocumentChangeKind.Layers);
+        return index;
+    }
+
+    /// <summary>
+    /// The pattern an object is drawn with: its own linetype, or its layer's when set to ByLayer. ByBlock and
+    /// names that are not in the table give a continuous line.
+    /// </summary>
+    public LinetypeDefinition ResolveLinetype(Entity entity)
+    {
+        string name = entity.Linetype;
+        if (string.Equals(name, Linetypes.ByLayer, StringComparison.OrdinalIgnoreCase))
+            name = GetLayer(entity.LayerId)?.Linetype ?? Linetypes.Continuous;
+        return FindLinetype(name) ?? _linetypes[0];
+    }
 
     public Guid CurrentLayerId
     {

@@ -102,8 +102,17 @@ public sealed class LayerViewModel : ObservableObject
     /// <summary>Colour name for display beside the swatch.</summary>
     public string ColorName => ColorNameOf(_colorHex);
 
-    /// <summary>Linetype name. Only shown: every line is still drawn continuous.</summary>
-    public string Linetype => _linetype;
+    /// <summary>Linetype of the layer: objects set to ByLayer are drawn with it.</summary>
+    public string Linetype
+    {
+        get => _linetype;
+        set
+        {
+            if (string.IsNullOrEmpty(value) || value == _linetype) return;
+            var definition = _owner.Session.Document.FindLinetype(value);
+            if (definition is null || !_owner.Session.UpdateLayer(Id, l => l.Linetype = definition.Name)) OnPropertyChanged();
+        }
+    }
 
     /// <summary>Makes this the layer new objects are drawn on.</summary>
     public void MakeCurrent() => _owner.Session.SetCurrentLayer(Id);

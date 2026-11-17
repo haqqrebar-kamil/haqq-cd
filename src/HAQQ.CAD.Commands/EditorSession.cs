@@ -50,6 +50,16 @@ public interface IShiftConstraint
 }
 
 /// <summary>
+/// Implemented by commands that sometimes need the typed line exactly as it was typed (a name, a list of numbers)
+/// instead of having it read as coordinates, a distance or an option.
+/// </summary>
+public interface IRawTextCommand
+{
+    bool WantsRawText { get; }
+    CommandResult OnRawText(string text);
+}
+
+/// <summary>
 /// Implemented by commands that can make a line tangent to a circle themselves once both ends are known
 /// (LINE). While <see cref="WantsDeferredTangent"/> is true the Tangent snap works on a first point too.
 /// </summary>
@@ -113,6 +123,8 @@ public sealed class CommandRegistry
         r.Register("SCALE", () => new ScaleCommand(), "SC");
         r.Register("MIRROR", () => new MirrorCommand(), "MI");
         r.Register("LINEMODE", () => new LineModeCommand());
+        r.Register("LINETYPE", () => new LinetypeCommand(), "LT", "LTYPE");
+        r.Register("LTSCALE", () => new LinetypeScaleCommand(), "LTS");
         r.Register("OFFSET", () => new OffsetCommand(), "O");
         r.Register("TRIM", () => new TrimCommand(), "TR");
         r.Register("EXTEND", () => new ExtendCommand(), "EX");
@@ -510,6 +522,12 @@ public sealed class EditorSession
             return;
         }
 
+        if (command is IRawTextCommand { WantsRawText: true } raw)
+        {
+            Complete(raw.OnRawText(trimmed));
+            return;
+        }
+
         if (command.WantsSelection && trimmed.Equals("ALL", StringComparison.OrdinalIgnoreCase))
         {
             SelectAll();
@@ -660,6 +678,43 @@ public sealed class EditorSession
         string? blocker = Document.GetLayerRemovalBlocker(layerId);
         if (blocker is not null) { Post(blocker); return false; }
         return Execute(new RemoveLayerAction(layerId));
+    }
+
+    /// <summary>Defines a new linetype in the drawing. Returns false (with a message) when the name or pattern is not usable.</summary>
+    public bool AddLinetype(string name, string description, IReadOnlyList<double> pattern)
+    {
+        name = name.Trim();
+        if (name.Length == 0 || name.Length > 64 || name.Any(c => char.IsControl(c) || c == ','))
+        {
+            Post("A linetype name is 1 to 64 characters, without commas.");
+            return false;
+        }
+        if (!LinetypeDefinition.IsValidPattern(pattern) || pattern.Count == 0)
+        {
+            Post("A pattern is pairs of dash and gap lengths, for example 0.5, 0.25. Gaps must be more than 0.");
+            return false;
+        }
+        if (!Execute(new AddLinetypeAction(new LinetypeDefinition(name, description, pattern)))) return false;
+        Post($"Linetype \"{name}\" created.");
+        return true;
+    }
+
+    public bool DeleteLinetype(string name)
+    {
+        string? blocker = Document.GetLinetypeRemovalBlocker(name);
+        if (blocker is not null) { Post(blocker); return false; }
+        if (!Execute(new RemoveLinetypeAction(name.Trim()))) return false;
+        Post($"Linetype \"{name.Trim()}\" deleted.");
+        return true;
+    }
+
+    /// <summary>Sets the drawing's linetype scale (all dash and gap lengths are multiplied by it).</summary>
+    public bool SetLinetypeScale(double scale)
+    {
+        if (!(scale > 0) || !double.IsFinite(scale)) { Post("The linetype scale must be more than 0."); return false; }
+        var after = Document.Settings.Clone();
+        after.LinetypeScale = scale;
+        return Execute(new ModifySettingsAction("Linetype scale", Document.Settings, after));
     }
 
     /// <summary>
