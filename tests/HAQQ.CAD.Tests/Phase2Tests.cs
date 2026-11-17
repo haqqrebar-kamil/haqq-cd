@@ -3064,6 +3064,73 @@ public class JoinTests
     }
 
     [Fact]
+    public void Line_ending_on_a_circle_joins_into_one_polyline_that_goes_round_the_circle()
+    {
+        var s = Session();
+        Add(s, new LineEntity(P(-20, 0), P(-5, 0)));        // ends on the left of the circle
+        Add(s, new CircleEntity(P(0, 0), 5));
+        s.StartCommand("JOIN");
+        var pl = Assert.IsType<PolylineEntity>(Assert.Single(s.Document.Entities));
+        Assert.False(pl.IsClosed);
+        Assert.Equal(15 + 2 * Math.PI * 5, pl.Length, 7);
+        foreach (var q in new[] { P(5, 0), P(0, 5), P(0, -5), P(-12, 0) }) Assert.Equal(0.0, pl.DistanceTo(q), 7);
+        Assert.True(pl.DistanceTo(P(0, 0)) > 4.9);          // still a circle, not a filled shape
+
+        s.Undo();
+        Assert.Equal(2, s.Document.EntityCount);
+        Assert.Single(s.Document.Entities.OfType<CircleEntity>());
+    }
+
+    [Fact]
+    public void Line_joins_a_rectangle_at_a_corner_or_part_way_along_a_side()
+    {
+        var s = Session();
+        Add(s, new LineEntity(P(-10, -10), P(0, 0)));       // to the corner
+        Add(s, new PolylineEntity(new[] { P(0, 0), P(20, 0), P(20, 10), P(0, 10) }, true));
+        s.StartCommand("JOIN");
+        var corner = Assert.IsType<PolylineEntity>(Assert.Single(s.Document.Entities));
+        Assert.Equal(Math.Sqrt(200) + 60, corner.Length, 7);
+        Assert.Equal(0.0, corner.DistanceTo(P(20, 5)), 7);
+        Assert.Equal(0.0, corner.DistanceTo(P(-5, -5)), 7);
+
+        var t = Session();
+        var rect = new PolylineEntity(new[] { P(0, 0), P(20, 0), P(20, 10), P(0, 10) }, true);
+        rect.SetSegmentWidth(0, 2, 4);                      // tapered bottom side, which the line meets at its middle
+        Add(t, rect);
+        Add(t, new LineEntity(P(10, -8), P(10, 0)));
+        t.StartCommand("JOIN");
+        var side = Assert.IsType<PolylineEntity>(Assert.Single(t.Document.Entities));
+        Assert.Equal(8 + 60, side.Length, 7);
+        foreach (var q in new[] { P(5, 0), P(15, 0), P(20, 5), P(10, 10), P(0, 5), P(10, -4) }) Assert.Equal(0.0, side.DistanceTo(q), 7);
+        // The split side keeps its taper: 2 at one end, 3 where the line meets it, 4 at the other end.
+        var widths = Enumerable.Range(0, side.SegmentCount).Select(side.GetSegmentWidth).Where(w => w != (0.0, 0.0)).ToList();
+        Assert.Equal(2, widths.Count);
+        Assert.Contains((3.0, 4.0), widths);
+        Assert.Contains((2.0, 3.0), widths);
+    }
+
+    [Fact]
+    public void Line_arc_and_circle_in_one_chain_and_closed_shapes_alone_do_not_join()
+    {
+        var s = Session();
+        Add(s, new LineEntity(P(0, 0), P(10, 0)));
+        Add(s, new ArcEntity(P(10, 5), 5, 270 * Deg, 90 * Deg));           // from 10,0 round to 10,10
+        Add(s, new CircleEntity(P(10, 13), 3));                            // touches the arc's end at 10,10
+        s.StartCommand("JOIN");
+        var pl = Assert.IsType<PolylineEntity>(Assert.Single(s.Document.Entities));
+        Assert.Equal(10 + 5 * Math.PI + 2 * Math.PI * 3, pl.Length, 7);
+
+        var t = Session();
+        Add(t, new CircleEntity(P(0, 0), 5));
+        Add(t, new PolylineEntity(new[] { P(5, 0), P(20, 0), P(20, 10), P(5, 10) }, true));   // touches the circle, but nothing has an end
+        Add(t, new LineEntity(P(50, 50), P(60, 50)));
+        var messages = CaptureMessages(t);
+        t.StartCommand("JOIN");
+        Assert.Equal(3, t.Document.EntityCount);
+        Assert.Contains(messages, m => m.Contains("Nothing to join"));
+    }
+
+    [Fact]
     public void Two_separate_chains_give_two_polylines()
     {
         var s = Session();

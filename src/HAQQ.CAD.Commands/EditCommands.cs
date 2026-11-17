@@ -624,8 +624,10 @@ public sealed class ExplodeCommand : SelectionCommandBase
 }
 
 /// <summary>
-/// JOIN: connects the selected lines, arcs and open polylines that touch end to end into polylines.
-/// Objects that touch nothing else are left as they are. One undo step.
+/// JOIN: connects the selected lines, arcs and open polylines that touch end to end into polylines. A circle,
+/// rectangle or other closed polyline is taken in where an end of a line or arc touches it: the polyline then
+/// runs along the line and once round the closed shape. Objects that touch nothing are left as they are.
+/// One undo step.
 /// </summary>
 public sealed class JoinCommand : SelectionCommandBase
 {
@@ -695,9 +697,97 @@ public sealed class JoinCommand : SelectionCommandBase
 
     private static bool Touch(Point2D a, Point2D b) => a.DistanceTo(b) <= Tolerance;
 
+    /// <summary>
+    /// A closed shape as a path that starts and ends at <paramref name="at"/>, once round; null when
+    /// <paramref name="at"/> is not on the shape. This is how a line that ends on a circle or on a rectangle
+    /// becomes one polyline with it.
+    /// </summary>
+    private static Path? LoopFrom(Entity entity, Point2D at)
+    {
+        if (entity.DistanceTo(at) > Tolerance) return null;
+        var path = new Path();
+        path.Sources.Add(entity);
+
+        if (entity is CircleEntity circle)
+        {
+            // Two half circles, counter-clockwise, starting at the touching point.
+            var opposite = circle.Center + (circle.Center - at);
+            path.Vertices.AddRange(new[] { at, opposite, at });
+            path.Bulges.AddRange(new[] { 1.0, 1.0 });
+            path.Widths.AddRange(new[] { (0.0, 0.0), (0.0, 0.0) });
+            return path;
+        }
+
+        if (entity is not PolylineEntity { IsClosed: true } polyline || polyline.SegmentCount < 2) return null;
+        int count = polyline.SegmentCount;
+
+        // Start at a corner when the touching point is one...
+        for (int k = 0; k < count; k++)
+        {
+            if (!Touch(polyline.Vertices[k], at)) continue;
+            for (int j = 0; j < count; j++)
+            {
+                int index = (k + j) % count;
+                path.Vertices.Add(polyline.Vertices[index]);
+                path.Bulges.Add(polyline.GetBulge(index));
+                path.Widths.Add(polyline.GetSegmentWidth(index));
+            }
+            path.Vertices.Add(polyline.Vertices[k]);
+            return path;
+        }
+
+        // ...otherwise split the side it lies on.
+        for (int i = 0; i < count; i++)
+        {
+            var (a, b) = polyline.GetSegment(i);
+            double bulge = polyline.GetBulge(i);
+            double fraction;                                     // how far along the side the touching point is, 0..1
+            double firstBulge = 0, lastBulge = 0;
+            if (polyline.TryGetArc(i, out var c, out double r, out double start, out double sweep))
+            {
+                if (Math.Abs(c.DistanceTo(at) - r) > Tolerance || !ArcMath.ContainsAngle(start, sweep, (at - c).Angle, 1e-9)) continue;
+                double fromA = bulge > 0 ? ArcMath.Sweep((a - c).Angle, (at - c).Angle) : ArcMath.Sweep((at - c).Angle, (a - c).Angle);
+                fraction = fromA / sweep;
+                double sign = Math.Sign(bulge);
+                lastBulge = Math.Tan(fromA / 4.0) * sign;                 // from A to the touching point
+                firstBulge = Math.Tan((sweep - fromA) / 4.0) * sign;      // from the touching point on to B
+            }
+            else
+            {
+                if (SegmentMath.DistanceToPoint(a, b, at) > Tolerance) continue;
+                double length = a.DistanceTo(b);
+                if (length <= GeoMath.Epsilon) continue;
+                fraction = a.DistanceTo(at) / length;
+            }
+
+            var (ws, we) = polyline.GetSegmentWidth(i);
+            double wt = ws + (we - ws) * fraction;
+
+            path.Vertices.Add(at);
+            path.Bulges.Add(firstBulge);
+            path.Widths.Add((wt, we));
+            for (int j = 1; j < count; j++)
+            {
+                int index = (i + j) % count;
+                path.Vertices.Add(polyline.Vertices[index]);
+                path.Bulges.Add(polyline.GetBulge(index));
+                path.Widths.Add(polyline.GetSegmentWidth(index));
+            }
+            path.Vertices.Add(a);
+            path.Bulges.Add(lastBulge);
+            path.Widths.Add((ws, wt));
+            path.Vertices.Add(at);
+            return path;
+        }
+        return null;
+    }
+
     protected override CommandResult OnSelectionReady()
     {
-        var open = Session.GetSelectedEntities().Select(PathOf).Where(p => p is not null).Select(p => p!).ToList();
+        var selected = Session.GetSelectedEntities();
+        var open = selected.Select(PathOf).Where(p => p is not null).Select(p => p!).ToList();
+        // Closed shapes (circles, rectangles and other closed polylines) join where an end of a line or arc touches them.
+        var loops = selected.Where(e => e is CircleEntity or PolylineEntity { IsClosed: true }).ToList();
         var finished = new List<Path>();
 
         while (open.Count > 0)
@@ -708,6 +798,17 @@ public sealed class JoinCommand : SelectionCommandBase
             while (grew && !Touch(current.First, current.Last))   // stop once it has closed on itself
             {
                 grew = false;
+                for (int i = 0; i < loops.Count; i++)
+                {
+                    if (LoopFrom(loops[i], current.Last) is { } atEnd) current.Append(atEnd);
+                    else if (LoopFrom(loops[i], current.First) is { } atStart) { atStart.Append(current); current = atStart; }
+                    else continue;
+                    loops.RemoveAt(i);
+                    grew = true;
+                    break;
+                }
+                if (grew) continue;
+
                 for (int i = 0; i < open.Count; i++)
                 {
                     var other = open[i];
@@ -726,7 +827,7 @@ public sealed class JoinCommand : SelectionCommandBase
 
         if (finished.Count == 0)
         {
-            Session.Post("Nothing to join: select lines, arcs or open polylines whose ends touch.");
+            Session.Post("Nothing to join: select objects whose ends touch (a line or arc may also end on a circle or rectangle).");
             return CommandResult.Finished;
         }
 
