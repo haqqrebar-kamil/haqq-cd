@@ -302,7 +302,6 @@
                         <MouseBinding MouseAction="LeftClick" Command="{Binding CycleCoordinateModeCommand}" />
                     </TextBlock.InputBindings>
                 </TextBlock>
-                <ToggleButton DockPanel.Dock="Left" Style="{StaticResource StatusToggle}" Content="SNAP" IsChecked="{Binding SnapOn, Mode=TwoWay}" ToolTip="Grid snap: the cursor jumps to the snap increment (F9). Set it with the SNAP command. For snapping to objects use OSNAP." />
                 <ToggleButton DockPanel.Dock="Left" Style="{StaticResource StatusToggle}" Content="OSNAP" IsChecked="{Binding OsnapOn, Mode=TwoWay}" MouseRightButtonUp="OsnapButton_RightClick" ToolTip="Object snap on/off (F3). Right-click to choose which snaps act automatically." />
                 <ToggleButton DockPanel.Dock="Left" Style="{StaticResource StatusToggle}" Content="ORTHO" IsChecked="{Binding OrthoOn, Mode=TwoWay}" ToolTip="Restrict to horizontal / vertical (F8)" />
                 <ToggleButton DockPanel.Dock="Left" Style="{StaticResource StatusToggle}" Content="POLAR" IsChecked="{Binding PolarOn, Mode=TwoWay}" ToolTip="Polar tracking: lock onto horizontal and vertical when the cursor is close to them (F10)" />

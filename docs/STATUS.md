@@ -56,7 +56,7 @@ Legend: **Tested** = implemented and covered by executed automated tests ·
 | ARC | Tested | All 11 methods: 3-Point; Start-Center-End/Angle/Length; Start-End-Angle/Direction/Radius; Center-Start-End/Angle/Length; Continue (tangent to the last line or arc drawn in this session; polylines do not count yet). Negative angle = clockwise, negative chord length or radius = major arc. A click at an angle prompt is measured from the X axis. `arc` entity: snaps, selection, properties, HCAD |
 | CIRCLE 2P and 3P, Diameter, default radius in `<>` | Tested | TTR/TTT: see below |
 | UNITS command | Tested | Decimal / Architectural / Fractional; inches, feet, mm, cm, meters; precision. Does not rescale geometry |
-| SNAP mode (F9) and SNAP / GRID spacing commands | Tested (logic) | |
+| GRID spacing command | Tested (logic) | SNAP mode (grid snap: the SNAP status button, F9 and the SNAP command) was **removed** on the owner's request, 17 Nov: object snap (OSNAP) is used instead. The snap spacing is still stored in HCAD files for compatibility and the engine can still round points to it, but nothing switches it on |
 | `@` coordinates relative to the last point of the previous command | Tested | |
 | Shift = temporary ORTHO | Tested (logic) | |
 | Input boxes beside the crosshair (prompt, X/Y, distance/angle, typed text) | Tested (content) / Untested UI (drawing) | No Tab between fields |

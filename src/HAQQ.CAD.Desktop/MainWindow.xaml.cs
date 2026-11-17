@@ -319,7 +319,6 @@ public partial class MainWindow : Window
         {
             case Key.F3: _viewModel.OsnapOn = !_viewModel.OsnapOn; e.Handled = true; return;
             case Key.F7: _viewModel.GridOn = !_viewModel.GridOn; e.Handled = true; return;
-            case Key.F9: _viewModel.SnapOn = !_viewModel.SnapOn; e.Handled = true; return;
             case Key.F8: _viewModel.OrthoOn = !_viewModel.OrthoOn; e.Handled = true; return;
         }
 

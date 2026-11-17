@@ -344,13 +344,10 @@ public class ManualWorkflowTests
     public void Snap_mode_rounds_cursor_points_to_the_increment()
     {
         var s = DecimalInches();
-        s.StartCommand("SNAP");
-        s.SubmitText("0.5");
-        Assert.Equal(0.5, s.Document.Settings.SnapSpacing);
+        Assert.False(s.StartCommand("SNAP"));                 // the command was removed; only the engine keeps the ability
         Assert.False(s.GridSnapEnabled);
-        s.StartCommand("SNAP");
-        s.SubmitText("ON");
-        Assert.True(s.GridSnapEnabled);
+        s.Document.Settings.SnapSpacing = 0.5;
+        s.GridSnapEnabled = true;
 
         s.StartCommand("LINE");
         s.UpdateCursor(P(1.26, 0.74), 0.01);
@@ -651,16 +648,12 @@ public class ContextMenuTests : IDisposable
     public void Snap_toggle_quit_and_arc_properties_reach_the_view_model()
     {
         var vm = NewViewModel();
-        vm.SnapOn = true;
-        Assert.True(vm.Session.GridSnapEnabled);
-        Assert.Contains("<Snap on>", vm.History);
 
         int closes = 0;
         vm.CloseRequested += (_, _) => closes++;
         vm.RunCommand("QUIT");
         Assert.Equal(1, closes);
 
-        vm.SnapOn = false;
         vm.RunCommand("ARC");
         vm.CommandText = "10,0"; vm.SubmitCommandLine();
         vm.CommandText = "0,10"; vm.SubmitCommandLine();

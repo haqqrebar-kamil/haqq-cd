@@ -142,7 +142,7 @@ public sealed class CommandRegistry
         r.Register("EXPLODE", () => new ExplodeCommand(), "X");
         r.Register("JOIN", () => new JoinCommand(), "J");
         r.Register("UNITS", () => new UnitsCommand(), "UN");
-        r.Register("SNAP", () => new SpacingCommand(snap: true), "SN");
+        // Grid snap (SNAP, F9) was taken out of the program on the owner's request (17 Nov 2026): object snap covers it.
         r.Register("GRID", () => new SpacingCommand(snap: false));
         r.Register("CURSORSIZE", () => new CursorSizeCommand(), "CS", "CROSSHAIR");
         return r;
@@ -181,7 +181,7 @@ public sealed class EditorSession
     public bool OrthoActive => OrthoEnabled != OrthoOverride;
     public ICadCommand? ActiveCommand { get; private set; }
 
-    /// <summary>SNAP mode: cursor points jump to multiples of the drawing's snap spacing.</summary>
+    /// <summary>Grid snap: cursor points jump to multiples of the drawing's snap spacing. Nothing in the program switches it on any more.</summary>
     public bool GridSnapEnabled { get; set; }
 
     private int _crosshairSizePercent = 8;

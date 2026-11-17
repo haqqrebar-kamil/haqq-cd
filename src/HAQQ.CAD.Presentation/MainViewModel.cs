@@ -289,20 +289,6 @@ public sealed class MainViewModel : ObservableObject
         }
     }
 
-    /// <summary>SNAP mode: the cursor jumps to the snap increment (F9).</summary>
-    public bool SnapOn
-    {
-        get => Session.GridSnapEnabled;
-        set
-        {
-            if (Session.GridSnapEnabled == value) return;
-            Session.GridSnapEnabled = value;
-            OnPropertyChanged();
-            AddHistory(value ? "<Snap on>" : "<Snap off>");
-            RedrawRequested?.Invoke(this, EventArgs.Empty);
-        }
-    }
-
     /// <summary>POLAR tracking on horizontal and vertical directions (F10).</summary>
     public bool PolarOn
     {
