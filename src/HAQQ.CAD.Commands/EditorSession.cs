@@ -116,23 +116,102 @@ public sealed record ObjectTrack(Point2D Point, IReadOnlyList<(Point2D From, dou
 public readonly record struct PolarTrack(Point2D From, double AngleDegrees, Point2D Point);
 
 /// <summary>Maps command names and aliases to command factories.</summary>
+/// <summary>One command as the Shortcuts window lists it.</summary>
+/// <param name="Name">The full command name; it can always be typed.</param>
+/// <param name="Description">What the command does, in a few words.</param>
+/// <param name="DefaultShortcuts">The short names it comes with.</param>
+public sealed record CommandInfo(string Name, string Description, IReadOnlyList<string> DefaultShortcuts);
+
 public sealed class CommandRegistry
 {
-    private readonly Dictionary<string, (string Canonical, Func<ICadCommand> Factory)> _map =
-        new(StringComparer.OrdinalIgnoreCase);
+    private sealed record Entry(CommandInfo Info, Func<ICadCommand>? Factory);
 
-    public void Register(string name, Func<ICadCommand> factory, params string[] aliases)
+    private readonly Dictionary<string, Entry> _commands = new(StringComparer.OrdinalIgnoreCase);
+    private readonly List<string> _order = new();
+    private readonly Dictionary<string, string> _shortcuts = new(StringComparer.OrdinalIgnoreCase);      // shortcut -> command name
+    private readonly Dictionary<string, IReadOnlyList<string>> _custom = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Registers a command. A null <paramref name="factory"/> is a command the session carries out itself (UNDO, ZOOM...).</summary>
+    public void Register(string name, Func<ICadCommand>? factory, params string[] aliases) => Register(name, "", factory, aliases);
+
+    public void Register(string name, string description, Func<ICadCommand>? factory, params string[] aliases)
     {
-        _map[name] = (name, factory);
-        foreach (string alias in aliases) _map[alias] = (name, factory);
+        if (!_commands.ContainsKey(name)) _order.Add(name);
+        _commands[name] = new Entry(new CommandInfo(name, description, aliases), factory);
+        Rebuild();
+    }
+
+    /// <summary>Every command, in the order of the ribbon tabs.</summary>
+    public IReadOnlyList<CommandInfo> Commands => _order.Select(n => _commands[n].Info).ToList();
+
+    /// <summary>The short names a command answers to now (its own, or the user's).</summary>
+    public IReadOnlyList<string> ShortcutsOf(string name) =>
+        _custom.TryGetValue(name, out var custom) ? custom
+        : _commands.TryGetValue(name, out var entry) ? entry.Info.DefaultShortcuts : Array.Empty<string>();
+
+    /// <summary>The user's own short names, by command, for the commands that differ from the defaults.</summary>
+    public IReadOnlyDictionary<string, IReadOnlyList<string>> CustomShortcuts => _custom;
+
+    /// <summary>The full command name for what was typed (a full name or a short name), or null.</summary>
+    public string? Resolve(string nameOrAlias)
+    {
+        string key = nameOrAlias.Trim();
+        if (_commands.TryGetValue(key, out var entry)) return entry.Info.Name;
+        return _shortcuts.TryGetValue(key, out string? name) ? name : null;
+    }
+
+    /// <summary>
+    /// Replaces the short names of the commands in <paramref name="custom"/> (a command that is not in it keeps its
+    /// defaults). Nothing changes and the reason is returned when a short name is not usable or is given twice.
+    /// </summary>
+    public string? SetShortcuts(IReadOnlyDictionary<string, IReadOnlyList<string>> custom)
+    {
+        var wanted = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var pair in custom)
+        {
+            if (!_commands.TryGetValue(pair.Key, out var entry)) continue;         // a command of another version: ignore
+            var list = pair.Value.Select(a => a.Trim().ToUpperInvariant()).Where(a => a.Length > 0).Distinct().ToList();
+            if (!list.SequenceEqual(entry.Info.DefaultShortcuts, StringComparer.OrdinalIgnoreCase)) wanted[entry.Info.Name] = list;
+        }
+
+        var owner = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (string name in _order)
+        {
+            var list = wanted.TryGetValue(name, out var mine) ? mine : _commands[name].Info.DefaultShortcuts;
+            foreach (string shortcut in list)
+            {
+                if (!IsValidShortcut(shortcut)) return $"\"{shortcut}\" cannot be a shortcut. Use letters, digits and - only, up to 12, with no spaces.";
+                if (_commands.TryGetValue(shortcut, out var other) && !other.Info.Name.Equals(name, StringComparison.OrdinalIgnoreCase))
+                    return $"\"{shortcut}\" is the name of the {other.Info.Name} command and cannot be a shortcut for {name}.";
+                if (owner.TryGetValue(shortcut, out string? taken) && !taken.Equals(name, StringComparison.OrdinalIgnoreCase))
+                    return $"\"{shortcut}\" is given to both {taken} and {name}. A shortcut can start only one command.";
+                owner[shortcut] = name;
+            }
+        }
+
+        _custom.Clear();
+        foreach (var pair in wanted) _custom[pair.Key] = pair.Value;
+        Rebuild();
+        return null;
+    }
+
+    public static bool IsValidShortcut(string text) =>
+        text.Length is >= 1 and <= 12 && text.All(c => char.IsAsciiLetterOrDigit(c) || c == '-');
+
+    private void Rebuild()
+    {
+        _shortcuts.Clear();
+        foreach (string name in _order)
+            foreach (string shortcut in ShortcutsOf(name))
+                _shortcuts.TryAdd(shortcut, name);
     }
 
     public bool TryCreate(string nameOrAlias, out ICadCommand? command, out string canonicalName)
     {
-        if (_map.TryGetValue(nameOrAlias.Trim(), out var entry))
+        if (Resolve(nameOrAlias) is { } name && _commands[name].Factory is { } factory)
         {
-            command = entry.Factory();
-            canonicalName = entry.Canonical;
+            command = factory();
+            canonicalName = name;
             return true;
         }
         command = null;
@@ -140,45 +219,56 @@ public sealed class CommandRegistry
         return false;
     }
 
-    public IEnumerable<string> CommandNames => _map.Values.Select(v => v.Canonical).Distinct().OrderBy(n => n);
+    public IEnumerable<string> CommandNames => _order.OrderBy(n => n);
 
     public static CommandRegistry CreateDefault()
     {
         var r = new CommandRegistry();
-        r.Register("LINE", () => new LineCommand(), "L");
-        r.Register("PLINE", () => new PolylineCommand(), "PL", "POLYLINE");
-        r.Register("RECTANG", () => new RectangleCommand(), "REC", "RECTANGLE");
-        r.Register("CIRCLE", () => new CircleCommand(), "C");
-        r.Register("MOVE", () => new MoveCommand(), "M");
-        r.Register("COPY", () => new CopyCommand(), "CO", "CP");
-        r.Register("ERASE", () => new EraseCommand(), "E", "DELETE", "DEL");
-        r.Register("ARC", () => new ArcCommand(), "A");
-        r.Register("DIM", () => new LinearDimensionCommand(aligned: false), "DL", "DIMLIN");
-        r.Register("DIMALIGN", () => new LinearDimensionCommand(aligned: true), "DA");
-        r.Register("DIMRAD", () => new RadialDimensionCommand(diameter: false), "DR");
-        r.Register("DIMDIA", () => new RadialDimensionCommand(diameter: true), "DD");
-        r.Register("DIMANGLE", () => new AngularDimensionCommand(arcLength: false), "DG");
-        r.Register("DIMARCLEN", () => new AngularDimensionCommand(arcLength: true), "DARC");
-        r.Register("DIMCHAIN", () => new RunningDimensionCommand(stack: false), "DC");
-        r.Register("DIMSTACK", () => new RunningDimensionCommand(stack: true), "DS");
-        r.Register("DIMSIZE", () => new DimensionSizeCommand(), "DSIZE");
-        r.Register("ROTATE", () => new RotateCommand(), "RO");
-        r.Register("SCALE", () => new ScaleCommand(), "SC");
-        r.Register("MIRROR", () => new MirrorCommand(), "MI");
-        r.Register("LINEMODE", () => new LineModeCommand());
-        r.Register("-LINETYPE", () => new LinetypeCommand(), "-LT", "-LTYPE");      // typed version; LINETYPE opens the window
-        r.Register("LTSCALE", () => new LinetypeScaleCommand(), "LTS");
-        r.Register("OFFSET", () => new OffsetCommand(), "O");
-        r.Register("TRIM", () => new TrimCommand(), "TR");
-        r.Register("EXTEND", () => new ExtendCommand(), "EX");
-        r.Register("FILLET", () => new FilletCommand(), "F");
-        r.Register("CHAMFER", () => new ChamferCommand(), "CHA");
-        r.Register("EXPLODE", () => new ExplodeCommand(), "X");
-        r.Register("JOIN", () => new JoinCommand(), "J");
-        r.Register("UNITS", () => new UnitsCommand(), "UN");
-        // Grid snap (SNAP, F9) was taken out of the program on the owner's request (17 Nov 2026): object snap covers it.
-        r.Register("GRID", () => new SpacingCommand(snap: false));
-        r.Register("CURSORSIZE", () => new CursorSizeCommand(), "CS", "CROSSHAIR");
+        // Draw
+        r.Register("LINE", "Draw a line", () => new LineCommand(), "L");
+        r.Register("PLINE", "Draw a polyline", () => new PolylineCommand(), "PL", "POLYLINE");
+        r.Register("RECTANG", "Draw a rectangle", () => new RectangleCommand(), "REC", "RECTANGLE");
+        r.Register("CIRCLE", "Draw a circle", () => new CircleCommand(), "C");
+        r.Register("ARC", "Draw an arc", () => new ArcCommand(), "A");
+        // Modify
+        r.Register("MOVE", "Move objects", () => new MoveCommand(), "M");
+        r.Register("COPY", "Copy objects", () => new CopyCommand(), "CO", "CP");
+        r.Register("ERASE", "Delete objects", () => new EraseCommand(), "E", "DELETE", "DEL");
+        r.Register("ROTATE", "Rotate objects", () => new RotateCommand(), "RO");
+        r.Register("SCALE", "Make objects larger or smaller", () => new ScaleCommand(), "SC");
+        r.Register("MIRROR", "Mirror objects", () => new MirrorCommand(), "MI");
+        r.Register("OFFSET", "Parallel copy at a distance", () => new OffsetCommand(), "O");
+        r.Register("TRIM", "Cut an object back to where it meets another", () => new TrimCommand(), "TR");
+        r.Register("EXTEND", "Lengthen an object to meet another", () => new ExtendCommand(), "EX");
+        r.Register("FILLET", "Round a corner between two lines", () => new FilletCommand(), "F");
+        r.Register("CHAMFER", "Cut a corner between two lines", () => new ChamferCommand(), "CHA");
+        r.Register("EXPLODE", "Break a polyline into lines and arcs", () => new ExplodeCommand(), "X");
+        r.Register("JOIN", "Join touching objects into a polyline", () => new JoinCommand(), "J");
+        // Dimension
+        r.Register("DIM", "Horizontal or vertical dimension", () => new LinearDimensionCommand(aligned: false), "DL", "DIMLIN");
+        r.Register("DIMALIGN", "Aligned dimension", () => new LinearDimensionCommand(aligned: true), "DA");
+        r.Register("DIMRAD", "Radius dimension", () => new RadialDimensionCommand(diameter: false), "DR");
+        r.Register("DIMDIA", "Diameter dimension", () => new RadialDimensionCommand(diameter: true), "DD");
+        r.Register("DIMANGLE", "Angle dimension", () => new AngularDimensionCommand(arcLength: false), "DG");
+        r.Register("DIMARCLEN", "Arc length dimension", () => new AngularDimensionCommand(arcLength: true), "DARC");
+        r.Register("DIMCHAIN", "Carry on dimensions end to end", () => new RunningDimensionCommand(stack: false), "DC");
+        r.Register("DIMSTACK", "More dimensions from the same first point", () => new RunningDimensionCommand(stack: true), "DS");
+        r.Register("DIMSIZE", "Text height of dimensions", () => new DimensionSizeCommand(), "DSIZE");
+        // Layers and linetypes
+        r.Register("LAYER", "Open the layer table", null, "LA", "LAYERS");
+        r.Register("LINETYPE", "Open the Linetype Manager", null, "LT", "LTYPE");
+        r.Register("-LINETYPE", "Linetypes on the command line", () => new LinetypeCommand(), "-LT", "-LTYPE");
+        r.Register("LTSCALE", "Linetype scale of the drawing", () => new LinetypeScaleCommand(), "LTS");
+        // View, undo and settings
+        r.Register("ZOOM", "Zoom to show the whole drawing", null, "Z", "ZE", "ZA");
+        r.Register("UNDO", "Undo the last change", null, "U");
+        r.Register("REDO", "Redo what was undone", null);
+        r.Register("UNITS", "Drawing units and precision", () => new UnitsCommand(), "UN");
+        r.Register("GRID", "Grid spacing", () => new SpacingCommand(snap: false));
+        r.Register("CURSORSIZE", "Size of the crosshair", () => new CursorSizeCommand(), "CS", "CROSSHAIR");
+        r.Register("LINEMODE", "LINE ends at the second point, or carries on", () => new LineModeCommand());
+        r.Register("SHORTCUTS", "Change the shortcuts of commands", null, "KEYS");
+        r.Register("QUIT", "Close HAQQ CAD", null, "EXIT");
         return r;
     }
 }
@@ -695,9 +785,9 @@ public sealed class EditorSession
         if (name.Length == 0) return false;
         if (ActiveCommand is not null) Cancel();
 
-        switch (name.ToUpperInvariant())
+        // Commands the session carries out itself. What was typed may be the full name or one of its shortcuts.
+        switch (_registry.Resolve(name))
         {
-            case "U":
             case "UNDO":
                 Undo();
                 return true;
@@ -705,27 +795,23 @@ public sealed class EditorSession
                 Redo();
                 return true;
             case "QUIT":
-            case "EXIT":
                 ViewCommandRequested?.Invoke("Quit");
                 return true;
             case "LAYER":
-            case "LA":
-            case "LAYERS":
                 Post("Command: LAYER");
                 ViewCommandRequested?.Invoke("Layers");
                 return true;
             case "LINETYPE":
-            case "LT":
-            case "LTYPE":
                 Post("Command: LINETYPE");
                 ViewCommandRequested?.Invoke("Linetypes");
                 return true;
-            case "Z":
-            case "ZE":
-            case "ZA":
             case "ZOOM":
                 Post("Command: ZOOM (extents)");
                 ViewCommandRequested?.Invoke("ZoomExtents");
+                return true;
+            case "SHORTCUTS":
+                Post("Command: SHORTCUTS");
+                ViewCommandRequested?.Invoke("Shortcuts");
                 return true;
         }
 
@@ -1030,6 +1116,20 @@ public sealed class EditorSession
         Post($"Linetype \"{name.Trim()}\" deleted.");
         return true;
     }
+
+    // ------------------------------------------------------------ shortcuts
+
+    /// <summary>Every command with its description and the shortcuts it comes with.</summary>
+    public IReadOnlyList<CommandInfo> CommandCatalog => _registry.Commands;
+
+    /// <summary>The shortcuts a command answers to now.</summary>
+    public IReadOnlyList<string> ShortcutsOf(string commandName) => _registry.ShortcutsOf(commandName);
+
+    /// <summary>The user's own shortcuts, for the commands that differ from the defaults.</summary>
+    public IReadOnlyDictionary<string, IReadOnlyList<string>> CustomShortcuts => _registry.CustomShortcuts;
+
+    /// <summary>Sets the user's shortcuts. Returns the reason when they cannot be used (nothing changes then), or null.</summary>
+    public string? SetShortcuts(IReadOnlyDictionary<string, IReadOnlyList<string>> custom) => _registry.SetShortcuts(custom);
 
     /// <summary>The dimension placed last in this session: DIMCHAIN and DIMSTACK carry on from it.</summary>
     public Guid? LastDimensionId { get; set; }

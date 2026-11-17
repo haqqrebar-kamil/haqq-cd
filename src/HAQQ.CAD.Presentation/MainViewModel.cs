@@ -62,6 +62,9 @@ public sealed class MainViewModel : ObservableObject
         Session = new EditorSession(CreateNewDrawing()) { CrosshairSizePercent = _userSettings.CrosshairPercent };
         if (_userSettings.SnapModes is { } savedSnaps) Session.Snap.Modes = (SnapModes)savedSnaps & SnapSettings.AllModes;
         Properties = new PropertiesViewModel(Session);
+        if (_userSettings.Shortcuts.Count > 0 &&
+            Session.SetShortcuts(_userSettings.Shortcuts.ToDictionary(p => p.Key, p => (IReadOnlyList<string>)p.Value)) is { } shortcutProblem)
+            _startupNote = "Your saved shortcuts could not be used (" + shortcutProblem + ") The standard ones are in use.";
 
         Session.MessagePosted += AddHistory;
         Session.StateChanged += (_, _) => Refresh();
@@ -72,6 +75,7 @@ public sealed class MainViewModel : ObservableObject
             if (name == "Quit") CloseRequested?.Invoke(this, EventArgs.Empty);
             if (name == "Layers") LayersRequested?.Invoke(this, EventArgs.Empty);
             if (name == "Linetypes") LinetypesRequested?.Invoke(this, EventArgs.Empty);
+            if (name == "Shortcuts") ShortcutsRequested?.Invoke(this, EventArgs.Empty);
         };
 
         RunCommandCommand = new RelayCommand(p => RunCommand(p as string ?? ""));
@@ -90,7 +94,26 @@ public sealed class MainViewModel : ObservableObject
         CycleCoordinateModeCommand = new RelayCommand(CycleCoordinateMode);
 
         AddHistory("HAQQ CAD ready. Type a command (LINE, PLINE, RECTANG, CIRCLE, ARC, MOVE, COPY, OFFSET, TRIM, EXTEND, FILLET, ERASE) or use the ribbon.");
+        if (_startupNote is not null) AddHistory(_startupNote);
         Refresh();
+    }
+
+    private readonly string? _startupNote;
+
+    /// <summary>The SHORTCUTS command asked the shell to show the shortcut settings.</summary>
+    public event EventHandler? ShortcutsRequested;
+
+    /// <summary>
+    /// Sets the user's command shortcuts and keeps them for next time. Returns the reason when they cannot be
+    /// used (nothing changes then), or null.
+    /// </summary>
+    public string? ApplyShortcuts(IReadOnlyDictionary<string, IReadOnlyList<string>> custom)
+    {
+        if (Session.SetShortcuts(custom) is { } problem) return problem;
+        _userSettings.Shortcuts = Session.CustomShortcuts.ToDictionary(p => p.Key, p => p.Value.ToList(), StringComparer.OrdinalIgnoreCase);
+        if (!_settingsStore.Save(_userSettings)) AddHistory("The shortcuts could not be saved for next time.");
+        AddHistory("Shortcuts updated.");
+        return null;
     }
 
     public EditorSession Session { get; }

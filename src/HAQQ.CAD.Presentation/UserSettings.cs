@@ -15,6 +15,9 @@ public sealed class UserSettings
 
     /// <summary>Whether the Properties panel starts folded away at the right edge.</summary>
     public bool PropertiesCollapsed { get; set; } = true;
+
+    /// <summary>The user's own command shortcuts, by command name, for the commands that differ from the defaults.</summary>
+    public Dictionary<string, List<string>> Shortcuts { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 }
 
 /// <summary>Loads and saves <see cref="UserSettings"/>. Without a path the settings live only in memory.</summary>
@@ -45,6 +48,18 @@ public sealed class UserSettingsStore
                 json.RootElement.TryGetProperty("propertiesCollapsed", out var pc) &&
                 pc.ValueKind is JsonValueKind.True or JsonValueKind.False)
                 settings.PropertiesCollapsed = pc.GetBoolean();
+            if (json.RootElement.ValueKind == JsonValueKind.Object &&
+                json.RootElement.TryGetProperty("shortcuts", out var sc) && sc.ValueKind == JsonValueKind.Object)
+            {
+                foreach (var command in sc.EnumerateObject())
+                {
+                    if (command.Value.ValueKind != JsonValueKind.Array) continue;
+                    var list = new List<string>();
+                    foreach (var item in command.Value.EnumerateArray())
+                        if (item.ValueKind == JsonValueKind.String && item.GetString() is { Length: > 0 } text) list.Add(text);
+                    settings.Shortcuts[command.Name] = list;
+                }
+            }
         }
         catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException) { }
         return settings;
@@ -59,7 +74,8 @@ public sealed class UserSettingsStore
             Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(_path))!);
             string snap = settings.SnapModes is { } modes ? ",\n  \"snapModes\": " + modes : "";
             string panel = ",\n  \"propertiesCollapsed\": " + (settings.PropertiesCollapsed ? "true" : "false");
-            File.WriteAllText(_path, "{\n  \"crosshairPercent\": " + settings.CrosshairPercent + snap + panel + "\n}\n");
+            string shortcuts = settings.Shortcuts.Count == 0 ? "" : ",\n  \"shortcuts\": " + JsonSerializer.Serialize(settings.Shortcuts);
+            File.WriteAllText(_path, "{\n  \"crosshairPercent\": " + settings.CrosshairPercent + snap + panel + shortcuts + "\n}\n");
             return true;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)

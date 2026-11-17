@@ -1075,3 +1075,102 @@ public class LayerPlotTests : IDisposable
         Assert.False(s.Document.Layers[0].IsPlotted);
     }
 }
+
+public class ShortcutTests : IDisposable
+{
+    private readonly TempDirectory _temp = new();
+    public void Dispose() => _temp.Dispose();
+
+    private MainViewModel NewViewModel(string settingsFile) =>
+        new(new FakeUi(), new RecoveryStore(_temp.File("recovery")), new UserSettingsStore(settingsFile));
+
+    [Fact]
+    public void Every_command_is_listed_with_its_standard_shortcuts()
+    {
+        var vm = NewViewModel(_temp.File("settings.json"));
+        var shortcuts = new ShortcutsViewModel(vm);
+        Assert.Equal(vm.Session.CommandCatalog.Count, shortcuts.Rows.Count);
+        var line = shortcuts.Rows.Single(r => r.Command == "LINE");
+        Assert.Equal("L", line.Text);
+        Assert.Equal("Draw a line", line.Description);
+        Assert.False(line.IsChanged);
+        Assert.Equal("LA, LAYERS", shortcuts.Rows.Single(r => r.Command == "LAYER").Text);
+        Assert.True(shortcuts.Rows.All(r => r.Description.Length > 0));
+
+        shortcuts.Filter = "dimension";
+        Assert.True(shortcuts.Rows.Count is > 3 and < 12);
+        Assert.Contains(shortcuts.Rows, r => r.Command == "DIMRAD");
+        shortcuts.Filter = "";
+        Assert.Equal(vm.Session.CommandCatalog.Count, shortcuts.Rows.Count);
+    }
+
+    [Fact]
+    public void A_changed_shortcut_starts_the_command_and_is_kept_for_next_time()
+    {
+        string file = _temp.File("settings.json");
+        var vm = NewViewModel(file);
+        var shortcuts = new ShortcutsViewModel(vm);
+        shortcuts.Rows.Single(r => r.Command == "LINE").Text = "li, ln";        // L is given up
+        shortcuts.Rows.Single(r => r.Command == "LAYER").Text = "L";            // and goes to the layer table
+        Assert.True(shortcuts.Rows.Single(r => r.Command == "LINE").IsChanged);
+        Assert.True(shortcuts.Save());
+
+        int layers = 0;
+        vm.LayersRequested += (_, _) => layers++;
+        vm.RunCommand("L");
+        Assert.Equal(1, layers);
+        Assert.Null(vm.Session.ActiveCommand);
+        vm.RunCommand("LN");
+        Assert.Equal("LINE", vm.Session.ActiveCommand!.Name);
+        vm.Session.Cancel();
+        vm.RunCommand("LINE");                                                   // the full name always works
+        Assert.Equal("LINE", vm.Session.ActiveCommand!.Name);
+        vm.Session.Cancel();
+        Assert.False(vm.Session.StartCommand("LA"));                             // no longer a shortcut
+
+        var again = NewViewModel(file);                                          // next run
+        Assert.Equal(new[] { "LI", "LN" }, again.Session.ShortcutsOf("LINE").ToArray());
+        again.RunCommand("LI");
+        Assert.Equal("LINE", again.Session.ActiveCommand!.Name);
+        Assert.Equal("C", string.Join(",", again.Session.ShortcutsOf("CIRCLE")));  // untouched commands keep theirs
+
+        var reset = new ShortcutsViewModel(again);
+        reset.ResetAll();
+        Assert.True(reset.Save());
+        Assert.Empty(again.Session.CustomShortcuts);
+        Assert.Empty(NewViewModel(file).Session.CustomShortcuts);
+    }
+
+    [Fact]
+    public void A_shortcut_used_twice_or_not_usable_is_refused_and_nothing_changes()
+    {
+        var vm = NewViewModel(_temp.File("settings.json"));
+        var shortcuts = new ShortcutsViewModel(vm);
+        shortcuts.Rows.Single(r => r.Command == "MOVE").Text = "C";              // CIRCLE already has C
+        Assert.False(shortcuts.Save());
+        Assert.Contains("CIRCLE", shortcuts.Message);
+        Assert.Contains("MOVE", shortcuts.Message);
+        Assert.Equal("M", string.Join(",", vm.Session.ShortcutsOf("MOVE")));
+
+        shortcuts.Rows.Single(r => r.Command == "MOVE").Text = "TRIM";           // the name of another command
+        Assert.False(shortcuts.Save());
+        shortcuts.Rows.Single(r => r.Command == "MOVE").Text = "M!";
+        Assert.False(shortcuts.Save());
+
+        shortcuts.Rows.Single(r => r.Command == "MOVE").Text = "";               // no shortcut at all is allowed
+        Assert.True(shortcuts.Save());
+        Assert.False(vm.Session.StartCommand("M"));
+        Assert.True(vm.Session.StartCommand("MOVE"));
+    }
+
+    [Fact]
+    public void SHORTCUTS_command_asks_for_the_window()
+    {
+        var vm = NewViewModel(_temp.File("settings.json"));
+        int opened = 0;
+        vm.ShortcutsRequested += (_, _) => opened++;
+        vm.RunCommand("SHORTCUTS");
+        vm.RunCommand("KEYS");
+        Assert.Equal(2, opened);
+    }
+}

@@ -35,6 +35,7 @@ public partial class MainWindow : Window
         _viewModel.LayersRequested += (_, _) => ShowLayers();
         // Shown after the command line has finished handling the key that asked for it.
         _viewModel.LinetypesRequested += (_, _) => Dispatcher.BeginInvoke(new Action(ShowLinetypes));
+        _viewModel.ShortcutsRequested += (_, _) => Dispatcher.BeginInvoke(new Action(ShowShortcuts));
         // Scroll after the list itself has taken in the new line. Scrolling from inside the change
         // notification forces a layout while the list is still one line behind, which WPF rejects.
         _viewModel.History.CollectionChanged += (_, _) =>
@@ -249,6 +250,24 @@ public partial class MainWindow : Window
         _layersWindow = new LayersWindow(_viewModel) { Owner = this };
         _layersWindow.Closed += (_, _) => _layersWindow = null;
         _layersWindow.Show();
+    }
+
+    private bool _shortcutsOpen;
+
+    /// <summary>Shows the command shortcut settings as a dialog over the drawing.</summary>
+    private void ShowShortcuts()
+    {
+        if (_shortcutsOpen) return;
+        _shortcutsOpen = true;
+        try
+        {
+            new ShortcutsWindow(new ShortcutsViewModel(_viewModel)) { Owner = this }.ShowDialog();
+        }
+        finally
+        {
+            _shortcutsOpen = false;
+            DrawingCanvas.Focus();
+        }
     }
 
     private bool _linetypesOpen;

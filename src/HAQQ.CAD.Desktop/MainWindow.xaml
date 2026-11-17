@@ -32,6 +32,7 @@
                     <Border Width="1" Margin="6,6" Background="{StaticResource BorderBrush}" />
                     <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconUnits}" Content="Units" Command="{Binding RunCommandCommand}" CommandParameter="UNITS" ToolTip="UNITS: inches, feet, mm, cm or meters, and display precision" />
                     <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconCrosshair}" Content="Crosshair" Command="{Binding RunCommandCommand}" CommandParameter="CURSORSIZE" ToolTip="CURSORSIZE: crosshair size, 1 to 100 percent of the screen" />
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconShortcuts}" Content="Shortcuts" Command="{Binding RunCommandCommand}" CommandParameter="SHORTCUTS" ToolTip="SHORTCUTS: choose the short names you type to start each command" />
                 </StackPanel>
             </TabItem>
             <TabItem Header="HOME">
