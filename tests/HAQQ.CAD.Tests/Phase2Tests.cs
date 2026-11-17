@@ -2915,6 +2915,30 @@ public class TangentLineTests
     }
 
     [Fact]
+    public void Shift_right_click_menu_and_the_codes_for_snaps_that_do_not_exist_yet()
+    {
+        using var temp = new TempDirectory();
+        var vm = new MainViewModel(new FakeUi(), new HAQQ.CAD.Documents.RecoveryStore(temp.File("recovery")));
+        var idle = vm.GetObjectSnapMenu();                  // nothing asking for a point: the check boxes
+        Assert.Equal(8, idle.Count);
+        Assert.True(idle.All(e => e.IsChecked is not null));
+
+        vm.RunCommand("LINE");
+        var menu = vm.GetObjectSnapMenu();                  // asking for a point: one-shot snaps first
+        Assert.Equal(new[] { "Endpoint", "Midpoint", "Intersection", "Center", "Quadrant", "Perpendicular", "Tangent", "Nearest", "None", "Object Snap Settings" },
+            menu.Select(e => e.Label).ToArray());
+        menu.Single(e => e.Label == "Quadrant").Invoke();
+        Assert.Equal(SnapModes.Quadrant, vm.Session.SnapOverride);
+
+        vm.Session.SubmitText("NOD");
+        vm.Session.SubmitText("ins");
+        Assert.Contains(vm.History, h => h.Contains("Node snap needs point objects"));
+        Assert.Contains(vm.History, h => h.Contains("Insertion snap needs blocks"));
+        Assert.NotNull(vm.Session.ActiveCommand);           // the command carries on
+        Assert.Equal(0, vm.Session.Document.EntityCount);
+    }
+
+    [Fact]
     public void Common_tangents_of_two_circles()
     {
         Assert.Equal(4, TangentMath.Common(P(0, 0), 5, P(30, 0), 3).Count());       // apart: two outer, two crossing

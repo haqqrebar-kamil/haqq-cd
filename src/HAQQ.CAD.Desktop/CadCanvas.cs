@@ -374,7 +374,8 @@ public sealed class CadCanvas : FrameworkElement
                 break;
 
             case MouseButton.Right:
-                if (_windowStart is not null) _windowStart = null;                       // abandon the selection window
+                if ((Keyboard.Modifiers & ModifierKeys.Shift) != 0) ShowMenu(_viewModel.GetObjectSnapMenu());   // Shift + right-click: object snap menu
+                else if (_windowStart is not null) _windowStart = null;                  // abandon the selection window
                 else if (_viewModel.Session.ActiveCommand is { WantsSelection: true })
                     _viewModel.Session.SubmitEnter();                                    // accept the selection
                 else ShowContextMenu();                                                  // Enter / Cancel / options / Repeat
@@ -420,7 +421,11 @@ public sealed class CadCanvas : FrameworkElement
     private void ShowContextMenu()
     {
         if (_viewModel is null) return;
-        var entries = _viewModel.GetContextMenu();
+        ShowMenu(_viewModel.GetContextMenu());
+    }
+
+    private void ShowMenu(IReadOnlyList<ContextMenuEntry> entries)
+    {
         if (entries.Count == 0) return;
 
         var menu = new ContextMenu { PlacementTarget = this, Placement = PlacementMode.MousePoint };

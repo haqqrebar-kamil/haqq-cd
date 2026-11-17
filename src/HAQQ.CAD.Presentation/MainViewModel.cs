@@ -315,11 +315,7 @@ public sealed class MainViewModel : ObservableObject
             if (Session.WantsPoint)
             {
                 // One snap for the next point only, whatever the OSNAP settings are.
-                var overrides = SnapSettings.MenuOrder
-                    .Select(mode => new ContextMenuEntry(SnapEngine.NameOf(mode), () => SetSnapOverride(mode)))
-                    .Append(new ContextMenuEntry("None", () => SetSnapOverride(SnapModes.None)))
-                    .ToList();
-                items.Add(new ContextMenuEntry("Snap Overrides", () => { }, overrides));
+                items.Add(new ContextMenuEntry("Snap Overrides", () => { }, GetSnapOverrideEntries()));
             }
             items.Add(new ContextMenuEntry("Object Snap Settings", () => { }, GetSnapSettingsMenu()));
             return items;
@@ -331,6 +327,24 @@ public sealed class MainViewModel : ObservableObject
         if (Session.UndoStack.CanRedo) items.Add(new ContextMenuEntry("Redo " + Session.UndoStack.NextRedoName, () => Session.Redo()));
         if (Session.Selection.Count > 0) items.Add(new ContextMenuEntry("Erase", DeleteSelection));
         items.Add(new ContextMenuEntry("Zoom Extents", () => ZoomExtentsRequested?.Invoke(this, EventArgs.Empty)));
+        items.Add(new ContextMenuEntry("Object Snap Settings", () => { }, GetSnapSettingsMenu()));
+        return items;
+    }
+
+    private List<ContextMenuEntry> GetSnapOverrideEntries() =>
+        SnapSettings.MenuOrder
+            .Select(mode => new ContextMenuEntry(SnapEngine.NameOf(mode), () => SetSnapOverride(mode)))
+            .Append(new ContextMenuEntry("None", () => SetSnapOverride(SnapModes.None)))
+            .ToList();
+
+    /// <summary>
+    /// The object snap menu opened with Shift + right-click: while a command asks for a point, the snaps to use
+    /// for that one point; otherwise the check boxes for the automatic snaps.
+    /// </summary>
+    public IReadOnlyList<ContextMenuEntry> GetObjectSnapMenu()
+    {
+        if (!Session.WantsPoint || Session.PickingObject) return GetSnapSettingsMenu();
+        var items = GetSnapOverrideEntries();
         items.Add(new ContextMenuEntry("Object Snap Settings", () => { }, GetSnapSettingsMenu()));
         return items;
     }

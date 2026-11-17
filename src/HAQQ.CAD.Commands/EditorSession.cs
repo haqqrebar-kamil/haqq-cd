@@ -512,6 +512,16 @@ public sealed class EditorSession
 
         // END, MID, INT, CEN, QUA, PER, TAN, NEA (or NON) while a point is wanted: that snap for the next point only.
         // An option of the command with the same letters wins (ARC has End).
+        if (WantsPoint && !PickingObject && (trimmed.Equals("NOD", StringComparison.OrdinalIgnoreCase) || trimmed.Equals("INS", StringComparison.OrdinalIgnoreCase)) &&
+            !command.Options.Any(o => o.StartsWith(trimmed, StringComparison.OrdinalIgnoreCase)))
+        {
+            // Known AutoCAD codes whose objects do not exist in HAQQ CAD yet: say so instead of "invalid input".
+            Post(trimmed.Equals("NOD", StringComparison.OrdinalIgnoreCase)
+                ? "Node snap needs point objects, which HAQQ CAD does not have yet."
+                : "Insertion snap needs blocks or text, which HAQQ CAD does not have yet.");
+            return;
+        }
+
         if (WantsPoint && !PickingObject && SnapCodes.TryGetValue(trimmed, out var snapCode) &&
             !command.Options.Any(o => o.StartsWith(trimmed, StringComparison.OrdinalIgnoreCase)))
         {
