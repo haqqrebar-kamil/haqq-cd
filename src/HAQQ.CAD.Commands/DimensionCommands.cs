@@ -20,7 +20,12 @@ public abstract class DimensionCommandBase : CadCommandBase, ICreatesObjects, IO
             return false;
         }
         Prepare(dimension);
-        if (!Session.Execute(new AddEntitiesAction(Name, new Entity[] { dimension }))) return false;
+        // Dimensions go on the layer named after their style (made here if it is not there yet), not on the
+        // current layer, so they stay apart from the lines.
+        var layerAction = Session.DimensionLayerAction(dimension.StyleName, out Guid layerId);
+        dimension.LayerId = layerId;
+        var add = new AddEntitiesAction(Name, new Entity[] { dimension });
+        if (!Session.Execute(layerAction is null ? add : new CompositeAction(Name, layerAction, add))) return false;
         Session.LastDimensionId = dimension.Id;
         Session.Post("Dimension: " + dimension.GetText(Document.Settings));
         return true;

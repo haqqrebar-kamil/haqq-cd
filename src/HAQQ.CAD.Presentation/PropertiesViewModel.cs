@@ -314,6 +314,15 @@ public sealed class PropertiesViewModel : ObservableObject
                 : _session.HasUnsavedNewObjectChanges
                     ? "Changed for this " + command + " only. Press Save to use it for every new object."
                     : "A change here applies to this " + command + " only, unless you press Save.";
+            if (_session.ActiveCommand is DimensionCommandBase)
+            {
+                // Dimensions are placed on the layer named after their style, whatever the current layer is.
+                string styleLayer = doc.CurrentDimensionStyleName;
+                Hint = $"Dimensions go on the layer of their style, \"{styleLayer}\"" +
+                       (_session.DimensionLayerOf(styleLayer) is null ? " (it is made with the first dimension)." : ".");
+                SetLayerName((_session.DimensionLayerOf(styleLayer) ?? doc.GetLayer(_session.EffectiveNewObjectLayerId))?.Name, layersChanged);
+            }
+            else
             SetLayerName(doc.GetLayer(_session.EffectiveNewObjectLayerId)?.Name, layersChanged);
             string nextLinetype = LinetypeNames.FirstOrDefault(n => string.Equals(n, next.Linetype, StringComparison.OrdinalIgnoreCase)) ?? Linetypes.ByLayer;
             if (linetypesChanged) _selectedLinetype = null;

@@ -1147,8 +1147,29 @@ public sealed class EditorSession
         style = style with { Name = style.Name.Trim() };
         if (style.Problem is { } problem) { Post(problem); return false; }
         if (Document.FindDimensionStyle(style.Name) is not null) { Post($"There is already a dimension style named \"{style.Name}\"."); return false; }
-        return Execute(new AddDimensionStyleAction(style));
+        // Every dimension style has a layer of the same name, so dimensions stay apart from the lines.
+        var add = new AddDimensionStyleAction(style);
+        return Execute(DimensionLayerAction(style.Name, out _) is { } layer ? new CompositeAction(add.Name, add, layer) : add);
     }
+
+    /// <summary>
+    /// The layer the dimensions of a style are placed on: the layer with the style's name. When there is no such
+    /// layer yet, the action that creates it is returned (to be run together with whatever needs the layer).
+    /// </summary>
+    public IUndoableAction? DimensionLayerAction(string styleName, out Guid layerId)
+    {
+        if (Document.FindLayer(styleName) is { } existing)
+        {
+            layerId = existing.Id;
+            return null;
+        }
+        var layer = new Layer(Guid.NewGuid(), styleName);
+        layerId = layer.Id;
+        return new AddLayerAction(layer);
+    }
+
+    /// <summary>The layer of a dimension style, or null when it has not been created yet.</summary>
+    public Layer? DimensionLayerOf(string styleName) => Document.FindLayer(styleName);
 
     /// <summary>Changes the values of the style with that name; the dimensions using it follow. One undo step.</summary>
     public bool ModifyDimensionStyle(DimensionStyle style)
@@ -1177,8 +1198,19 @@ public sealed class EditorSession
     public bool SetDimensionStyleOfSelection(string name)
     {
         if (Document.FindDimensionStyle(name) is not { } style) { Post($"There is no dimension style named \"{name}\"."); return false; }
-        var ids = GetSelectedEntities().OfType<DimensionEntity>().Select(d => d.Id).ToList();
-        return ids.Count > 0 && ModifyEntities(ids, e => ((DimensionEntity)e).Style = style, "Change dimension style");
+        var before = GetSelectedEntities().OfType<DimensionEntity>().ToList();
+        if (before.Count == 0) return false;
+        // The dimensions move to the layer of their new style as well.
+        var layerAction = DimensionLayerAction(style.Name, out Guid layerId);
+        var after = before.Select(d =>
+        {
+            var copy = (DimensionEntity)d.Clone();
+            copy.Style = style;
+            copy.LayerId = layerId;
+            return (Entity)copy;
+        }).ToList();
+        var modify = new ModifyEntitiesAction("Change dimension style", before, after);
+        return Execute(layerAction is null ? modify : new CompositeAction(modify.Name, layerAction, modify));
     }
 
     /// <summary>Sets the drawing's linetype scale (all dash and gap lengths are multiplied by it).</summary>

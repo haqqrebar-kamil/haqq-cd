@@ -291,7 +291,7 @@ public class DimensionTests : IDisposable
         s.SubmitPoint(P(5, 12));
         var d = Only(s);
         Assert.Equal(CadColor.FromRgb(255, 0, 0), d.Color);
-        Assert.Equal(s.Document.CurrentLayerId, d.LayerId);
+        Assert.Equal("Standard", s.Document.GetLayer(d.LayerId)!.Name);         // the layer of its style, not the current layer
         s.ModifyEntities(new[] { d.Id }, e => ((DimensionEntity)e).TextOverride = "<> CLR", "t");
 
         var loaded = HcadSerializer.LoadFromBytes(HcadSerializer.SaveToBytes(s.Document));
@@ -734,3 +734,71 @@ public class DimensionStyleTests : IDisposable
         Assert.Equal(2, opened);
     }
 }
+
+public class DimensionLayerTests
+{
+    [Fact]
+    public void Dimensions_go_on_a_layer_named_after_their_style()
+    {
+        var s = new EditorSession();
+        string current = s.Document.CurrentLayer.Name;
+        int layersBefore = s.Document.Layers.Count;
+        Assert.Null(s.Document.FindLayer("Standard"));
+
+        s.StartCommand("DIM");
+        s.SubmitPoint(P(0, 0));
+        s.SubmitPoint(P(10, 0));
+        s.SubmitPoint(P(5, 6));
+        var d = s.Document.Entities.OfType<DimensionEntity>().Single();
+        Assert.Equal("Standard", s.Document.GetLayer(d.LayerId)!.Name);          // made with the first dimension
+        Assert.Equal(current, s.Document.CurrentLayer.Name);                     // lines still go where they went
+        Assert.Equal(layersBefore + 1, s.Document.Layers.Count);
+
+        s.StartCommand("LINE");
+        s.SubmitPoint(P(0, 20));
+        s.SubmitPoint(P(10, 20));
+        Assert.Equal(current, s.Document.GetLayer(s.Document.Entities.OfType<LineEntity>().Single().LayerId)!.Name);
+
+        s.StartCommand("DIMCHAIN");                                              // more dimensions: the same layer, no second one
+        s.SubmitPoint(P(25, 0));
+        s.SubmitEnter();
+        Assert.Equal(layersBefore + 1, s.Document.Layers.Count);
+        Assert.True(s.Document.Entities.OfType<DimensionEntity>().All(e => s.Document.GetLayer(e.LayerId)!.Name == "Standard"));
+
+        s.Undo();                                                                // the chained dimension
+        s.Undo();                                                                // the line
+        s.Undo();                                                                // the first dimension and its layer, together
+        Assert.Equal(0, s.Document.EntityCount);
+        Assert.Null(s.Document.FindLayer("Standard"));
+    }
+
+    [Fact]
+    public void A_new_style_gets_its_layer_at_once_and_a_dimension_changing_style_changes_layer()
+    {
+        var s = new EditorSession();
+        Assert.True(s.AddDimensionStyle(new DimensionStyle { Name = "Rebar dims" }));
+        var layer = s.Document.FindLayer("Rebar dims");
+        Assert.NotNull(layer);
+        s.Undo();                                                                // style and layer are one step
+        Assert.Null(s.Document.FindLayer("Rebar dims"));
+        Assert.Null(s.Document.FindDimensionStyle("Rebar dims"));
+        s.Redo();
+
+        s.StartCommand("DIM");
+        s.SubmitPoint(P(0, 0));
+        s.SubmitPoint(P(10, 0));
+        s.SubmitPoint(P(5, 6));
+        s.SelectAt(P(5, 6), 0.5);
+        Assert.True(s.SetDimensionStyleOfSelection("Rebar dims"));
+        var d = s.Document.Entities.OfType<DimensionEntity>().Single();
+        Assert.Equal("Rebar dims", d.StyleName);
+        Assert.Equal("Rebar dims", s.Document.GetLayer(d.LayerId)!.Name);
+
+        // A layer with the style's name that is already there is used as it is.
+        var own = s.AddLayer("Site")!;
+        Assert.True(s.AddDimensionStyle(new DimensionStyle { Name = "Site" }));
+        Assert.Equal(own.Id, s.Document.FindLayer("Site")!.Id);
+        Assert.Equal(1, s.Document.Layers.Count(l => l.Name == "Site"));
+    }
+}
+
