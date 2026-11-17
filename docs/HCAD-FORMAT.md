@@ -69,7 +69,7 @@ The reader and writer live in `src/HAQQ.CAD.Documents/HcadSerializer.cs`.
 ## Layers
 
 ```json
-{ "id": "9d2e...", "name": "REBAR", "color": "#FF0000", "linetype": "Continuous",
+{ "id": "9d2e...", "name": "REBAR", "color": "#FF0000", "linetype": "Solid",
   "lineweightMm": 0.5, "visible": true, "locked": false, "frozen": false }
 ```
 
