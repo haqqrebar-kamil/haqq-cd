@@ -187,6 +187,14 @@ public sealed class PdfExportViewModel : ObservableObject
     }
 
     /// <summary>A file name for a sheet next to the chosen one: "Tower - S-101 Plan.pdf".</summary>
+    /// <summary>A file name (no folder, no extension) made from a layout's name: what the save window proposes when one sheet is written.</summary>
+    public static string SafeFileName(string sheetName)
+    {
+        var invalid = Path.GetInvalidFileNameChars();
+        string safe = new string(sheetName.Trim().Select(c => invalid.Contains(c) || c is '/' or '\\' or ':' or '*' or '?' or '"' or '<' or '>' or '|' ? '_' : c).ToArray()).Trim(' ', '.');
+        return safe.Length > 0 ? safe : "Layout";
+    }
+
     public static string FileNameFor(string chosenPath, string sheetName)
     {
         if (sheetName.Length == 0) return chosenPath;

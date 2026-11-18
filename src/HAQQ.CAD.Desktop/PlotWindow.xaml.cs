@@ -40,6 +40,44 @@ public partial class PlotWindow : Window
 
     private void Close_Click(object sender, RoutedEventArgs e) => Close();
 
+    private static bool IsPdfPrinter(PrintDialog dialog)
+    {
+        try
+        {
+            string name = dialog.PrintQueue?.FullName ?? "";
+            return name.Contains("Print to PDF", StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception)
+        {
+            return false;                       // a queue that cannot be read is printed to in the ordinary way
+        }
+    }
+
+    private void SaveLayoutAsPdf(Layout sheet)
+    {
+        var save = new Microsoft.Win32.SaveFileDialog
+        {
+            Title = "Save PDF",
+            Filter = "PDF (*.pdf)|*.pdf",
+            DefaultExt = ".pdf",
+            AddExtension = true,
+            OverwritePrompt = true,
+            FileName = HAQQ.CAD.Presentation.PdfExportViewModel.SafeFileName(sheet.Name),
+        };
+        if (save.ShowDialog(this) != true) return;
+        try
+        {
+            byte[] pdf = PdfExporter.Export(_document, new[] { sheet.Id }, BlackOnly.IsChecked == true);
+            System.IO.File.WriteAllBytes(save.FileName, pdf);
+            Result = $"Layout \"{sheet.Name}\" saved as PDF at true size: {save.FileName}";
+            Close();
+        }
+        catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException)
+        {
+            MessageText.Text = "The PDF could not be written: " + ex.Message + " If the file is open in a PDF viewer, close it there and try again.";
+        }
+    }
+
     private void Plot_Click(object sender, RoutedEventArgs e)
     {
         try
@@ -56,6 +94,15 @@ public partial class PlotWindow : Window
                 // No default printer to take a ticket from: the dialog still lets one be chosen.
             }
             if (dialog.ShowDialog() != true) return;
+
+            // A layout sent to Windows' PDF printer: that printer asks for the file with an empty name box and
+            // offers no way to fill it in, so HAQQ CAD asks itself, with the layout's name already there, and
+            // writes the PDF with its own writer (lines and text, the page exactly the size of the sheet).
+            if (_document.ActiveLayout is { } sheet && IsPdfPrinter(dialog))
+            {
+                SaveLayoutAsPdf(sheet);
+                return;
+            }
 
             double pageWidth = dialog.PrintableAreaWidth, pageHeight = dialog.PrintableAreaHeight;
             if (!(pageWidth > 1) || !(pageHeight > 1))

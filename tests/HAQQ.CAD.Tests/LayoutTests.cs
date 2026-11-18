@@ -485,11 +485,13 @@ public class LayoutTabTests : IDisposable
     public void Tabs_follow_the_layouts_and_a_layout_is_renamed_in_its_tab()
     {
         var vm = new MainViewModel(new FakeUi(), new RecoveryStore(_temp.File("recovery")));
-        Assert.Equal(new[] { "Model" }, vm.SpaceTabs.Select(t => t.Name).ToArray());
-        Assert.True(vm.SpaceTabs[0].IsActive);
+        Assert.Equal(new[] { "Model", "Layout 1" }, vm.SpaceTabs.Select(t => t.Name).ToArray());   // every new drawing has Layout 1
+        Assert.True(vm.SpaceTabs[0].IsActive);                                        // and opens on Model,
+        Assert.False(vm.Session.Document.IsDirty);                                    // unchanged,
+        Assert.False(vm.Session.UndoStack.CanUndo);                                   // with nothing to undo
+        Assert.DoesNotContain(vm.History, h => h.Contains("Layout"));
 
         vm.RunCommand("LAYOUT");                                                      // the + beside the tabs
-        vm.RunCommand("LAYOUT");
         vm.RunCommand("LAYOUT");
         Assert.Equal(new[] { "Model", "Layout 1", "Layout 2", "Layout 3" }, vm.SpaceTabs.Select(t => t.Name).ToArray());
         Assert.True(vm.SpaceTabs[3].IsActive && vm.IsLayoutActive);                   // a new layout is opened
@@ -784,8 +786,7 @@ public class LayoutWindowTests : IDisposable
         var ui = new FakeUi();
         var vm = new MainViewModel(ui, new RecoveryStore(_temp.File("recovery")));
         Assert.Equal(("MODEL", ""), (vm.SpaceLabel, vm.SheetStatus));
-        vm.RunCommand("LAYOUT");
-        vm.RunCommand("LAYOUT");
+        vm.RunCommand("LAYOUT");                                                      // Layout 2, beside the Layout 1 it started with
         Assert.Equal("PAPER", vm.SpaceLabel);
         Assert.True(vm.SheetStatus.StartsWith("3'-0\" x 2'-0\""), vm.SheetStatus);
 
@@ -877,6 +878,42 @@ public class CompanyNameTests : IDisposable
         Assert.Equal("Northside Builders, Inc.", again.Session.CompanyName);          // remembered for the next start
         Assert.Equal("Northside Builders, Inc.", new NewLayoutViewModel(again.Session).Company);
         Assert.False(again.Session.SetCompanyName(new string('x', 65)));
+    }
+}
+
+public class StartingLayoutTests : IDisposable
+{
+    private readonly TempDirectory _temp = new();
+    public void Dispose() => _temp.Dispose();
+
+    [Fact]
+    public void A_new_drawing_has_Layout_1_whose_viewport_finds_the_model_when_first_opened()
+    {
+        var vm = new MainViewModel(new FakeUi(), new RecoveryStore(_temp.File("recovery")));
+        var s = vm.Session;
+        var viewport = s.Document.AllEntities.OfType<ViewportEntity>().Single();
+        s.Document.AddEntity(new LineEntity(new Point2D(5000, 5000), new Point2D(5480, 5000)) { LayerId = s.Document.CurrentLayerId });   // 40 ft, far from the origin
+        s.Document.AddEntity(new LineEntity(new Point2D(5000, 5000), new Point2D(5000, 5240)) { LayerId = s.Document.CurrentLayerId });
+
+        vm.SelectSpaceCommand.Execute(vm.SpaceTabs[1].Id);
+        Assert.True(viewport.ModelBounds.Contains(new Point2D(5240, 5120)));          // aimed at what was drawn
+        Assert.Contains(viewport.Scale, LayoutStandards.Scales(s.Document.Settings));   // at a standard scale
+        double scale = viewport.Scale;
+
+        s.SetViewportScale(new[] { viewport.Id }, 1 / 96.0);                          // once only: the user's choice then stands
+        vm.SelectSpaceCommand.Execute(vm.SpaceTabs[0].Id);
+        vm.SelectSpaceCommand.Execute(vm.SpaceTabs[1].Id);
+        viewport = s.Document.AllEntities.OfType<ViewportEntity>().Single();
+        Assert.Equal(1 / 96.0, viewport.Scale, 9);
+        Assert.NotEqual(scale, viewport.Scale);
+
+        Assert.True(vm.NewDocument());                                                // File > New: the same start
+        Assert.Equal(new[] { "Model", "Layout 1" }, vm.SpaceTabs.Select(t => t.Name).ToArray());
+        Assert.False(vm.IsLayoutActive);
+
+        Assert.Equal("S-101 Foundation_Plan", PdfExportViewModel.SafeFileName(" S-101 Foundation/Plan "));
+        Assert.Equal("Layout 1", PdfExportViewModel.SafeFileName("Layout 1"));
+        Assert.Equal("Layout", PdfExportViewModel.SafeFileName("..."));
     }
 }
 

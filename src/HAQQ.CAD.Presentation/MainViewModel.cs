@@ -64,6 +64,7 @@ public sealed class MainViewModel : ObservableObject
         Session = new EditorSession(CreateNewDrawing(newUnit)) { CrosshairSizePercent = _userSettings.CrosshairPercent };
         Session.SetNewDrawingUnit(newUnit, announce: false);
         Session.SetCompanyName(_userSettings.CompanyName, announce: false);
+        Session.AddStartingLayout();                    // every new drawing starts with a "Layout 1" tab beside Model
         Session.CompanyNameChanged += company =>
         {
             _userSettings.CompanyName = company;
@@ -878,6 +879,7 @@ public sealed class MainViewModel : ObservableObject
         Recovery.DeleteSnapshot(Session.Document.Id);
         FilePath = null;
         Session.LoadDocument(CreateNewDrawing(Session.NewDrawingUnit));
+        Session.AddStartingLayout();
         AddHistory("New drawing.");
         return true;
     }

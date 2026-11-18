@@ -539,7 +539,10 @@ public sealed class EditorSession
     /// <summary>True while PAN runs: a left-button drag moves the view instead of giving a point.</summary>
     public bool IsPanning => ActiveCommand is PanCommand;
 
-    public void Post(string message) => MessagePosted?.Invoke(message);
+    public void Post(string message)
+    {
+        if (!_quiet) MessagePosted?.Invoke(message);
+    }
 
     private void RaiseStateChanged() => StateChanged?.Invoke(this, EventArgs.Empty);
 
@@ -573,6 +576,7 @@ public sealed class EditorSession
         _lastCopyIds = new List<Guid>();
         _lastCopyKey = "";
         _textDefaults = null;
+        _viewportsAwaitingModel.Clear();
         ActiveViewportId = null;
         _viewportBefore = null;
         LastDimensionId = null;
@@ -1651,10 +1655,54 @@ public sealed class EditorSession
         CurrentSnap = null;
         LastPoint = null;
         Document.ActiveSpaceId = spaceId;
+        FitWaitingViewports(spaceId);
         Post(spaceId == Guid.Empty ? "<Model>" : $"<Layout \"{Document.ActiveLayout!.Name}\">");
         RaiseStateChanged();
         return true;
     }
+
+    /// <summary>Viewports made while the model was still empty: there was nothing to aim them at yet.</summary>
+    private readonly HashSet<Guid> _viewportsAwaitingModel = new();
+
+    /// <summary>
+    /// A layout that was made before anything was drawn (the Layout 1 every new drawing starts with) aims its
+    /// viewport at the model the first time it is opened with something drawn: whole model, largest standard
+    /// scale that fits. Once only, and not for a viewport the user has locked.
+    /// </summary>
+    private void FitWaitingViewports(Guid spaceId)
+    {
+        if (spaceId == Guid.Empty || _viewportsAwaitingModel.Count == 0) return;
+        var model = Document.GetExtents(Guid.Empty);
+        if (model.IsEmpty) return;
+        foreach (var viewport in Document.Entities.OfType<ViewportEntity>().Where(v => _viewportsAwaitingModel.Contains(v.Id)).ToList())
+        {
+            _viewportsAwaitingModel.Remove(viewport.Id);
+            if (viewport.Locked) continue;
+            viewport.Fit(model);
+            viewport.Scale = RoundDownToStandardScale(viewport.Scale);
+        }
+    }
+
+    /// <summary>
+    /// Gives a new drawing its first layout, "Layout 1", so the tab is there from the start. The drawing stays
+    /// on the Model tab, counts as unchanged, and the layout is not an undo step.
+    /// </summary>
+    public void AddStartingLayout()
+    {
+        if (Document.Layouts.Count > 0) return;
+        _quiet = true;
+        try
+        {
+            if (AddLayout() is null) return;
+            SwitchSpace(Guid.Empty);
+        }
+        finally { _quiet = false; }
+        UndoStack.Clear();
+        Document.MarkSaved();
+        RaiseStateChanged();
+    }
+
+    private bool _quiet;
 
     private IUndoableAction? ViewportLayerAction(out Guid layerId)
     {
@@ -1774,7 +1822,11 @@ public sealed class EditorSession
                 TitleHeight = titleHeight,
             };
             var model = Document.GetExtents(Guid.Empty);
-            if (model.IsEmpty) viewport.Scale = LayoutStandards.DefaultScale(Document.Settings);
+            if (model.IsEmpty)
+            {
+                viewport.Scale = LayoutStandards.DefaultScale(Document.Settings);
+                _viewportsAwaitingModel.Add(viewport.Id);
+            }
             else
             {
                 viewport.Fit(model);

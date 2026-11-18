@@ -208,7 +208,7 @@ public class MainViewModelTests : IDisposable
     {
         var vm = NewViewModel();
         vm.AddLayerCommand.Execute(null);
-        Assert.Equal(3, vm.Layers.Count);                                 // 0, Layer 1 (default), and the new one
+        Assert.Equal(5, vm.Layers.Count);                                 // 0, Layer 1 (default), Sheet and Viewport of Layout 1, and the new one
         var row = vm.SelectedLayer!;
         Assert.Equal("Layer 2", row.Name);
 
@@ -234,14 +234,14 @@ public class MainViewModelTests : IDisposable
         Assert.True(row.IsCurrent);
         Assert.Equal("DIMS", vm.CurrentLayerName);
         vm.DeleteLayerCommand.Execute(null);                              // current layer cannot be deleted
-        Assert.Equal(3, vm.Layers.Count);
+        Assert.Equal(5, vm.Layers.Count);
 
         vm.UndoCommand.Execute(null);                                     // undo "set current"
         Assert.False(row.IsCurrent);
         vm.DeleteLayerCommand.Execute(null);
-        Assert.Equal(2, vm.Layers.Count);
+        Assert.Equal(4, vm.Layers.Count);
         vm.UndoCommand.Execute(null);
-        Assert.Equal(3, vm.Layers.Count);
+        Assert.Equal(5, vm.Layers.Count);
         Assert.Equal("DIMS", vm.Layers[2].Name);
     }
 
@@ -460,7 +460,7 @@ public class DefaultLayerTests : IDisposable
     {
         var vm = new MainViewModel(new FakeUi(), new RecoveryStore(_temp.File("recovery")));
         var doc = vm.Session.Document;
-        Assert.Equal(new[] { "0", "Layer 1" }, doc.Layers.Select(l => l.Name).ToArray());
+        Assert.Equal(new[] { "0", "Layer 1", "Sheet", "Viewport" }, doc.Layers.Select(l => l.Name).ToArray());   // the last two belong to Layout 1
         Assert.Equal("Layer 1", doc.GetLayer(doc.CurrentLayerId)!.Name);
         Assert.False(doc.IsDirty);                                        // a fresh drawing has nothing to save
         Assert.False(vm.Session.UndoStack.CanUndo);
@@ -696,17 +696,17 @@ public class LayerTableTests : IDisposable
         s.Document.AddEntity(new LineEntity(P(0, 0), P(1, 1)) { LayerId = used.Id });
 
         vm.PurgeLayersCommand.Execute(null);
-        Assert.Equal(new[] { "0", "Layer 1", "Layer 2" }, s.Document.Layers.Select(l => l.Name).ToArray());
+        Assert.Equal(new[] { "0", "Layer 1", "Sheet", "Viewport", "Layer 2" }, s.Document.Layers.Select(l => l.Name).ToArray());
         Assert.Contains(vm.History, h => h.Contains("2 unused layer(s) removed"));
 
         s.Undo();
-        Assert.Equal(5, s.Document.Layers.Count);
-        Assert.Equal(new[] { "0", "Layer 1", "Layer 2", "Layer 3", "Layer 4" }, s.Document.Layers.Select(l => l.Name).ToArray());
+        Assert.Equal(7, s.Document.Layers.Count);
+        Assert.Equal(new[] { "0", "Layer 1", "Sheet", "Viewport", "Layer 2", "Layer 3", "Layer 4" }, s.Document.Layers.Select(l => l.Name).ToArray());
 
         vm.PurgeLayersCommand.Execute(null);
         vm.PurgeLayersCommand.Execute(null);                // nothing left to remove
         Assert.Contains(vm.History, h => h.Contains("No unused layers"));
-        Assert.Equal(3, s.Document.Layers.Count);
+        Assert.Equal(5, s.Document.Layers.Count);
     }
 }
 
@@ -1058,7 +1058,7 @@ public class LayerPlotTests : IDisposable
         var vm = new MainViewModel(new FakeUi(), new RecoveryStore(_temp.File("recovery")));
         var s = vm.Session;
         Assert.True(vm.CurrentLayerPlots);
-        Assert.True(vm.Layers.All(l => l.IsPlotted));
+        Assert.True(vm.Layers.All(l => l.IsPlotted || l.Name == "Viewport"));          // viewport frames are not printed
 
         vm.CurrentLayerPlots = false;                                   // the HOME tab switch acts on the current layer
         Assert.False(s.Document.CurrentLayer.IsPlotted);
@@ -1067,7 +1067,7 @@ public class LayerPlotTests : IDisposable
 
         var loaded = HcadSerializer.LoadFromBytes(HcadSerializer.SaveToBytes(s.Document)).Document;
         Assert.False(loaded.CurrentLayer.IsPlotted);
-        Assert.True(loaded.Layers.Where(l => l.Id != loaded.CurrentLayerId).All(l => l.IsPlotted));
+        Assert.True(loaded.Layers.Where(l => l.Id != loaded.CurrentLayerId && l.Name != "Viewport").All(l => l.IsPlotted));
 
         s.Undo();
         Assert.True(vm.CurrentLayerPlots);
