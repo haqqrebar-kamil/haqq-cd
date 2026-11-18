@@ -242,7 +242,7 @@ public class MainViewModelTests : IDisposable
         Assert.Equal(4, vm.Layers.Count);
         vm.UndoCommand.Execute(null);
         Assert.Equal(5, vm.Layers.Count);
-        Assert.Equal("DIMS", vm.Layers[2].Name);
+        Assert.Equal("DIMS", vm.Layers[4].Name);
     }
 
     [Fact]
