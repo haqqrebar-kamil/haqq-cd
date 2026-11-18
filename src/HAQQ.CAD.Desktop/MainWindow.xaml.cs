@@ -441,22 +441,54 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Page Setup and Scale on the LAYOUT tab: a list made for the drawing's units (sheets, or scales written
-    /// as 1/4" = 1'-0" or 1:50), shown under the button.
+    /// The menu button at the left of the layout tabs: every layout and viewport tool, for the tab that is open.
+    /// (These were a LAYOUT tab on the ribbon; the owner asked for them to live with the tabs at the bottom.)
     /// </summary>
-    private void LayoutListButton_Click(object sender, RoutedEventArgs e)
+    private void LayoutMenuButton_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not Button button) return;
-        var settings = _viewModel.Session.Document.Settings;
-        var choices = button.CommandParameter as string == "Scales" ? LayoutChoices.Scales(settings) : LayoutChoices.Papers(settings);
-        var menu = new ContextMenu { PlacementTarget = button, Placement = PlacementMode.Bottom };
-        foreach (var choice in choices)
+        var menu = new ContextMenu { PlacementTarget = button, Placement = PlacementMode.Top };
+        var session = _viewModel.Session;
+        bool onLayout = session.Document.ActiveLayout is not null;
+        AddMenuItem(menu, "Model", "MODEL");
+        AddMenuItem(menu, "New layout...", "NEWLAYOUT");
+        if (onLayout)
         {
-            var item = new MenuItem { Header = choice.Label.Replace("_", "__"), Tag = choice.Script };
-            item.Click += RibbonMenuItem_Click;
-            menu.Items.Add(item);
+            AddMenuItem(menu, "Rename this layout", "LAYOUTRENAME");
+            AddMenuItem(menu, "Delete this layout...", "LAYOUTDELETE");
         }
+        AddLayoutTools(menu, onLayout);
         menu.IsOpen = true;
+    }
+
+    private MenuItem AddMenuItem(ItemsControl menu, string header, string script)
+    {
+        var item = new MenuItem { Header = header, Tag = script };
+        item.Click += RibbonMenuItem_Click;
+        menu.Items.Add(item);
+        return item;
+    }
+
+    /// <summary>Paper size, the viewport tools, plot and PDF: shared by the menu button and the right-click menu of a tab.</summary>
+    private void AddLayoutTools(ContextMenu menu, bool onLayout)
+    {
+        var settings = _viewModel.Session.Document.Settings;
+        if (onLayout)
+        {
+            var papers = new MenuItem { Header = "Paper size" };
+            foreach (var choice in LayoutChoices.Papers(settings)) AddMenuItem(papers, choice.Label.Replace("_", "__"), choice.Script);
+            menu.Items.Add(papers);
+            menu.Items.Add(new Separator());
+            AddMenuItem(menu, "New viewport", "VIEWPORT");
+            var scales = new MenuItem { Header = "Viewport scale" };
+            foreach (var choice in LayoutChoices.Scales(settings)) AddMenuItem(scales, choice.Label.Replace("_", "__"), choice.Script);
+            menu.Items.Add(scales);
+            AddMenuItem(menu, "Fit model in viewport", "VPFIT");
+            AddMenuItem(menu, "Lock / unlock viewport", "VPLOCK");
+        }
+        menu.Items.Add(new Separator());
+        AddMenuItem(menu, "Plot / print...", "PLOT");
+        AddMenuItem(menu, "Export to PDF...", "EXPORTPDF");
     }
 
     /// <summary>Double-click on a layout tab: its name can be typed over, there in the tab.</summary>
@@ -517,12 +549,7 @@ public partial class MainWindow : Window
         _viewModel.Session.SwitchSpace(tab.Id);
 
         var menu = new ContextMenu { PlacementTarget = button, Placement = PlacementMode.Top };
-        void Add(string header, string script)
-        {
-            var item = new MenuItem { Header = header, Tag = script };
-            item.Click += RibbonMenuItem_Click;
-            menu.Items.Add(item);
-        }
+        void Add(string header, string script) => AddMenuItem(menu, header, script);
         void Do(string header, Action action)
         {
             var item = new MenuItem { Header = header };
@@ -539,11 +566,8 @@ public partial class MainWindow : Window
             Do("Move left", () => _viewModel.MoveSpace(tab, -1));
             Do("Move right", () => _viewModel.MoveSpace(tab, +1));
             menu.Items.Add(new Separator());
-            Add("Page setup (paper size)...", "PAGESETUP");
         }
-        menu.Items.Add(new Separator());
-        Add("Plot / print...", "PLOT");
-        Add("Export to PDF...", "EXPORTPDF");
+        AddLayoutTools(menu, !tab.IsModel);
         menu.IsOpen = true;
     }
 

@@ -116,7 +116,7 @@ public sealed class ViewportCommand : CadCommandBase
     protected override CommandResult OnStart()
     {
         if (Document.ActiveLayout is not null) return CommandResult.Continue;
-        Session.Post("Viewports are placed on a layout. Open a layout tab first (LAYOUT tab > New Layout).");
+        Session.Post("Viewports are placed on a layout. Open a layout tab first (the + beside the Model tab).");
         return CommandResult.Finished;
     }
 

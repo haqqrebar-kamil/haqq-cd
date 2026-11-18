@@ -1908,7 +1908,7 @@ public sealed class EditorSession
     {
         if (!(scale > 1e-9) || !double.IsFinite(scale)) { Post("The scale must be more than 0."); return false; }
         viewportIds = viewportIds.ToList();
-        if (viewportIds.Any(id => Document.GetEntity(id) is ViewportEntity { Locked: true })) { Post("That viewport is locked. Unlock it first (LAYOUT tab > Lock, or VPLOCK)."); return false; }
+        if (viewportIds.Any(id => Document.GetEntity(id) is ViewportEntity { Locked: true })) { Post("That viewport is locked. Unlock it first (the menu button left of the layout tabs > Lock, or VPLOCK)."); return false; }
         CommitActiveViewport();
         bool ok = ModifyEntities(viewportIds, e => { if (e is ViewportEntity v) v.Scale = scale; }, "Viewport scale");
         if (ok) Post("Viewport scale: " + LayoutStandards.ScaleName(scale, Document.Settings));
@@ -1922,7 +1922,7 @@ public sealed class EditorSession
         var model = Document.GetExtents(Guid.Empty);
         if (model.IsEmpty) { Post("The model is empty: there is nothing to fit."); return false; }
         viewportIds = viewportIds.ToList();
-        if (viewportIds.Any(id => Document.GetEntity(id) is ViewportEntity { Locked: true })) { Post("That viewport is locked. Unlock it first (LAYOUT tab > Lock, or VPLOCK)."); return false; }
+        if (viewportIds.Any(id => Document.GetEntity(id) is ViewportEntity { Locked: true })) { Post("That viewport is locked. Unlock it first (the menu button left of the layout tabs > Lock, or VPLOCK)."); return false; }
         CommitActiveViewport();
         bool ok = ModifyEntities(viewportIds, e => { if (e is ViewportEntity v) v.Fit(model); }, "Fit viewport");
         RestartActiveViewport();

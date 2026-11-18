@@ -38,6 +38,7 @@
                     <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconShortcuts}" Content="Shortcuts" Command="{Binding RunCommandCommand}" CommandParameter="SHORTCUTS" ToolTip="SHORTCUTS: choose the short names you type to start each command" />
                     <Border Width="1" Margin="6,6" Background="{StaticResource BorderBrush}" />
                     <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource GlyphPlot}" Content="Plot" Command="{Binding RunCommandCommand}" CommandParameter="PLOT" ToolTip="PLOT (PRINT): preview and print the open layout or the model, or make a PDF" />
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconPdfOut}" Content="Export PDF" Command="{Binding RunCommandCommand}" CommandParameter="EXPORTPDF" ToolTip="EXPORTPDF: write layouts to a PDF as lines and text, each page exactly the size of its sheet - one file for all sheets, or a file per sheet." />
                 </StackPanel>
             </TabItem>
             <TabItem Header="HOME">
@@ -301,23 +302,6 @@
                     <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconUndo}" Content="Undo Copy" Command="{Binding UndoCommand}" ToolTip="Undo (Ctrl+Z): takes the whole copy back in one step, with the layers it made" />
                 </StackPanel>
             </TabItem>
-            <TabItem Header="LAYOUT">
-                <StackPanel Orientation="Horizontal" Margin="6,0">
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconModelSpace}" Content="Model" Command="{Binding RunCommandCommand}" CommandParameter="MODEL" ToolTip="MODEL (MS): back to the Model tab, where the drawing is made at its real size" />
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconLayoutNew}" Content="New Layout" Command="{Binding RunCommandCommand}" CommandParameter="NEWLAYOUT" ToolTip="NEWLAYOUT: a new sheet - choose the paper size and orientation, a border and title block, and a viewport. Layouts are the tabs at the bottom. (Typing LAYOUT makes one straight away with the standard sheet.)" />
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconLayoutRename}" Content="Rename" Command="{Binding RunCommandCommand}" CommandParameter="LAYOUTRENAME" ToolTip="LAYOUTRENAME: a new name for the layout that is open" />
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconLayoutDelete}" Content="Delete" Command="{Binding RunCommandCommand}" CommandParameter="LAYOUTDELETE" ToolTip="LAYOUTDELETE: delete the layout that is open, with what is drawn on it. The model is not touched." />
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconPaper}" Content="Page Setup &#x25BE;" Click="LayoutListButton_Click" CommandParameter="Papers" ToolTip="PAGESETUP (PAPER): the sheet size of the layout that is open. For a size of your own type PAGESETUP and then width,height." />
-                    <Border Width="1" Margin="6,6" Background="{StaticResource BorderBrush}" />
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconViewport}" Content="Viewport" Command="{Binding RunCommandCommand}" CommandParameter="VIEWPORT" ToolTip="VIEWPORT (VP): another window onto the model - click two corners on the sheet. Double-click inside a viewport to move the model in it with the wheel and the middle button; double-click outside it when done." />
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconViewportScale}" Content="Scale &#x25BE;" Click="LayoutListButton_Click" CommandParameter="Scales" ToolTip="VPSCALE (VS): the scale of a viewport. Select the viewport by its border first, or pick it after choosing the scale. Any scale can be typed: VPSCALE then 3/16&quot;=1' or 1:75." />
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconViewportFit}" Content="Fit" Command="{Binding RunCommandCommand}" CommandParameter="VPFIT" ToolTip="VPFIT (VF): show the whole model in a viewport, as large as fits" />
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconViewportLock}" Content="Lock" Command="{Binding RunCommandCommand}" CommandParameter="VPLOCK" ToolTip="VPLOCK (VL): lock the viewport's view and scale so the wheel cannot change them by accident; again to unlock. The frame can still be moved and resized." />
-                    <Border Width="1" Margin="6,6" Background="{StaticResource BorderBrush}" />
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource GlyphPlot}" Content="Plot" Command="{Binding RunCommandCommand}" CommandParameter="PLOT" ToolTip="PLOT (PRINT): preview and print the open layout at true size (or the model fitted to the page). Print to PDF through Microsoft Print to PDF." />
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconPdfOut}" Content="Export PDF" Command="{Binding RunCommandCommand}" CommandParameter="EXPORTPDF" ToolTip="EXPORTPDF: write layouts to a PDF as lines and text, each page exactly the size of its sheet - one file for all sheets, or a file per sheet." />
-                </StackPanel>
-            </TabItem>
             <TabItem Header="LAYERS">
                 <StackPanel Orientation="Horizontal" Margin="6,0">
                     <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconLayers}" Content="Layers" Command="{Binding RunCommandCommand}" CommandParameter="LAYER" ToolTip="LAYER (LA): open the layer table (on/off, freeze, lock, name, colour, lineweight)" />
@@ -503,25 +487,17 @@
 
         <!-- ============================ Status bar ============================ -->
         <Border Grid.Row="3" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0">
-            <DockPanel Margin="8,3" LastChildFill="False">
+            <DockPanel Margin="2,3,8,3" LastChildFill="False">
                 <!-- What the automatic update is doing (test releases only); empty otherwise -->
                 <TextBlock DockPanel.Dock="Right" VerticalAlignment="Center" Margin="12,0,4,0" FontWeight="SemiBold"
                            Foreground="{StaticResource AccentBrush}" Text="{Binding UpdateStatus}"
                            ToolTip="Automatic update status. Details are in the command history." />
-                <TextBlock DockPanel.Dock="Left" Width="230" VerticalAlignment="Center" FontFamily="Consolas" Text="{Binding CoordinateText}"
-                           Background="Transparent" ToolTip="Click to switch between absolute, distance&lt;angle and off">
-                    <TextBlock.InputBindings>
-                        <MouseBinding MouseAction="LeftClick" Command="{Binding CycleCoordinateModeCommand}" />
-                    </TextBlock.InputBindings>
-                </TextBlock>
-                <ToggleButton DockPanel.Dock="Left" Style="{StaticResource StatusToggle}" Content="OSNAP" IsChecked="{Binding OsnapOn, Mode=TwoWay}" MouseRightButtonUp="OsnapButton_RightClick" ToolTip="Object snap on/off (F3). Right-click to choose which snaps act automatically." />
-                <ToggleButton DockPanel.Dock="Left" Style="{StaticResource StatusToggle}" Content="ORTHO" IsChecked="{Binding OrthoOn, Mode=TwoWay}" ToolTip="Restrict to horizontal / vertical (F8)" />
-                <ToggleButton DockPanel.Dock="Left" Style="{StaticResource StatusToggle}" Content="POLAR" IsChecked="{Binding PolarOn, Mode=TwoWay}" ToolTip="Polar tracking: lock onto horizontal and vertical when the cursor is close to them (F10)" />
-                <ToggleButton DockPanel.Dock="Left" Style="{StaticResource StatusToggle}" Content="OTRACK" IsChecked="{Binding TrackOn, Mode=TwoWay}" ToolTip="Object snap tracking (F11): hover over a snap point without clicking, then move away from it; the cursor locks onto a line through that point. Needs OSNAP on." />
-                <ToggleButton DockPanel.Dock="Left" Style="{StaticResource StatusToggle}" Content="GRID" IsChecked="{Binding GridOn, Mode=TwoWay}" ToolTip="Show the background grid (F7). To change its spacing: FILE tab, Grid Spacing (or type GRID)." />
                 <!-- Model and the layouts (sheets): click to open, + adds a layout, double-click a layout to rename it,
-                     right-click for page setup, delete and plot. -->
-                <ScrollViewer DockPanel.Dock="Left" Margin="8,0,0,0" MaxWidth="560" VerticalScrollBarVisibility="Disabled"
+                     right-click for page setup, delete and plot. They sit at the very left of the bar; the menu button before
+                     them holds every layout and viewport tool (there is no layout tab on the ribbon). -->
+                <Button DockPanel.Dock="Left" Style="{StaticResource SpaceTab}" Content="&#x2261;" FontSize="15" Click="LayoutMenuButton_Click"
+                        ToolTip="Layout tools: new layout, rename, delete, paper size, viewports (new, scale, fit, lock), plot and PDF" />
+                <ScrollViewer DockPanel.Dock="Left" Margin="0" MaxWidth="560" VerticalScrollBarVisibility="Disabled"
                               HorizontalScrollBarVisibility="Hidden" Focusable="False" PreviewMouseWheel="SpaceTabs_MouseWheel">
                     <ItemsControl ItemsSource="{Binding SpaceTabs}" Focusable="False">
                         <ItemsControl.ItemsPanel>
@@ -545,6 +521,17 @@
                 </ScrollViewer>
                 <Button DockPanel.Dock="Left" Style="{StaticResource SpaceTab}" Content="+" FontSize="14" FontWeight="Bold" Command="{Binding RunCommandCommand}" CommandParameter="NEWLAYOUT"
                         ToolTip="New layout: choose the paper, the border and title block, and whether it gets a viewport. Add as many as you need; double-click a layout tab to rename it, right-click for more." />
+                <TextBlock DockPanel.Dock="Left" Width="230" Margin="14,0,0,0" VerticalAlignment="Center" FontFamily="Consolas" Text="{Binding CoordinateText}"
+                           Background="Transparent" ToolTip="Click to switch between absolute, distance&lt;angle and off">
+                    <TextBlock.InputBindings>
+                        <MouseBinding MouseAction="LeftClick" Command="{Binding CycleCoordinateModeCommand}" />
+                    </TextBlock.InputBindings>
+                </TextBlock>
+                <ToggleButton DockPanel.Dock="Left" Style="{StaticResource StatusToggle}" Content="OSNAP" IsChecked="{Binding OsnapOn, Mode=TwoWay}" MouseRightButtonUp="OsnapButton_RightClick" ToolTip="Object snap on/off (F3). Right-click to choose which snaps act automatically." />
+                <ToggleButton DockPanel.Dock="Left" Style="{StaticResource StatusToggle}" Content="ORTHO" IsChecked="{Binding OrthoOn, Mode=TwoWay}" ToolTip="Restrict to horizontal / vertical (F8)" />
+                <ToggleButton DockPanel.Dock="Left" Style="{StaticResource StatusToggle}" Content="POLAR" IsChecked="{Binding PolarOn, Mode=TwoWay}" ToolTip="Polar tracking: lock onto horizontal and vertical when the cursor is close to them (F10)" />
+                <ToggleButton DockPanel.Dock="Left" Style="{StaticResource StatusToggle}" Content="OTRACK" IsChecked="{Binding TrackOn, Mode=TwoWay}" ToolTip="Object snap tracking (F11): hover over a snap point without clicking, then move away from it; the cursor locks onto a line through that point. Needs OSNAP on." />
+                <ToggleButton DockPanel.Dock="Left" Style="{StaticResource StatusToggle}" Content="GRID" IsChecked="{Binding GridOn, Mode=TwoWay}" ToolTip="Show the background grid (F7). To change its spacing: FILE tab, Grid Spacing (or type GRID)." />
                 <Border DockPanel.Dock="Left" Margin="8,0,2,0" Padding="9,2" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="2"
                         ToolTip="Where you are working: MODEL (the drawing at real size), PAPER (a sheet), or inside a viewport of the sheet (the wheel and middle button then move the model in it; double-click outside or Esc to leave)">
                     <TextBlock Text="{Binding SpaceLabel}" FontWeight="SemiBold" />

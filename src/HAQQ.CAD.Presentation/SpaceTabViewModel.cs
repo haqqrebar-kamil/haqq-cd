@@ -36,7 +36,7 @@ public sealed class SpaceTabViewModel : ObservableObject
     public string Detail { get => _detail; set => SetProperty(ref _detail, value); }
 }
 
-/// <summary>An entry of the LAYOUT tab's lists: what is shown and the command that it runs.</summary>
+/// <summary>An entry of the layout menu's lists: what is shown and the command that it runs.</summary>
 public sealed record LayoutChoice(string Label, string Script);
 
 /// <summary>The lists of the LAYOUT ribbon tab, for the drawing's units.</summary>
