@@ -573,7 +573,7 @@ public class SheetTests
     }
 
     [Fact]
-    public void The_title_under_a_viewport_shows_its_scale_as_it_is_now_also_in_a_plot()
+    public void The_title_under_a_viewport_shows_its_scale_as_it_is_now_and_plots_only_when_its_layer_does()
     {
         var s = Session();
         s.AddLayout("Plan");
@@ -594,8 +594,15 @@ public class SheetTests
         s.SetViewportScale(new[] { viewport.Id }, 1 / 48.0);
         Assert.Contains("SCALE: 1/4\" = 1'-0\"", Texts(false));                       // follows the viewport
         var printed = Texts(true);
-        Assert.Contains("SCALE: 1/4\" = 1'-0\"", printed);                            // printed, though the frame's layer is not
-        Assert.DoesNotContain("1/4\" = 1'-0\"", printed);                             // the screen tag is not
+                                                                                      // the title is on the viewport's layer,
+        Assert.DoesNotContain("SCALE: 1/4\" = 1'-0\"", printed);                      // which does not plot: neither frame nor title prints
+        Assert.DoesNotContain("1/4\" = 1'-0\"", printed);                             // nor the screen tag
+
+        s.Document.GetLayer(viewport.LayerId)!.IsPlotted = true;                      // plot switched on for that layer: both print
+        printed = Texts(true);
+        Assert.Contains("SCALE: 1/4\" = 1'-0\"", printed);
+        Assert.DoesNotContain("1/4\" = 1'-0\"", printed);
+        s.Document.GetLayer(viewport.LayerId)!.IsPlotted = false;
 
         // On the white paper, white lines are drawn dark.
         var screen = new RecordingSurface();
@@ -705,7 +712,7 @@ public class PdfExportTests
         Assert.Equal((36 * 72.0, 24 * 72.0), (page.Width, page.Height));              // the sheet itself, in points
         Assert.Equal((17 * 72.0, 11 * 72.0), (pdf.ReadPage(1).Width, pdf.ReadPage(1).Height));
         Assert.True(page.Paths.All(p => p.R == 0 && p.G == 0 && p.B == 0));           // black only
-        Assert.Contains(page.Texts, t => t.Text == "SCALE: 1/4\" = 1'-0\"");
+        Assert.DoesNotContain(page.Texts, t => t.Text.StartsWith("SCALE:"));           // the view title follows the viewport's layer, which does not plot
         Assert.Contains(page.Texts, t => t.Text == "COMPANY NAME");
         Assert.Contains(page.Texts, t => t.Text == "S-101");
 

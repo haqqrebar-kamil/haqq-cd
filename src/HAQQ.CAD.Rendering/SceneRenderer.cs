@@ -190,12 +190,9 @@ public sealed class SceneRenderer
                 layer = document.GetLayer(layerId);
             }
             if (layer is null || !layer.IsDisplayed) continue;
-            if (options.Plot && !layer.IsPlotted)
-            {
-                // A viewport's frame is on a layer that does not plot, but the title under it belongs on the print.
-                if (entity is ViewportEntity { HasTitle: true } titled) DrawViewportTitle(surface, titled, view, StyleFor(entity, layer));
-                continue;
-            }
+            // A layer that does not plot prints nothing of its objects. That includes the title and scale line
+            // under a viewport: they belong to the viewport, so they follow its layer exactly like its frame does.
+            if (options.Plot && !layer.IsPlotted) continue;
 
             if (options.IsSelected is not null && options.IsSelected(entity.Id))
             {
