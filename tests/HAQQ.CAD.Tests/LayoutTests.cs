@@ -547,7 +547,7 @@ public class SheetTests
 
         var block = doc.Entities.OfType<TableEntity>().Single();                      // in the lower-right corner of the border
         Assert.Equal((35.5, 0.5), (Math.Round(block.Bounds.MaxX, 9), Math.Round(block.Bounds.MinY, 9)));
-        Assert.Equal(("HAQQ CAD", "S-101 FOUNDATION", "PROJECT TITLE", "S-101"), (block.Title, block.GetCell(0, 0), block.GetCell(1, 0), block.GetCell(1, 1)));
+        Assert.Equal(("COMPANY NAME", "S-101 FOUNDATION", "PROJECT TITLE", "S-101"), (block.Title, block.GetCell(0, 0), block.GetCell(1, 0), block.GetCell(1, 1)));
 
         var viewport = doc.Entities.OfType<ViewportEntity>().Single();
         Assert.Equal(("S-101 FOUNDATION", 0.25), (viewport.Title, viewport.TitleHeight));
@@ -706,7 +706,7 @@ public class PdfExportTests
         Assert.Equal((17 * 72.0, 11 * 72.0), (pdf.ReadPage(1).Width, pdf.ReadPage(1).Height));
         Assert.True(page.Paths.All(p => p.R == 0 && p.G == 0 && p.B == 0));           // black only
         Assert.Contains(page.Texts, t => t.Text == "SCALE: 1/4\" = 1'-0\"");
-        Assert.Contains(page.Texts, t => t.Text == "HAQQ CAD");
+        Assert.Contains(page.Texts, t => t.Text == "COMPANY NAME");
         Assert.Contains(page.Texts, t => t.Text == "S-101");
 
         // The 40 ft line is 10 inches on paper at 1/4" = 1'-0": 720 points, where the viewport shows it.
@@ -835,6 +835,41 @@ public class LayoutWindowTests : IDisposable
         foreach (var sheet in vm.Sheets) sheet.Include = false;
         Assert.Null(vm.Build());
         Assert.Contains("Tick", vm.Message);
+    }
+}
+
+public class CompanyNameTests : IDisposable
+{
+    private readonly TempDirectory _temp = new();
+    public void Dispose() => _temp.Dispose();
+
+    [Fact]
+    public void Title_blocks_carry_the_users_own_company_which_is_remembered()
+    {
+        string path = _temp.File("settings.json");
+        var vm = new MainViewModel(new FakeUi(), new RecoveryStore(_temp.File("r1")), new UserSettingsStore(path));
+        var s = vm.Session;
+        Assert.Equal("", s.CompanyName);
+
+        var window = new NewLayoutViewModel(s);
+        Assert.Equal("", window.Company);
+        window.Company = "  Acme Structural Engineers ";
+        Assert.True(window.Create());
+        Assert.Equal("Acme Structural Engineers", s.Document.Entities.OfType<TableEntity>().Single().Title);
+
+        s.StartCommand("LAYOUT");                                                     // the quick way uses it too
+        Assert.Equal("Acme Structural Engineers", s.Document.Entities.OfType<TableEntity>().Single().Title);
+
+        s.StartCommand("COMPANY");
+        Assert.Contains("<Acme Structural Engineers>", s.Prompt);
+        s.SubmitText("Northside Builders, Inc.");
+        Assert.Equal("Northside Builders, Inc.", s.CompanyName);
+        Assert.Equal("Acme Structural Engineers", s.Document.Entities.OfType<TableEntity>().Single().Title);   // sheets already drawn keep theirs
+
+        var again = new MainViewModel(new FakeUi(), new RecoveryStore(_temp.File("r2")), new UserSettingsStore(path));
+        Assert.Equal("Northside Builders, Inc.", again.Session.CompanyName);          // remembered for the next start
+        Assert.Equal("Northside Builders, Inc.", new NewLayoutViewModel(again.Session).Company);
+        Assert.False(again.Session.SetCompanyName(new string('x', 65)));
     }
 }
 

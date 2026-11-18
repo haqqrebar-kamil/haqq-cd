@@ -13,6 +13,9 @@ public sealed class UserSettings
     /// <summary>The object snaps that act automatically while OSNAP is on, as <c>SnapModes</c> flags; null = program default.</summary>
     public int? SnapModes { get; set; }
 
+    /// <summary>The user's company name for title blocks; null or empty until given.</summary>
+    public string? CompanyName { get; set; }
+
     /// <summary>The unit new drawings start in ("Inch", "Foot", "Millimeter", "Centimeter", "Meter"); null = inches.</summary>
     public string? NewDrawingUnit { get; set; }
 
@@ -52,6 +55,9 @@ public sealed class UserSettingsStore
                 pc.ValueKind is JsonValueKind.True or JsonValueKind.False)
                 settings.PropertiesCollapsed = pc.GetBoolean();
             if (json.RootElement.ValueKind == JsonValueKind.Object &&
+                json.RootElement.TryGetProperty("companyName", out var cn) && cn.ValueKind == JsonValueKind.String)
+                settings.CompanyName = cn.GetString();
+            if (json.RootElement.ValueKind == JsonValueKind.Object &&
                 json.RootElement.TryGetProperty("newDrawingUnit", out var nu) && nu.ValueKind == JsonValueKind.String)
                 settings.NewDrawingUnit = nu.GetString();
             if (json.RootElement.ValueKind == JsonValueKind.Object &&
@@ -81,8 +87,9 @@ public sealed class UserSettingsStore
             string snap = settings.SnapModes is { } modes ? ",\n  \"snapModes\": " + modes : "";
             string panel = ",\n  \"propertiesCollapsed\": " + (settings.PropertiesCollapsed ? "true" : "false");
             string shortcuts = settings.Shortcuts.Count == 0 ? "" : ",\n  \"shortcuts\": " + JsonSerializer.Serialize(settings.Shortcuts);
+            string company = string.IsNullOrWhiteSpace(settings.CompanyName) ? "" : ",\n  \"companyName\": " + JsonSerializer.Serialize(settings.CompanyName);
             string unit = string.IsNullOrWhiteSpace(settings.NewDrawingUnit) ? "" : ",\n  \"newDrawingUnit\": " + JsonSerializer.Serialize(settings.NewDrawingUnit);
-            File.WriteAllText(_path, "{\n  \"crosshairPercent\": " + settings.CrosshairPercent + snap + panel + unit + shortcuts + "\n}\n");
+            File.WriteAllText(_path, "{\n  \"crosshairPercent\": " + settings.CrosshairPercent + snap + panel + unit + company + shortcuts + "\n}\n");
             return true;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)

@@ -40,6 +40,9 @@
         <TextBlock Text="On the sheet" Foreground="{StaticResource DimTextBrush}" FontSize="11" Margin="1,12,0,3" />
         <ComboBox ItemsSource="{Binding Templates}" SelectedItem="{Binding Template, Mode=TwoWay}"
                   ToolTip="The border and the title block are ordinary objects on the sheet: the title block is a table, double-click it to change its words." />
+        <TextBlock Text="Your company (top line of the title block)" Foreground="{StaticResource DimTextBrush}" FontSize="11" Margin="1,12,0,3" />
+        <TextBox Text="{Binding Company, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                 ToolTip="Written at the top of the title block. Remembered on this computer for every new layout; change it any time here or with the COMPANY command." />
         <CheckBox Margin="0,10,0,0" IsChecked="{Binding WithViewport, Mode=TwoWay}" Content="With a viewport that shows the whole model"
                   ToolTip="Off: an empty sheet; add viewports with LAYOUT tab > Viewport." />
 

@@ -259,6 +259,21 @@ public sealed class ViewportLockCommand : CadCommandBase, IObjectPicker
     }
 }
 
+/// <summary>COMPANY: the user's company name, written at the top of the title block of layouts made from now on.</summary>
+public sealed class CompanyNameCommand : CadCommandBase, IRawTextCommand
+{
+    public override string Name => "COMPANY";
+    public bool WantsRawText => true;
+    public override string Prompt => $"COMPANY  Your company's name for title blocks <{(Session.CompanyName.Length > 0 ? Session.CompanyName : "none yet")}>:";
+    public override CommandResult OnInput(CommandInput input) => CommandResult.Finished;
+
+    public CommandResult OnRawText(string text)
+    {
+        if (text.Trim().Length == 0) return CommandResult.Finished;
+        return Session.SetCompanyName(text) ? CommandResult.Finished : CommandResult.Continue;
+    }
+}
+
 /// <summary>LAYOUTRENAME: a new name for the layout being looked at.</summary>
 public sealed class RenameLayoutCommand : CadCommandBase, IRawTextCommand
 {

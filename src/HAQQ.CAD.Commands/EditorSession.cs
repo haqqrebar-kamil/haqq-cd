@@ -290,6 +290,7 @@ public sealed class CommandRegistry
         r.Register("PAGESETUP", "Paper size of the layout", () => new PageSetupCommand(), "PAPER");
         r.Register("VIEWPORT", "New viewport on the layout", () => new ViewportCommand(), "VP", "MV", "MVIEW");
         r.Register("VPSCALE", "Scale of a viewport", () => new ViewportScaleCommand(fit: false), "VS");
+        r.Register("COMPANY", "Your company's name, for the title block of new layouts", () => new CompanyNameCommand(), "COMPANYNAME");
         r.Register("VPLOCK", "Lock or unlock the view and scale of a viewport", () => new ViewportLockCommand(), "VL");
         r.Register("NEWLAYOUT", "New layout: choose the paper, the border and the title block", null, "LAYOUTNEW");
         r.Register("EXPORTPDF", "Export layouts as a vector PDF, one sheet per page", null, "PDFOUT");
@@ -1667,6 +1668,30 @@ public sealed class EditorSession
         return new AddLayerAction(layer);
     }
 
+    /// <summary>What the top line of a new title block says until the user has given their company's name.</summary>
+    public const string CompanyPlaceholder = "COMPANY NAME";
+
+    /// <summary>The user's own company, for the top line of new title blocks. Kept by the shell between runs; empty until given.</summary>
+    public string CompanyName { get; private set; } = "";
+
+    /// <summary>The company name was given or changed (the shell saves it with the user's settings).</summary>
+    public event Action<string>? CompanyNameChanged;
+
+    /// <summary>Sets the company name used in title blocks made from now on. Title blocks already drawn are not changed.</summary>
+    public bool SetCompanyName(string? name, bool announce = true)
+    {
+        name = (name ?? "").Trim();
+        if (name.Length > 64 || name.Any(char.IsControl)) { Post("A company name is at most 64 characters."); return false; }
+        bool changed = name != CompanyName;
+        CompanyName = name;
+        if (announce && changed)
+        {
+            Post(name.Length > 0 ? $"New title blocks will say \"{name}\". Title blocks already drawn keep their words (double-click one to change it)." : "New title blocks will say COMPANY NAME until a name is given.");
+            CompanyNameChanged?.Invoke(name);
+        }
+        return true;
+    }
+
     /// <summary>Name of the layer the sheet border and the title block of new layouts are placed on.</summary>
     public const string SheetLayerName = "Sheet";
 
@@ -1723,7 +1748,7 @@ public sealed class EditorSession
                 // The title block: a table, so its words are changed by a double-click like any table.
                 var block = new TableEntity(Point2D.Origin, 2, 2, 1, 0.7 * u, 0.18 * u)
                 {
-                    Title = "HAQQ CAD",
+                    Title = CompanyName.Length > 0 ? CompanyName : CompanyPlaceholder,
                     HeaderRow = false,
                     LayerId = sheetLayer,
                     SpaceId = layout.Id,

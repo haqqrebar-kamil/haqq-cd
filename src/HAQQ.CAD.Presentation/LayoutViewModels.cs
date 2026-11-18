@@ -17,7 +17,7 @@ public sealed class NewLayoutViewModel : ObservableObject
     public const string CustomPaper = "Custom size";
 
     private readonly EditorSession _session;
-    private string _name, _paper, _template, _widthText = "", _heightText = "", _message = "";
+    private string _name, _paper, _template, _company, _widthText = "", _heightText = "", _message = "";
     private bool _landscape = true, _withViewport = true;
 
     public NewLayoutViewModel(EditorSession session)
@@ -28,6 +28,7 @@ public sealed class NewLayoutViewModel : ObservableObject
         Papers = LayoutStandards.Papers.Select(p => p.Name).Append(CustomPaper).ToList();
         _paper = LayoutStandards.DefaultPaper(session.Document.Settings).Name;
         Templates = new[] { "Border and title block", "Border only", "Blank sheet" };
+        _company = session.CompanyName;
         _template = Templates[0];
         ShowSize();
     }
@@ -62,6 +63,9 @@ public sealed class NewLayoutViewModel : ObservableObject
     /// <summary>The sheet's width and height in the drawing's units; typed for a custom size, shown for a standard sheet.</summary>
     public string WidthText { get => _widthText; set => SetProperty(ref _widthText, value ?? ""); }
     public string HeightText { get => _heightText; set => SetProperty(ref _heightText, value ?? ""); }
+
+    /// <summary>The user's company, for the top line of the title block. Remembered on the computer for the next layout.</summary>
+    public string Company { get => _company; set => SetProperty(ref _company, value ?? ""); }
 
     public string Template { get => _template; set { if (!string.IsNullOrEmpty(value)) SetProperty(ref _template, value); } }
     public bool WithViewport { get => _withViewport; set => SetProperty(ref _withViewport, value); }
@@ -102,6 +106,7 @@ public sealed class NewLayoutViewModel : ObservableObject
             (width, height) = LayoutStandards.SizeOf(LayoutStandards.Papers.First(p => p.Name == Paper), settings);
             if (!Landscape) (width, height) = (height, width);
         }
+        if (!_session.SetCompanyName(Company)) { Message = "A company name is at most 64 characters."; return false; }
         var template = Template == Templates[2] ? LayoutTemplate.Blank : Template == Templates[1] ? LayoutTemplate.Border : LayoutTemplate.TitleBlock;
         bool ok = _session.AddLayout(name, width, height, template, WithViewport) is not null;
         Message = ok ? "" : "The layout could not be made.";

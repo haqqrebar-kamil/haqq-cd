@@ -63,6 +63,12 @@ public sealed class MainViewModel : ObservableObject
         var newUnit = Enum.TryParse(_userSettings.NewDrawingUnit, ignoreCase: true, out LinearUnit savedUnit) && Enum.IsDefined(savedUnit) ? savedUnit : LinearUnit.Inch;
         Session = new EditorSession(CreateNewDrawing(newUnit)) { CrosshairSizePercent = _userSettings.CrosshairPercent };
         Session.SetNewDrawingUnit(newUnit, announce: false);
+        Session.SetCompanyName(_userSettings.CompanyName, announce: false);
+        Session.CompanyNameChanged += company =>
+        {
+            _userSettings.CompanyName = company;
+            if (!_settingsStore.Save(_userSettings)) AddHistory("The company name could not be saved for next time.");
+        };
         Session.NewDrawingUnitChanged += unit =>
         {
             _userSettings.NewDrawingUnit = unit.ToString();
