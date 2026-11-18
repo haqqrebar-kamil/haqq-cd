@@ -3,6 +3,7 @@ using HAQQ.CAD.Core;
 using HAQQ.CAD.Documents;
 using HAQQ.CAD.Geometry;
 using HAQQ.CAD.Rendering;
+using HAQQ.CAD.Presentation;
 using Xunit;
 using static HAQQ.CAD.Tests.T;
 
@@ -368,5 +369,106 @@ public class LayoutTests
         Assert.Equal(2, loaded.Document.AllEntities.Count);                           // the model's two lines
         Assert.Single(loaded.Document.UnknownEntities);                               // the viewport is kept in the file
         Assert.NotEmpty(loaded.Warnings);
+    }
+}
+
+public class UnitTests : IDisposable
+{
+    private readonly TempDirectory _temp = new();
+    public void Dispose() => _temp.Dispose();
+
+    [Fact]
+    public void Changing_the_unit_can_keep_everything_its_real_size()
+    {
+        var s = new EditorSession();
+        AddLine(s.Document, 0, 0, 120, 0);                                            // a 10 ft wall
+        s.Document.AddEntity(new CircleEntity(P(10, 10), 2) { LayerId = s.Document.CurrentLayerId });
+        s.SelectAt(P(10, 12), 0.5);
+        s.CreateBlock("Bolt", P(10, 10), s.GetSelectedEntities());
+        s.AddLayout();                                                                // 36 x 24 in with a viewport
+        var viewport = s.Document.Entities.OfType<ViewportEntity>().Single();
+        double viewScale = viewport.Scale;
+        var shown = viewport.ModelBounds;
+        s.SwitchSpace(Guid.Empty);
+
+        s.StartCommand("UNITS");
+        s.SubmitEnter();
+        s.SubmitText("MM");
+        s.SubmitEnter();                                                              // Size is the default
+        s.SubmitEnter();
+        Assert.Null(s.ActiveCommand);
+
+        var doc = s.Document;
+        Assert.Equal((LinearUnit.Millimeter, LengthFormat.Decimal, 1), (doc.Settings.Unit, doc.Settings.Format, doc.Settings.DecimalPrecision));
+        var line = doc.Entities.OfType<LineEntity>().Single();
+        Assert.Equal(3048.0, line.End.X, 9);                                          // 120 in
+        Assert.Equal("3048.0", UnitFormatter.FormatLength(line.End.X, doc.Settings));
+        var bolt = doc.Entities.OfType<BlockReferenceEntity>().Single();
+        Assert.Equal((254.0, 1.0), (Math.Round(bolt.Position.X, 9), bolt.Scale));     // moved, not scaled twice
+        Assert.Equal(4 * 25.4, bolt.Bounds.Width, 9);
+        Assert.Equal(25.4, doc.Settings.LinetypeScale, 12);
+        Assert.Equal(4 * 25.4, doc.CurrentDimensionStyle.TextHeight, 9);
+        var layout = doc.Layouts.Single();
+        Assert.Equal((914.4, 609.6), (Math.Round(layout.PaperWidth, 9), Math.Round(layout.PaperHeight, 9)));
+        var vp = doc.AllEntities.OfType<ViewportEntity>().Single();
+        Assert.Equal(viewScale, vp.Scale, 12);                                        // the sheet still shows the model at the same scale
+        Assert.Equal(shown.MinX * 25.4, vp.ModelBounds.MinX, 6);
+        Assert.Equal(shown.MaxY * 25.4, vp.ModelBounds.MaxY, 6);
+
+        s.Undo();                                                                     // one step back to inches
+        Assert.Equal(LinearUnit.Inch, s.Document.Settings.Unit);
+        Assert.Equal(120.0, s.Document.Entities.OfType<LineEntity>().Single().End.X);
+        Assert.Equal(4.0, s.Document.Entities.OfType<BlockReferenceEntity>().Single().Bounds.Width, 9);
+        Assert.Equal(36.0, s.Document.Layouts.Single().PaperWidth);
+        Assert.Equal(4.0, s.Document.CurrentDimensionStyle.TextHeight);
+    }
+
+    [Fact]
+    public void Lengths_can_be_typed_with_a_metric_unit_in_any_drawing()
+    {
+        var inch = new DrawingSettings();
+        Assert.True(UnitFormatter.TryParseLength("254mm", inch, out double a) && Math.Abs(a - 10) < 1e-9);
+        Assert.True(UnitFormatter.TryParseLength("2.54 cm", inch, out double b) && Math.Abs(b - 1) < 1e-9);
+        Assert.True(UnitFormatter.TryParseLength("1M", inch, out double c) && Math.Abs(c - 39.37007874015748) < 1e-9);
+        var mm = new DrawingSettings { Unit = LinearUnit.Millimeter };
+        Assert.True(UnitFormatter.TryParseLength("2.5m", mm, out double d) && d == 2500);
+        Assert.True(UnitFormatter.TryParseLength("1'", mm, out double e) && Math.Abs(e - 304.8) < 1e-9);
+        Assert.True(UnitFormatter.TryParseLength("300", mm, out double f) && f == 300);
+        Assert.False(UnitFormatter.TryParseLength("mm", mm, out _));
+        Assert.False(UnitFormatter.TryParseLength("tenmm", mm, out _));
+    }
+
+    [Fact]
+    public void New_drawings_start_in_inches_until_the_user_chooses_another_unit_and_that_is_remembered()
+    {
+        string path = _temp.File("settings.json");
+        var vm = new MainViewModel(new FakeUi(), new RecoveryStore(_temp.File("r1")), new UserSettingsStore(path));
+        Assert.Equal((LinearUnit.Inch, "in"), (vm.Session.Document.Settings.Unit, vm.UnitLabel));
+
+        vm.Session.StartCommand("NEWUNITS");
+        Assert.Contains("<Inches>", vm.Session.Prompt);
+        vm.Session.SubmitText("MM");
+        Assert.Equal(LinearUnit.Inch, vm.Session.Document.Settings.Unit);            // the open drawing is not touched
+        Assert.True(vm.NewDocument());
+        var doc = vm.Session.Document;
+        Assert.Equal((LinearUnit.Millimeter, LengthFormat.Decimal, 100.0), (doc.Settings.Unit, doc.Settings.Format, doc.Settings.GridSpacing));
+        Assert.Equal(100.0, doc.CurrentDimensionStyle.TextHeight, 9);                 // a round size, not 101.6
+        Assert.Equal(25.0, doc.Settings.LinetypeScale, 9);
+        Assert.False(doc.IsDirty);
+        Assert.Equal("mm", vm.UnitLabel);
+
+        var again = new MainViewModel(new FakeUi(), new RecoveryStore(_temp.File("r2")), new UserSettingsStore(path));
+        Assert.Equal(LinearUnit.Millimeter, again.Session.Document.Settings.Unit);    // remembered for the next start
+        Assert.Equal(LinearUnit.Millimeter, again.Session.NewDrawingUnit);
+
+        // UNITS in an empty drawing does not ask about objects, and sets round sizes too.
+        var s = new EditorSession();
+        s.StartCommand("UNITS");
+        s.SubmitEnter();
+        s.SubmitText("Meters");
+        Assert.Contains("decimal places", s.Prompt);
+        s.SubmitEnter();
+        Assert.Equal((LinearUnit.Meter, 3), (s.Document.Settings.Unit, s.Document.Settings.DecimalPrecision));
+        Assert.Equal(0.1, s.Document.CurrentDimensionStyle.TextHeight, 9);
     }
 }

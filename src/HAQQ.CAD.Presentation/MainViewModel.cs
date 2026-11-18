@@ -60,7 +60,14 @@ public sealed class MainViewModel : ObservableObject
         Recovery = recovery ?? new RecoveryStore(RecoveryStore.DefaultDirectory);
         _settingsStore = settings ?? new UserSettingsStore();
         _userSettings = _settingsStore.Load();
-        Session = new EditorSession(CreateNewDrawing()) { CrosshairSizePercent = _userSettings.CrosshairPercent };
+        var newUnit = Enum.TryParse(_userSettings.NewDrawingUnit, ignoreCase: true, out LinearUnit savedUnit) && Enum.IsDefined(savedUnit) ? savedUnit : LinearUnit.Inch;
+        Session = new EditorSession(CreateNewDrawing(newUnit)) { CrosshairSizePercent = _userSettings.CrosshairPercent };
+        Session.SetNewDrawingUnit(newUnit, announce: false);
+        Session.NewDrawingUnitChanged += unit =>
+        {
+            _userSettings.NewDrawingUnit = unit.ToString();
+            if (!_settingsStore.Save(_userSettings)) AddHistory("The unit for new drawings could not be saved for next time.");
+        };
         if (_userSettings.SnapModes is { } savedSnaps) Session.Snap.Modes = (SnapModes)savedSnaps & SnapSettings.AllModes;
         Properties = new PropertiesViewModel(Session);
         DimensionBar = new DimensionBarViewModel(Session);
@@ -155,6 +162,16 @@ public sealed class MainViewModel : ObservableObject
 
     /// <summary>Opens the tab whose id is the parameter (<see cref="Guid.Empty"/> for the model).</summary>
     public RelayCommand SelectSpaceCommand { get; }
+
+    /// <summary>The unit of the open drawing, for the status bar ("in", "ft", "mm", "cm", "m").</summary>
+    public string UnitLabel => Session.Document.Settings.Unit switch
+    {
+        LinearUnit.Inch => "in",
+        LinearUnit.Foot => "ft",
+        LinearUnit.Millimeter => "mm",
+        LinearUnit.Centimeter => "cm",
+        _ => "m",
+    };
 
     /// <summary>True while a layout is shown instead of the model.</summary>
     public bool IsLayoutActive => Session.Document.ActiveLayout is not null;
@@ -724,12 +741,13 @@ public sealed class MainViewModel : ObservableObject
     /// A new, unmodified drawing. Besides the permanent layer 0 it has "Layer 1", which is the current
     /// layer, so new objects go on Layer 1 and layer 0 stays free (as DWG/DXF exchange expects it to exist).
     /// </summary>
-    public static DrawingDocument CreateNewDrawing()
+    public static DrawingDocument CreateNewDrawing(LinearUnit unit = LinearUnit.Inch)
     {
         var document = new DrawingDocument();
         var layer = new Layer(Guid.NewGuid(), FirstLayerName);
         document.AddLayer(layer);
         document.CurrentLayerId = layer.Id;
+        EditorSession.ApplyUnitToNewDrawing(document, unit);
         document.MarkSaved();
         return document;
     }
@@ -762,7 +780,7 @@ public sealed class MainViewModel : ObservableObject
         if (!ConfirmDiscardChanges()) return false;
         Recovery.DeleteSnapshot(Session.Document.Id);
         FilePath = null;
-        Session.LoadDocument(CreateNewDrawing());
+        Session.LoadDocument(CreateNewDrawing(Session.NewDrawingUnit));
         AddHistory("New drawing.");
         return true;
     }
@@ -937,6 +955,7 @@ public sealed class MainViewModel : ObservableObject
         Title = $"{DocumentName}{(doc.IsDirty ? "*" : "")} - HAQQ CAD";
 
         SyncSpaceTabs(doc);
+        OnPropertyChanged(nameof(UnitLabel));
         SyncLayers(doc);
         OnPropertyChanged(nameof(CurrentLayerName));
         OnPropertyChanged(nameof(CurrentLayerPlots));

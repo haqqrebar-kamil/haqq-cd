@@ -310,6 +310,8 @@ public class ManualWorkflowTests
         s.SubmitText("D");
         Assert.Contains("<Inches>", s.Prompt);
         s.SubmitText("MM");
+        Assert.Contains("Keep their real size", s.Prompt);                  // there is a line in the drawing
+        s.SubmitText("N");                                                  // keep the numbers
         Assert.Contains("decimal places", s.Prompt);
         s.SubmitText("1");
         Assert.Null(s.ActiveCommand);

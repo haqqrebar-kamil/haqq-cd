@@ -30,7 +30,8 @@
                     <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconSave}" Content="Save" Command="{Binding SaveCommand}" ToolTip="Save (Ctrl+S)" />
                     <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconSaveAs}" Content="Save As" Command="{Binding SaveAsCommand}" ToolTip="Save under a new name" />
                     <Border Width="1" Margin="6,6" Background="{StaticResource BorderBrush}" />
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconUnits}" Content="Units" Command="{Binding RunCommandCommand}" CommandParameter="UNITS" ToolTip="UNITS: inches, feet, mm, cm or meters, and display precision" />
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconUnits}" Content="Units" Command="{Binding RunCommandCommand}" CommandParameter="UNITS" ToolTip="UNITS: the unit of this drawing (inches, feet, mm, cm or meters), how lengths are written and the precision. Changing the unit of a drawing with objects asks whether they keep their real size or their numbers." />
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconUnits}" Content="New Dwg Units" Command="{Binding RunCommandCommand}" CommandParameter="NEWUNITS" ToolTip="NEWUNITS: the unit new drawings start in. Inches unless you change it; remembered on this computer. The open drawing is not changed." />
                     <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconCrosshair}" Content="Crosshair" Command="{Binding RunCommandCommand}" CommandParameter="CURSORSIZE" ToolTip="CURSORSIZE: crosshair size, 1 to 100 percent of the screen" />
                     <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconGridSpacing}" Content="Grid Spacing" Command="{Binding RunCommandCommand}" CommandParameter="GRID" ToolTip="GRID: distance between the lines of the background grid. It is saved with the drawing. F7 shows or hides the grid." />
                     <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconShortcuts}" Content="Shortcuts" Command="{Binding RunCommandCommand}" CommandParameter="SHORTCUTS" ToolTip="SHORTCUTS: choose the short names you type to start each command" />
@@ -530,6 +531,8 @@
                     <TextBlock Text="MODEL" FontWeight="SemiBold" />
                 </Border>
                 <TextBlock DockPanel.Dock="Right" VerticalAlignment="Center" Foreground="{StaticResource DimTextBrush}" Text="{Binding StatusText}" />
+                <TextBlock DockPanel.Dock="Right" VerticalAlignment="Center" Margin="0,0,18,0" Text="{Binding UnitLabel, StringFormat='Units: {0}'}"
+                           ToolTip="The unit of this drawing. FILE tab > Units changes it; lengths can also be typed with a unit in any drawing: 250mm, 2.5m, 30cm, 5'-6&quot;." />
                 <TextBlock DockPanel.Dock="Right" VerticalAlignment="Center" Margin="0,0,18,0" Text="{Binding CurrentLayerName, StringFormat='Layer: {0}'}" />
             </DockPanel>
         </Border>

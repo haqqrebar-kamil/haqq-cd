@@ -4,11 +4,16 @@ using HAQQ.CAD.Geometry;
 
 namespace HAQQ.CAD.Commands;
 
-/// <summary>UNITS: length display type, drawing unit and precision. Geometry is not rescaled.</summary>
+/// <summary>
+/// UNITS: how lengths are written (Decimal, Architectural, Fractional), the drawing unit (inches, feet, mm, cm,
+/// meters) and the precision. When the unit of a drawing that has objects is changed, it asks whether the
+/// objects keep their real size (their numbers are converted) or keep their numbers.
+/// </summary>
 public sealed class UnitsCommand : CadCommandBase
 {
-    private int _stage;
+    private int _stage;                             // 0 length type, 1 unit, 2 convert?, 3 precision
     private DrawingSettings _settings = new();
+    private bool _keepRealSize = true;
 
     public override string Name => "UNITS";
 
@@ -18,10 +23,14 @@ public sealed class UnitsCommand : CadCommandBase
         return CommandResult.Continue;
     }
 
+    private bool UnitChanged => _settings.Unit != Document.Settings.Unit;
+    private bool HasObjects => Document.AllEntities.Count > 0 || Document.Blocks.Count > 0;
+
     public override string Prompt => _stage switch
     {
         0 => $"UNITS  Enter length type [Decimal/Architectural/Fractional] <{_settings.Format}>:",
         1 => $"UNITS  Enter drawing unit [Inches/Feet/MM/CM/Meters] <{UnitName(_settings.Unit)}>:",
+        2 => $"UNITS  The drawing has objects. Keep their real size (numbers are converted to {UnitName(_settings.Unit)}) or keep their numbers? [Size/Numbers] <Size>:",
         _ => UsesFractions
             ? $"UNITS  Enter smallest fraction 1/n, n = 1 to 256 <{_settings.FractionDenominator}>:"
             : $"UNITS  Enter number of decimal places, 0 to 8 <{_settings.DecimalPrecision}>:",
@@ -31,12 +40,13 @@ public sealed class UnitsCommand : CadCommandBase
     {
         0 => new[] { "Decimal", "Architectural", "Fractional" },
         1 => new[] { "Inches", "Feet", "MM", "CM", "Meters" },
+        2 => new[] { "Size", "Numbers" },
         _ => Array.Empty<string>(),
     };
 
     private bool UsesFractions => _settings.Format != LengthFormat.Decimal && UnitConverter.IsImperial(_settings.Unit);
 
-    private static string UnitName(LinearUnit unit) => unit switch
+    public static string UnitName(LinearUnit unit) => unit switch
     {
         LinearUnit.Inch => "Inches",
         LinearUnit.Foot => "Feet",
@@ -64,7 +74,7 @@ public sealed class UnitsCommand : CadCommandBase
             case 1:
                 if (input is CommandInput.KeywordInput unit)
                 {
-                    LinearUnit? chosen = unit.Keyword switch
+                    LinearUnit? chosen = unit.Keyword.ToUpperInvariant() switch
                     {
                         "MM" => LinearUnit.Millimeter,
                         "CM" => LinearUnit.Centimeter,
@@ -81,20 +91,26 @@ public sealed class UnitsCommand : CadCommandBase
                     if (chosen is null) return Invalid("Enter Inches, Feet, MM, CM or Meters.");
                     if (chosen.Value != _settings.Unit)
                     {
-                        _settings.Unit = chosen.Value;
-                        // Sensible grid and snap increments for the new unit.
-                        (_settings.GridSpacing, _settings.SnapSpacing) = chosen.Value switch
-                        {
-                            LinearUnit.Inch => (12.0, 1.0),
-                            LinearUnit.Foot => (1.0, 1.0 / 12.0),
-                            LinearUnit.Millimeter => (100.0, 10.0),
-                            LinearUnit.Centimeter => (10.0, 1.0),
-                            _ => (1.0, 0.01),
-                        };
+                        // The way of writing lengths, the precision and the grid that suit the new unit.
+                        var format = _settings.Format;
+                        _settings = _settings.ForUnit(chosen.Value);
+                        // A length type chosen a moment ago is kept where the unit allows it.
+                        if (UnitConverter.IsImperial(chosen.Value)) _settings.Format = format;
                     }
                 }
                 else if (input is not CommandInput.EnterInput) return Invalid("Enter Inches, Feet, MM, CM or Meters.");
-                _stage = 2;
+                _stage = UnitChanged && HasObjects ? 2 : 3;
+                return CommandResult.Continue;
+
+            case 2:
+                if (input is CommandInput.KeywordInput how)
+                {
+                    if (Matches(how.Keyword, "SIZE")) _keepRealSize = true;
+                    else if (Matches(how.Keyword, "NUMBERS")) _keepRealSize = false;
+                    else return Invalid("Enter Size (objects stay as large as they are) or Numbers (every number stays as typed).");
+                }
+                else if (input is not CommandInput.EnterInput) return Invalid("Enter Size or Numbers.");
+                _stage = 3;
                 return CommandResult.Continue;
 
             default:
@@ -115,10 +131,45 @@ public sealed class UnitsCommand : CadCommandBase
                 }
                 else if (input is not CommandInput.EnterInput) return Invalid("Enter a number.");
 
-                Session.Execute(new ModifySettingsAction("UNITS", Document.Settings, _settings));
-                Session.Post($"Units: {UnitName(_settings.Unit)}, {_settings.Format}. Existing geometry keeps its numeric size.");
+                bool changed = UnitChanged, hadObjects = HasObjects;
+                Session.ChangeUnits(_settings, _keepRealSize);
+                Session.Post($"Units: {UnitName(_settings.Unit)}, {_settings.Format}." + (!changed ? ""
+                    : !hadObjects ? " Dimension text, arrows and dashes were set to suit the new unit."
+                    : _keepRealSize ? " Everything keeps its real size; the numbers were converted."
+                    : " Every number stays as it was typed, so objects are now a different real size."));
                 return CommandResult.Finished;
         }
+    }
+}
+
+/// <summary>NEWUNITS: the unit that new drawings start in. The open drawing is not touched.</summary>
+public sealed class NewDrawingUnitsCommand : CadCommandBase
+{
+    public override string Name => "NEWUNITS";
+    public override string Prompt => $"NEWUNITS  Unit for new drawings [Inches/Feet/MM/CM/Meters] <{UnitsCommand.UnitName(Session.NewDrawingUnit)}>:";
+    public override IReadOnlyList<string> Options => new[] { "Inches", "Feet", "MM", "CM", "Meters" };
+
+    public override CommandResult OnInput(CommandInput input)
+    {
+        if (input is CommandInput.EnterInput) return CommandResult.Finished;
+        if (input is not CommandInput.KeywordInput k) return Invalid("Enter Inches, Feet, MM, CM or Meters.");
+        LinearUnit? unit = k.Keyword.ToUpperInvariant() switch
+        {
+            "MM" => LinearUnit.Millimeter,
+            "CM" => LinearUnit.Centimeter,
+            "M" => LinearUnit.Meter,
+            "IN" => LinearUnit.Inch,
+            "FT" => LinearUnit.Foot,
+            var x when Matches(x, "INCHES") => LinearUnit.Inch,
+            var x when Matches(x, "FEET") => LinearUnit.Foot,
+            var x when Matches(x, "MILLIMETERS") => LinearUnit.Millimeter,
+            var x when Matches(x, "CENTIMETERS") => LinearUnit.Centimeter,
+            var x when Matches(x, "METERS") => LinearUnit.Meter,
+            _ => null,
+        };
+        if (unit is null) return Invalid("Enter Inches, Feet, MM, CM or Meters.");
+        Session.SetNewDrawingUnit(unit.Value);
+        return CommandResult.Finished;
     }
 }
 

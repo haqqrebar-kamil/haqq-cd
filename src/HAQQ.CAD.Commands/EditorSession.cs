@@ -291,6 +291,7 @@ public sealed class CommandRegistry
         r.Register("UNDO", "Undo the last change", null, "U");
         r.Register("REDO", "Redo what was undone", null);
         r.Register("UNITS", "Drawing units and precision", () => new UnitsCommand(), "UN");
+        r.Register("NEWUNITS", "The unit new drawings start in (inches unless changed)", () => new NewDrawingUnitsCommand(), "DEFAULTUNITS");
         r.Register("GRID", "Spacing of the background grid", () => new SpacingCommand(snap: false), "GRIDSPACING");
         r.Register("CURSORSIZE", "Size of the crosshair", () => new CursorSizeCommand(), "CS", "CROSSHAIR");
         r.Register("LINEMODE", "LINE ends at the second point, or carries on", () => new LineModeCommand());
@@ -1253,6 +1254,122 @@ public sealed class EditorSession
 
     /// <summary>The dimension placed last in this session: DIMCHAIN and DIMSTACK carry on from it.</summary>
     public Guid? LastDimensionId { get; set; }
+
+    // ------------------------------------------------------------------ units
+
+    /// <summary>The unit of the drawing was changed with UNITS.</summary>
+    public event Action<LinearUnit>? UnitsChanged;
+
+    /// <summary>The unit new drawings start in: inches unless the user chose another (NEWUNITS). Kept by the shell between runs.</summary>
+    public LinearUnit NewDrawingUnit { get; private set; } = LinearUnit.Inch;
+
+    /// <summary>The unit for new drawings was chosen (the shell saves it with the user's settings).</summary>
+    public event Action<LinearUnit>? NewDrawingUnitChanged;
+
+    /// <summary>Sets the unit new drawings start in. The open drawing is not changed.</summary>
+    public void SetNewDrawingUnit(LinearUnit unit, bool announce = true)
+    {
+        if (!Enum.IsDefined(unit)) return;
+        bool changed = unit != NewDrawingUnit;
+        NewDrawingUnit = unit;
+        if (announce)
+        {
+            Post($"New drawings will start in {UnitsCommand.UnitName(unit)}. This drawing stays in {UnitsCommand.UnitName(Document.Settings.Unit)} (UNITS changes it).");
+            if (changed) NewDrawingUnitChanged?.Invoke(unit);
+        }
+    }
+
+    /// <summary>
+    /// Puts a drawing that was just made into a unit: how lengths are written, the grid, and dimension text,
+    /// arrows and dashes at round sizes of that unit. Not an undo step; for new, empty drawings.
+    /// </summary>
+    public static void ApplyUnitToNewDrawing(DrawingDocument document, LinearUnit unit)
+    {
+        if (document.Settings.Unit == unit) return;
+        foreach (var action in UnitChangeActions(document, document.Settings.ForUnit(unit), keepRealSize: true)) action.Do(document);
+    }
+
+    /// <summary>
+    /// What it takes to put a drawing into other settings. With <paramref name="keepRealSize"/> everything keeps
+    /// the size it really has and its numbers change (a 10 ft wall becomes 3048 mm): objects on the model and on
+    /// every layout, blocks, sheets, dimension styles and the linetype scale. Without it only the name of the
+    /// unit changes and every number stays as typed. In a drawing with nothing in it the dimension styles and
+    /// the linetype scale are taken to round sizes of the new unit.
+    /// </summary>
+    public static List<IUndoableAction> UnitChangeActions(DrawingDocument document, DrawingSettings target, bool keepRealSize)
+    {
+        var actions = new List<IUndoableAction>();
+        var from = document.Settings;
+        double exact = UnitConverter.Convert(1.0, from.Unit, target.Unit);
+        bool empty = document.AllEntities.Count == 0 && document.Blocks.Count == 0;
+        var after = target.Clone();
+
+        if (from.Unit != target.Unit && (keepRealSize || empty))
+        {
+            // Nothing drawn yet: round sizes (text 4 in becomes 100 mm, not 101.6).
+            double factor = empty ? RoundToTwoDigits(exact) : exact;
+            after.LinetypeScale = from.LinetypeScale * factor;
+
+            if (!empty)
+            {
+                var scale = Transform2D.Scaling(factor, Point2D.Origin);
+                var before = new List<Entity>();
+                var changed = new List<Entity>();
+                foreach (var entity in document.AllEntitiesOrdered)
+                {
+                    var copy = entity.Clone();
+                    switch (copy)
+                    {
+                        case BlockReferenceEntity reference:
+                            // Its block is made larger below; the place it stands moves, its own scale stays.
+                            reference.Position = scale.Apply(reference.Position);
+                            break;
+                        case ViewportEntity viewport:
+                            // Sheet and model grow together, so the scale between them stays.
+                            double viewScale = viewport.Scale;
+                            viewport.Transform(scale);
+                            viewport.Scale = viewScale;
+                            viewport.ModelCenter = scale.Apply(viewport.ModelCenter);
+                            break;
+                        default:
+                            copy.Transform(scale);
+                            break;
+                    }
+                    before.Add(entity);
+                    changed.Add(copy);
+                }
+                if (before.Count > 0) actions.Add(new ModifyEntitiesAction("UNITS", before, changed));
+                foreach (var block in document.Blocks) actions.Add(new ReplaceBlockAction(block.Scaled(factor)));
+                foreach (var layout in document.Layouts)
+                    actions.Add(new ReplaceLayoutAction("UNITS", layout with { PaperWidth = layout.PaperWidth * factor, PaperHeight = layout.PaperHeight * factor }));
+            }
+            foreach (var style in document.DimensionStyles) actions.Add(new ReplaceDimensionStyleAction(style.Scaled(factor)));
+        }
+
+        actions.Insert(0, new ModifySettingsAction("UNITS", from, after));
+        return actions;
+    }
+
+    private static double RoundToTwoDigits(double value)
+    {
+        if (!(value > 0) || !double.IsFinite(value)) return 1.0;
+        double magnitude = Math.Pow(10, Math.Floor(Math.Log10(value)) - 1);
+        return Math.Round(value / magnitude) * magnitude;
+    }
+
+    /// <summary>Changes the drawing's unit, format and precision as one undo step (see <see cref="UnitChangeActions"/>).</summary>
+    public bool ChangeUnits(DrawingSettings target, bool keepRealSize)
+    {
+        var from = Document.Settings.Unit;
+        var actions = UnitChangeActions(Document, target, keepRealSize);
+        if (!Execute(actions.Count == 1 ? actions[0] : new CompositeAction("UNITS", actions.ToArray()))) return false;
+        if (from != target.Unit)
+        {
+            _textDefaults = null;                   // the next text takes the height of the dimension text again
+            UnitsChanged?.Invoke(target.Unit);
+        }
+        return true;
+    }
 
     // ------------------------------------------------------- text and tables
 

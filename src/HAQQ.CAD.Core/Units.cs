@@ -45,6 +45,35 @@ public sealed class DrawingSettings
     /// <summary>Scales every linetype pattern in the drawing (LTSCALE). 1 = lengths as defined, in drawing units.</summary>
     public double LinetypeScale { get; set; } = 1.0;
 
+    /// <summary>
+    /// The settings a drawing in <paramref name="unit"/> starts with: feet and inches with fractions for inch and
+    /// foot drawings, decimals for metric ones (mm to 0.1, cm to 0.01, m to 0.001), and a grid that suits the unit.
+    /// </summary>
+    public DrawingSettings ForUnit(LinearUnit unit)
+    {
+        var s = Clone();
+        s.Unit = unit;
+        bool imperial = UnitConverter.IsImperial(unit);
+        if (imperial != UnitConverter.IsImperial(Unit) || unit != Unit)
+        {
+            if (imperial) s.Format = Format == LengthFormat.Decimal && UnitConverter.IsImperial(Unit) ? LengthFormat.Decimal : LengthFormat.Architectural;
+            else
+            {
+                s.Format = LengthFormat.Decimal;
+                s.DecimalPrecision = unit switch { LinearUnit.Millimeter => 1, LinearUnit.Centimeter => 2, _ => 3 };
+            }
+            (s.GridSpacing, s.SnapSpacing) = unit switch
+            {
+                LinearUnit.Inch => (12.0, 1.0),
+                LinearUnit.Foot => (1.0, 1.0 / 12.0),
+                LinearUnit.Millimeter => (100.0, 10.0),
+                LinearUnit.Centimeter => (10.0, 1.0),
+                _ => (1.0, 0.01),
+            };
+        }
+        return s;
+    }
+
     public DrawingSettings Clone() => (DrawingSettings)MemberwiseClone();
 }
 
@@ -79,6 +108,11 @@ public static partial class UnitFormatter
     /// Values with a foot or inch mark are imperial and are converted to the drawing unit;
     /// unmarked values are already in drawing units.
     /// </summary>
+    private static readonly (string Suffix, LinearUnit Unit)[] MetricSuffixes =
+    {
+        ("mm", LinearUnit.Millimeter), ("cm", LinearUnit.Centimeter), ("m", LinearUnit.Meter),
+    };
+
     public static bool TryParseLength(string? text, DrawingSettings settings, out double value)
     {
         value = 0;
@@ -90,6 +124,19 @@ public static partial class UnitFormatter
             if (!double.IsFinite(plain)) return false;
             value = plain;
             return true;
+        }
+
+        // A metric length with its unit, in any drawing: 250mm, 2.5 m, 30cm.
+        foreach (var (suffix, unit) in MetricSuffixes)
+        {
+            if (!text.EndsWith(suffix, StringComparison.OrdinalIgnoreCase)) continue;
+            string number = text[..^suffix.Length].Trim();
+            if (double.TryParse(number, NumberStyles.Float, CultureInfo.InvariantCulture, out double metric) && double.IsFinite(metric))
+            {
+                value = UnitConverter.Convert(metric, unit, settings.Unit);
+                return true;
+            }
+            break;                                  // "mm" must not be read again as "m"
         }
 
         var m = LengthRegex().Match(text);

@@ -13,6 +13,9 @@ public sealed class UserSettings
     /// <summary>The object snaps that act automatically while OSNAP is on, as <c>SnapModes</c> flags; null = program default.</summary>
     public int? SnapModes { get; set; }
 
+    /// <summary>The unit new drawings start in ("Inch", "Foot", "Millimeter", "Centimeter", "Meter"); null = inches.</summary>
+    public string? NewDrawingUnit { get; set; }
+
     /// <summary>Whether the Properties panel starts folded away at the right edge.</summary>
     public bool PropertiesCollapsed { get; set; } = true;
 
@@ -49,6 +52,9 @@ public sealed class UserSettingsStore
                 pc.ValueKind is JsonValueKind.True or JsonValueKind.False)
                 settings.PropertiesCollapsed = pc.GetBoolean();
             if (json.RootElement.ValueKind == JsonValueKind.Object &&
+                json.RootElement.TryGetProperty("newDrawingUnit", out var nu) && nu.ValueKind == JsonValueKind.String)
+                settings.NewDrawingUnit = nu.GetString();
+            if (json.RootElement.ValueKind == JsonValueKind.Object &&
                 json.RootElement.TryGetProperty("shortcuts", out var sc) && sc.ValueKind == JsonValueKind.Object)
             {
                 foreach (var command in sc.EnumerateObject())
@@ -75,7 +81,8 @@ public sealed class UserSettingsStore
             string snap = settings.SnapModes is { } modes ? ",\n  \"snapModes\": " + modes : "";
             string panel = ",\n  \"propertiesCollapsed\": " + (settings.PropertiesCollapsed ? "true" : "false");
             string shortcuts = settings.Shortcuts.Count == 0 ? "" : ",\n  \"shortcuts\": " + JsonSerializer.Serialize(settings.Shortcuts);
-            File.WriteAllText(_path, "{\n  \"crosshairPercent\": " + settings.CrosshairPercent + snap + panel + shortcuts + "\n}\n");
+            string unit = string.IsNullOrWhiteSpace(settings.NewDrawingUnit) ? "" : ",\n  \"newDrawingUnit\": " + JsonSerializer.Serialize(settings.NewDrawingUnit);
+            File.WriteAllText(_path, "{\n  \"crosshairPercent\": " + settings.CrosshairPercent + snap + panel + unit + shortcuts + "\n}\n");
             return true;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
