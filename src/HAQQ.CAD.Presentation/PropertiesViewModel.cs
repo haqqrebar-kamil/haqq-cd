@@ -317,10 +317,10 @@ public sealed class PropertiesViewModel : ObservableObject
             if (_session.ActiveCommand is DimensionCommandBase)
             {
                 // Dimensions are placed on the layer named after their style, whatever the current layer is.
-                string styleLayer = doc.CurrentDimensionStyleName;
-                Hint = $"Dimensions go on the layer of their style, \"{styleLayer}\"" +
-                       (_session.DimensionLayerOf(styleLayer) is null ? " (it is made with the first dimension)." : ".");
-                SetLayerName((_session.DimensionLayerOf(styleLayer) ?? doc.GetLayer(_session.EffectiveNewObjectLayerId))?.Name, layersChanged);
+                string style = doc.CurrentDimensionStyleName;
+                Hint = $"Dimensions go on the layer of their style, \"{EditorSession.DimensionLayerName(style)}\"" +
+                       (_session.DimensionLayerOf(style) is null ? " (it is made with the first dimension)." : ".");
+                SetLayerName((_session.DimensionLayerOf(style) ?? doc.GetLayer(_session.EffectiveNewObjectLayerId))?.Name, layersChanged);
             }
             else
             SetLayerName(doc.GetLayer(_session.EffectiveNewObjectLayerId)?.Name, layersChanged);

@@ -1261,23 +1261,35 @@ public sealed class EditorSession
     }
 
     /// <summary>
-    /// The layer the dimensions of a style are placed on: the layer with the style's name. When there is no such
+    /// The layer the dimensions of a style are placed on (see <see cref="DimensionLayerName"/>). When there is no such
     /// layer yet, the action that creates it is returned (to be run together with whatever needs the layer).
     /// </summary>
     public IUndoableAction? DimensionLayerAction(string styleName, out Guid layerId)
     {
-        if (Document.FindLayer(styleName) is { } existing)
+        string name = DimensionLayerName(styleName);
+        if (Document.FindLayer(name) is { } existing)
         {
             layerId = existing.Id;
             return null;
         }
-        var layer = new Layer(Guid.NewGuid(), styleName);
+        var layer = new Layer(Guid.NewGuid(), name);
         layerId = layer.Id;
         return new AddLayerAction(layer);
     }
 
     /// <summary>The layer of a dimension style, or null when it has not been created yet.</summary>
-    public Layer? DimensionLayerOf(string styleName) => Document.FindLayer(styleName);
+    public Layer? DimensionLayerOf(string styleName) => Document.FindLayer(DimensionLayerName(styleName));
+
+    /// <summary>
+    /// Name of the layer for the dimensions of a style: the style's name followed by "Dimension" ("Standard
+    /// Dimension"), so the layer table shows what the layer is for. A style whose own name already says so
+    /// ("Rebar dims") keeps its name as the layer name.
+    /// </summary>
+    public static string DimensionLayerName(string styleName)
+    {
+        string name = styleName.Trim();
+        return name.Contains("dim", StringComparison.OrdinalIgnoreCase) ? name : name + " Dimension";
+    }
 
     /// <summary>Changes the values of the style with that name; the dimensions using it follow. One undo step.</summary>
     public bool ModifyDimensionStyle(DimensionStyle style)
