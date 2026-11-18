@@ -34,6 +34,10 @@ public interface IRenderSurface
     /// height of a capital letter in pixels; <paramref name="angle"/> is counter-clockwise in radians (0 = left to right).
     /// </summary>
     void DrawText(string text, double cx, double cy, double height, double angle, in RenderStyle style);
+
+    /// <summary>Everything drawn until the matching <see cref="PopClip"/> is cut off at this rectangle (a viewport's window).</summary>
+    void PushClip(double x, double y, double width, double height);
+    void PopClip();
 }
 
 public static class RenderTheme
@@ -53,6 +57,11 @@ public static class RenderTheme
     public static readonly RenderStyle CrossingSelect = new(80, 220, 120, 1.0, true);
     public static readonly RenderStyle PolarTrack = new(70, 225, 100, 1.0, true);
     public static readonly RenderStyle Crosshair = new(240, 240, 240, 1.5);
+    /// <summary>The sheet of a layout: a little lighter than the background, with an edge.</summary>
+    public static readonly RenderStyle Paper = new(40, 44, 52);
+    public static readonly RenderStyle PaperEdge = new(120, 128, 140);
+    /// <summary>The frame of the viewport that is being worked in (after a double-click inside it).</summary>
+    public static readonly RenderStyle ActiveViewport = new(242, 163, 58, 2.5);
 }
 
 public sealed class RenderOptions
@@ -61,6 +70,21 @@ public sealed class RenderOptions
     public IReadOnlyList<Entity> Preview { get; set; } = Array.Empty<Entity>();
     public SnapResult? Snap { get; set; }
     public bool ShowGrid { get; set; } = true;
+
+    /// <summary>The viewport being worked in, drawn with a heavy frame.</summary>
+    public Guid? ActiveViewportId { get; set; }
+
+    /// <summary>
+    /// Plotting: layers with Plot off are left out, the sheet itself is not drawn, and lines get their
+    /// lineweight (<see cref="PixelsPerMm"/> wide per millimetre).
+    /// </summary>
+    public bool Plot { get; set; }
+
+    /// <summary>Plotting in black only (true), or in the objects' colours with near-white turned black.</summary>
+    public bool PlotMonochrome { get; set; } = true;
+
+    /// <summary>Output units per millimetre of lineweight when plotting.</summary>
+    public double PixelsPerMm { get; set; } = 96.0 / 25.4;
 
     /// <summary>Polar tracking ray to show: base point and direction in degrees (model space).</summary>
     public (Point2D From, double AngleDegrees)? PolarTrack { get; set; }
@@ -98,17 +122,45 @@ public sealed class SceneRenderer
 
     private readonly List<ScreenPoint> _buffer = new();
     private DrawingSettings _settings = new();
+    private RenderOptions _options = new();
 
     public RenderStats Render(IRenderSurface surface, DrawingDocument document, ViewTransform view, RenderOptions options)
     {
         _settings = document.Settings;
-        if (options.ShowGrid) DrawGrid(surface, document, view);
+        _options = options;
+        var layout = document.ActiveLayout;
+        if (layout is not null)
+        {
+            // A layout: the sheet instead of the grid (the sheet itself is not part of a plot).
+            if (!options.Plot)
+            {
+                var a = view.WorldToScreen(new Point2D(0, layout.PaperHeight));
+                var b = view.WorldToScreen(new Point2D(layout.PaperWidth, 0));
+                double x = Math.Max(a.X, -SafeCoordinate), y = Math.Max(a.Y, -SafeCoordinate);
+                double w = Math.Min(b.X, SafeCoordinate) - x, h = Math.Min(b.Y, SafeCoordinate) - y;
+                if (w > 0 && h > 0)
+                {
+                    surface.DrawRectangle(x, y, w, h, RenderTheme.Paper, 255);
+                    surface.DrawRectangle(x, y, w, h, RenderTheme.PaperEdge, 0);
+                }
+            }
+        }
+        else if (options.ShowGrid && !options.Plot) DrawGrid(surface, document, view);
 
         // Viewport culling through the spatial index: only entities near the view are visited.
         var visible = view.VisibleBounds;
         var candidates = document.QueryEntities(visible);
         int drawn = 0;
         List<Entity>? selected = null;
+        ViewportEntity? active = null;
+
+        // What is seen through the viewports goes down first, under everything drawn on the sheet.
+        foreach (var entity in candidates)
+        {
+            if (entity is not ViewportEntity viewport || viewport.SpaceId == Guid.Empty) continue;
+            if (options.ActiveViewportId == viewport.Id) active = viewport;
+            if (document.GetLayer(viewport.LayerId) is { IsFrozen: false }) drawn += DrawViewportContent(surface, document, viewport, view);
+        }
 
         Guid layerId = Guid.Empty;
         Layer? layer = null;
@@ -120,6 +172,7 @@ public sealed class SceneRenderer
                 layer = document.GetLayer(layerId);
             }
             if (layer is null || !layer.IsDisplayed) continue;
+            if (options.Plot && !layer.IsPlotted) continue;
 
             if (options.IsSelected is not null && options.IsSelected(entity.Id))
             {
@@ -127,9 +180,11 @@ public sealed class SceneRenderer
                 continue;
             }
 
-            DrawEntity(surface, entity, view, WithLinetype(ResolveStyle(entity, layer), document, entity, view));
+            DrawEntity(surface, entity, view, WithLinetype(StyleFor(entity, layer), document, entity, view));
             drawn++;
         }
+
+        if (active is not null && !options.Plot) DrawEntity(surface, active, view, RenderTheme.ActiveViewport);
 
         if (selected is not null)
         {
@@ -262,6 +317,59 @@ public sealed class SceneRenderer
         return new RenderStyle(r, g, b);
     }
 
+    /// <summary>
+    /// The style an object is drawn with: on screen its colour, one pixel wide; in a plot black (or its colour)
+    /// and as wide as its lineweight.
+    /// </summary>
+    private RenderStyle StyleFor(Entity entity, Layer layer)
+    {
+        if (!_options.Plot) return ResolveStyle(entity, layer);
+        var color = entity.Color.IsExplicit ? entity.Color : layer.Color;
+        byte r = color.R, g = color.G, b = color.B;
+        if (_options.PlotMonochrome || (r > 200 && g > 200 && b > 200)) r = g = b = 0;      // white would not show on paper
+        double millimetres = entity.LineweightMm ?? layer.LineweightMm;
+        double width = Math.Max(millimetres * _options.PixelsPerMm, 0.5);
+        return new RenderStyle(r, g, b, width);
+    }
+
+    /// <summary>
+    /// Draws the part of the model that a viewport shows, cut off at its window. Returns how many objects were drawn.
+    /// </summary>
+    private int DrawViewportContent(IRenderSurface surface, DrawingDocument document, ViewportEntity viewport, ViewTransform view)
+    {
+        var frame = viewport.Frame;
+        var topLeft = view.WorldToScreen(new Point2D(frame.MinX, frame.MaxY));
+        var bottomRight = view.WorldToScreen(new Point2D(frame.MaxX, frame.MinY));
+        double x = Math.Max(topLeft.X, -SafeCoordinate), y = Math.Max(topLeft.Y, -SafeCoordinate);
+        double w = Math.Min(bottomRight.X, SafeCoordinate) - x, h = Math.Min(bottomRight.Y, SafeCoordinate) - y;
+        if (w < 1 || h < 1) return 0;
+
+        // A view of the model in which the model point at the middle of the window lands where the window is.
+        double scale = view.Scale * viewport.Scale;
+        if (!(scale >= ViewTransform.MinScale) || scale > ViewTransform.MaxScale) return 0;
+        var inside = new ViewTransform();
+        inside.SetViewport(view.ViewportWidth, view.ViewportHeight);
+        inside.SetView(viewport.ModelCenter + (view.Center - viewport.Center) / viewport.Scale, scale);
+
+        int drawn = 0;
+        surface.PushClip(x, y, w, h);
+        try
+        {
+            foreach (var entity in document.QueryEntities(viewport.ModelBounds, Guid.Empty))
+            {
+                if (document.GetLayer(entity.LayerId) is not { IsDisplayed: true } layer) continue;
+                if (_options.Plot && !layer.IsPlotted) continue;
+                DrawEntity(surface, entity, inside, WithLinetype(StyleFor(entity, layer), document, entity, inside));
+                drawn++;
+            }
+        }
+        finally
+        {
+            surface.PopClip();
+        }
+        return drawn;
+    }
+
     public static IEnumerable<Point2D> GetGripPoints(Entity entity) => EntityGrips.GetGripPoints(entity);
 
     private void DrawEntity(IRenderSurface surface, Entity entity, ViewTransform view, in RenderStyle style)
@@ -296,6 +404,22 @@ public sealed class SceneRenderer
             case DimensionEntity dimension:
                 DrawDimension(surface, view, dimension, style);
                 break;
+
+            case ViewportEntity viewport:
+            {
+                // The frame only; what is seen through it is drawn separately, under the sheet's own objects.
+                var f = viewport.Frame;
+                var p1 = view.WorldToScreen(new Point2D(f.MinX, f.MinY));
+                var p2 = view.WorldToScreen(new Point2D(f.MaxX, f.MinY));
+                var p3 = view.WorldToScreen(new Point2D(f.MaxX, f.MaxY));
+                var p4 = view.WorldToScreen(new Point2D(f.MinX, f.MaxY));
+                var frameStyle = style with { Pattern = null };
+                DrawSegment(surface, view, p1, p2, frameStyle);
+                DrawSegment(surface, view, p2, p3, frameStyle);
+                DrawSegment(surface, view, p3, p4, frameStyle);
+                DrawSegment(surface, view, p4, p1, frameStyle);
+                break;
+            }
 
             case GridLineEntity grid:
             {

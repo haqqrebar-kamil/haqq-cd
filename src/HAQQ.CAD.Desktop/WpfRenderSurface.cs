@@ -132,4 +132,18 @@ internal sealed class WpfRenderSurface : IRenderSurface
         Target.DrawText(formatted, new Point(cx - formatted.Width / 2.0, cy - formatted.Height / 2.0));
         if (turned) Target.Pop();
     }
+
+    public void PushClip(double x, double y, double width, double height)
+    {
+        if (Target is null || width < 0 || height < 0) { _skippedClips++; return; }
+        Target.PushClip(new RectangleGeometry(new Rect(x, y, width, height)));
+    }
+
+    private int _skippedClips;
+
+    public void PopClip()
+    {
+        if (_skippedClips > 0) { _skippedClips--; return; }
+        Target?.Pop();
+    }
 }

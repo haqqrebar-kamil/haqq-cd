@@ -269,6 +269,16 @@ public sealed class CommandRegistry
         r.Register("ZOOMIN", "Zoom in one step", () => new ZoomCommand("I"), "ZI");
         r.Register("ZOOMOUT", "Zoom out one step", () => new ZoomCommand("O"), "ZO");
         r.Register("PAN", "Move the view by dragging", () => new PanCommand(), "P");
+        // Layouts and plotting
+        r.Register("MODEL", "Go to the Model tab", null, "MS");
+        r.Register("LAYOUT", "New layout (sheet) with a viewport", null, "LAYOUTNEW", "LO");
+        r.Register("LAYOUTRENAME", "Rename the layout being looked at", () => new RenameLayoutCommand());
+        r.Register("LAYOUTDELETE", "Delete the layout being looked at", () => new DeleteLayoutCommand());
+        r.Register("PAGESETUP", "Paper size of the layout", () => new PageSetupCommand(), "PAPER");
+        r.Register("VIEWPORT", "New viewport on the layout", () => new ViewportCommand(), "VP", "MV");
+        r.Register("VPSCALE", "Scale of a viewport", () => new ViewportScaleCommand(fit: false), "VS");
+        r.Register("VPFIT", "Show the whole model in a viewport", () => new ViewportScaleCommand(fit: true), "VF");
+        r.Register("PLOT", "Print the layout or the model, or make a PDF", null, "PRINT");
         r.Register("UNDO", "Undo the last change", null, "U");
         r.Register("REDO", "Redo what was undone", null);
         r.Register("UNITS", "Drawing units and precision", () => new UnitsCommand(), "UN");
@@ -518,6 +528,11 @@ public sealed class EditorSession
     private void OnDocumentChanged(object? sender, DocumentChangedEventArgs e)
     {
         Selection.Prune(id => Document.GetEntity(id) is { } entity && SelectionService.IsSelectable(Document, entity));
+        if (ActiveViewportId is Guid viewportId && (Document.GetEntity(viewportId) is not ViewportEntity v || v.SpaceId != Document.ActiveSpaceId))
+        {
+            ActiveViewportId = null;                // the viewport, or its layout, is gone (an undo)
+            _viewportBefore = null;
+        }
         RaiseStateChanged();
     }
 
@@ -537,6 +552,8 @@ public sealed class EditorSession
         OffsetDistance = null;
         FilletRadius = 0;
         ChamferDistances = (0, 0);
+        ActiveViewportId = null;
+        _viewportBefore = null;
         LastDimensionId = null;
         NewObjectDefaults = new NewObjectProperties();
         NewObjectOverride = null;
@@ -838,6 +855,17 @@ public sealed class EditorSession
                 Post("Command: GRIDLINES");
                 ViewCommandRequested?.Invoke("GridLines");
                 return true;
+            case "MODEL":
+                SwitchSpace(Guid.Empty);
+                return true;
+            case "LAYOUT":
+                Post("Command: LAYOUT");
+                AddLayout();
+                return true;
+            case "PLOT":
+                Post("Command: PLOT");
+                ViewCommandRequested?.Invoke("Plot");
+                return true;
             case "SHORTCUTS":
                 Post("Command: SHORTCUTS");
                 ViewCommandRequested?.Invoke("Shortcuts");
@@ -881,6 +909,10 @@ public sealed class EditorSession
             CurrentSnap = null;
             Post("*Cancel*");
             RaiseStateChanged();
+        }
+        else if (Selection.Count == 0 && ActiveViewportId is not null)
+        {
+            ExitViewport();                         // Esc with nothing else to cancel leaves the entered viewport
         }
         else
         {
@@ -1005,6 +1037,7 @@ public sealed class EditorSession
     public void Undo()
     {
         if (ActiveCommand is not null) Cancel();
+        CommitActiveViewport();                 // what was changed in the entered viewport is the first thing to undo
         var action = UndoStack.Undo(Document);
         Post(action is null ? "Nothing to undo." : "Undo: " + action.Name);
     }
@@ -1198,6 +1231,241 @@ public sealed class EditorSession
 
     /// <summary>The dimension placed last in this session: DIMCHAIN and DIMSTACK carry on from it.</summary>
     public Guid? LastDimensionId { get; set; }
+
+    // -------------------------------------------------- layouts and viewports
+
+    /// <summary>Name of the layer new viewports are placed on. Its Plot switch starts off, so viewport frames are not printed.</summary>
+    public const string ViewportLayerName = "Viewport";
+
+    /// <summary>The space being worked in: <see cref="Guid.Empty"/> for the model, or a layout's id.</summary>
+    public Guid ActiveSpaceId => Document.ActiveSpaceId;
+
+    /// <summary>The viewport that was entered with a double-click: the wheel and panning change what it shows.</summary>
+    public Guid? ActiveViewportId { get; private set; }
+
+    private ViewportEntity? _viewportBefore;
+
+    /// <summary>Shows the model (<see cref="Guid.Empty"/>) or a layout. Ends the running command and clears the selection.</summary>
+    public bool SwitchSpace(Guid spaceId)
+    {
+        if (spaceId != Guid.Empty && Document.GetLayout(spaceId) is null) return false;
+        if (spaceId == Document.ActiveSpaceId) return true;
+        if (ActiveCommand is not null) Cancel();
+        ExitViewport();
+        Selection.Clear();
+        ClearTracking();
+        CurrentSnap = null;
+        LastPoint = null;
+        Document.ActiveSpaceId = spaceId;
+        Post(spaceId == Guid.Empty ? "<Model>" : $"<Layout \"{Document.ActiveLayout!.Name}\">");
+        RaiseStateChanged();
+        return true;
+    }
+
+    private IUndoableAction? ViewportLayerAction(out Guid layerId)
+    {
+        if (Document.FindLayer(ViewportLayerName) is { } existing)
+        {
+            layerId = existing.Id;
+            return null;
+        }
+        var layer = new Layer(Guid.NewGuid(), ViewportLayerName) { IsPlotted = false, Color = CadColor.FromRgb(128, 128, 128) };
+        layerId = layer.Id;
+        return new AddLayerAction(layer);
+    }
+
+    /// <summary>
+    /// Adds a layout with one viewport that shows the whole model, and opens it. The sheet is the standard one
+    /// for the drawing's units unless a size is given (in drawing units). One undo step.
+    /// </summary>
+    public Layout? AddLayout(string? name = null, double? paperWidth = null, double? paperHeight = null)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            int n = 1;
+            do { name = "Layout " + n++.ToString(System.Globalization.CultureInfo.InvariantCulture); } while (Document.FindLayout(name) is not null);
+        }
+        name = name.Trim();
+        if (!Layout.IsValidName(name)) { Post("A layout name is 1 to 64 characters and cannot be \"Model\"."); return null; }
+        if (Document.FindLayout(name) is not null) { Post($"There is already a layout named \"{name}\"."); return null; }
+
+        var (w, h) = LayoutStandards.SizeOf(LayoutStandards.DefaultPaper(Document.Settings), Document.Settings);
+        var layout = new Layout(Guid.NewGuid(), name, paperWidth ?? w, paperHeight ?? h);
+        if (!layout.IsValid) { Post("The paper size must be more than 0."); return null; }
+
+        // One viewport, a margin in from the edge of the sheet, showing the whole model.
+        double margin = Math.Min(layout.PaperWidth, layout.PaperHeight) * 0.04;
+        var viewport = new ViewportEntity(layout.Sheet.Center, layout.PaperWidth - 2 * margin, layout.PaperHeight - 2 * margin) { SpaceId = layout.Id };
+        var model = Document.GetExtents(Guid.Empty);
+        if (model.IsEmpty) viewport.Scale = LayoutStandards.Scales(Document.Settings)[UnitConverter.IsImperial(Document.Settings.Unit) ? 8 : 6];
+        else
+        {
+            viewport.Fit(model);
+            viewport.Scale = RoundDownToStandardScale(viewport.Scale);
+        }
+
+        var actions = new List<IUndoableAction> { new AddLayoutAction(layout) };
+        if (ViewportLayerAction(out Guid layerId) is { } layerAction) actions.Add(layerAction);
+        viewport.LayerId = layerId;
+        actions.Add(new AddEntitiesAction("New layout", new Entity[] { viewport }));
+        if (!Execute(new CompositeAction("New layout", actions.ToArray()))) return null;
+        SwitchSpace(layout.Id);
+        return Document.GetLayout(layout.Id);
+    }
+
+    /// <summary>The largest standard scale that still shows everything <paramref name="scale"/> shows.</summary>
+    private double RoundDownToStandardScale(double scale)
+    {
+        foreach (double standard in LayoutStandards.Scales(Document.Settings))
+            if (standard <= scale * (1 + 1e-9)) return standard;
+        return scale;
+    }
+
+    public bool RenameLayout(Guid layoutId, string name)
+    {
+        if (Document.GetLayout(layoutId) is not { } layout) { Post("That layout does not exist."); return false; }
+        name = (name ?? "").Trim();
+        if (!Layout.IsValidName(name)) { Post("A layout name is 1 to 64 characters and cannot be \"Model\"."); return false; }
+        if (name == layout.Name) return true;
+        return Execute(new ReplaceLayoutAction("Rename layout", layout with { Name = name }));
+    }
+
+    /// <summary>Sets the paper size of a layout, in drawing units. What is drawn on it stays where it is.</summary>
+    public bool SetPaperSize(Guid layoutId, double width, double height)
+    {
+        if (Document.GetLayout(layoutId) is not { } layout) { Post("That layout does not exist."); return false; }
+        if (!(width > 0) || !(height > 0) || !double.IsFinite(width) || !double.IsFinite(height)) { Post("The paper width and height must be more than 0."); return false; }
+        if (width == layout.PaperWidth && height == layout.PaperHeight) return true;
+        if (!Execute(new ReplaceLayoutAction("Page setup", layout with { PaperWidth = width, PaperHeight = height }))) return false;
+        Post($"Sheet: {UnitFormatter.FormatLength(width, Document.Settings)} x {UnitFormatter.FormatLength(height, Document.Settings)}.");
+        return true;
+    }
+
+    /// <summary>Deletes a layout with everything drawn on it. The model is not touched. One undo step.</summary>
+    public bool DeleteLayout(Guid layoutId)
+    {
+        if (Document.GetLayout(layoutId) is not { } layout) { Post("That layout does not exist."); return false; }
+        if (Document.ActiveSpaceId == layoutId) SwitchSpace(Guid.Empty);
+        var ids = Document.AllEntities.Where(e => e.SpaceId == layoutId).Select(e => e.Id).ToList();
+        if (!Execute(new CompositeAction("Delete layout", new RemoveEntitiesByIdAction("Delete layout", ids), new RemoveLayoutAction(layoutId)))) return false;
+        Post($"Layout \"{layout.Name}\" deleted.");
+        return true;
+    }
+
+    /// <summary>Adds a viewport with the given frame to the layout being looked at. It shows the whole model.</summary>
+    public bool AddViewport(BoundingBox frame)
+    {
+        if (Document.ActiveLayout is not { } layout) { Post("Viewports are placed on a layout."); return false; }
+        var viewport = new ViewportEntity(frame.Center, frame.Width, frame.Height) { SpaceId = layout.Id };
+        if (!viewport.IsValid) { Post("That viewport has no size."); return false; }
+        var model = Document.GetExtents(Guid.Empty);
+        if (model.IsEmpty) viewport.Scale = LayoutStandards.Scales(Document.Settings)[UnitConverter.IsImperial(Document.Settings.Unit) ? 8 : 6];
+        else
+        {
+            viewport.Fit(model);
+            viewport.Scale = RoundDownToStandardScale(viewport.Scale);
+        }
+        var layerAction = ViewportLayerAction(out Guid layerId);
+        viewport.LayerId = layerId;
+        var add = new AddEntitiesAction("Viewport", new Entity[] { viewport });
+        return Execute(layerAction is null ? add : new CompositeAction(add.Name, layerAction, add));
+    }
+
+    /// <summary>Sets the scale of viewports; the model point in the middle of each window stays there.</summary>
+    public bool SetViewportScale(IEnumerable<Guid> viewportIds, double scale)
+    {
+        if (!(scale > 1e-9) || !double.IsFinite(scale)) { Post("The scale must be more than 0."); return false; }
+        CommitActiveViewport();
+        bool ok = ModifyEntities(viewportIds, e => { if (e is ViewportEntity v) v.Scale = scale; }, "Viewport scale");
+        if (ok) Post("Viewport scale: " + LayoutStandards.ScaleName(scale, Document.Settings));
+        RestartActiveViewport();
+        return ok;
+    }
+
+    /// <summary>Shows the whole model in the viewports, as large as fits.</summary>
+    public bool FitViewports(IEnumerable<Guid> viewportIds)
+    {
+        var model = Document.GetExtents(Guid.Empty);
+        if (model.IsEmpty) { Post("The model is empty: there is nothing to fit."); return false; }
+        CommitActiveViewport();
+        bool ok = ModifyEntities(viewportIds, e => { if (e is ViewportEntity v) v.Fit(model); }, "Fit viewport");
+        RestartActiveViewport();
+        return ok;
+    }
+
+    /// <summary>
+    /// Double-click inside a viewport: from now on the wheel and panning change what that viewport shows, until
+    /// <see cref="ExitViewport"/>. Returns false when the point is not inside a viewport of the layout.
+    /// </summary>
+    public bool EnterViewportAt(Point2D paperPoint)
+    {
+        if (Document.ActiveLayout is null) return false;
+        ExitViewport();
+        // The smallest viewport under the point, so one inside another can be reached.
+        var viewport = Document.EntitiesUnordered.OfType<ViewportEntity>()
+            .Where(v => v.Contains(paperPoint) && Document.GetLayer(v.LayerId) is { IsEditable: true })
+            .OrderBy(v => v.Width * v.Height)
+            .FirstOrDefault();
+        if (viewport is null) return false;
+        ActiveViewportId = viewport.Id;
+        _viewportBefore = (ViewportEntity)viewport.Clone();
+        Post("<Viewport: the wheel and panning now move the model inside it. Double-click outside it to finish.>");
+        RaiseStateChanged();
+        return true;
+    }
+
+    /// <summary>Leaves the viewport that was entered. What was changed in it becomes one undo step.</summary>
+    public void ExitViewport()
+    {
+        if (ActiveViewportId is null) return;
+        CommitActiveViewport();
+        ActiveViewportId = null;
+        _viewportBefore = null;
+        RaiseStateChanged();
+    }
+
+    private ViewportEntity? ActiveViewport => ActiveViewportId is Guid id ? Document.GetEntity(id) as ViewportEntity : null;
+
+    /// <summary>Records what has been changed in the entered viewport so far as one undo step.</summary>
+    private void CommitActiveViewport()
+    {
+        if (_viewportBefore is not { } before || ActiveViewport is not { } now) return;
+        if (before.Scale == now.Scale && before.ModelCenter == now.ModelCenter) return;
+        Execute(new ModifyEntitiesAction("Viewport view", new Entity[] { before }, new Entity[] { now }));
+        _viewportBefore = (ViewportEntity)now.Clone();
+    }
+
+    private void RestartActiveViewport()
+    {
+        if (ActiveViewport is { } now) _viewportBefore = (ViewportEntity)now.Clone();
+        else if (ActiveViewportId is not null) { ActiveViewportId = null; _viewportBefore = null; }
+    }
+
+    /// <summary>Wheel in the entered viewport: the model under <paramref name="paperAnchor"/> stays put while it gets larger or smaller.</summary>
+    public bool ZoomActiveViewport(Point2D paperAnchor, double factor)
+    {
+        if (ActiveViewport is not { } viewport || !(factor > 0) || !double.IsFinite(factor)) return false;
+        var copy = (ViewportEntity)viewport.Clone();
+        var anchorModel = copy.PaperToModel(paperAnchor);
+        double scale = copy.Scale * factor;
+        if (!(scale > 1e-9) || scale > 1e9) return false;
+        copy.Scale = scale;
+        copy.ModelCenter = anchorModel - (paperAnchor - copy.Center) / scale;
+        if (!copy.IsValid) return false;
+        Document.ReplaceEntity(copy);               // the undo step is recorded once, when the viewport is left
+        return true;
+    }
+
+    /// <summary>Pan in the entered viewport: the model moves with the cursor by <paramref name="paperDelta"/> on the sheet.</summary>
+    public bool PanActiveViewport(Vector2D paperDelta)
+    {
+        if (ActiveViewport is not { } viewport) return false;
+        var copy = (ViewportEntity)viewport.Clone();
+        copy.ModelCenter = copy.ModelCenter - paperDelta / copy.Scale;
+        if (!copy.IsValid) return false;
+        Document.ReplaceEntity(copy);
+        return true;
+    }
 
     // ----------------------------------------------------------- grid lines
 

@@ -38,6 +38,7 @@ public partial class MainWindow : Window
         _viewModel.ShortcutsRequested += (_, _) => Dispatcher.BeginInvoke(new Action(ShowShortcuts));
         _viewModel.DimensionStylesRequested += (_, _) => Dispatcher.BeginInvoke(new Action(ShowDimensionStyles));
         _viewModel.GridLinesRequested += (_, _) => Dispatcher.BeginInvoke(new Action(ShowGridWizard));
+        _viewModel.PlotRequested += (_, _) => Dispatcher.BeginInvoke(new Action(ShowPlot));
         // Scroll after the list itself has taken in the new line. Scrolling from inside the change
         // notification forces a layout while the list is still one line behind, which WPF rejects.
         _viewModel.History.CollectionChanged += (_, _) =>
@@ -252,6 +253,73 @@ public partial class MainWindow : Window
         _layersWindow = new LayersWindow(_viewModel) { Owner = this };
         _layersWindow.Closed += (_, _) => _layersWindow = null;
         _layersWindow.Show();
+    }
+
+    private bool _plotOpen;
+
+    /// <summary>Shows the Plot window (preview, then the printer) as a dialog over the drawing.</summary>
+    private void ShowPlot()
+    {
+        if (_plotOpen) return;
+        _plotOpen = true;
+        try
+        {
+            var document = _viewModel.Session.Document;
+            string job = document.ActiveLayout is { } layout ? $"{_viewModel.DocumentName} - {layout.Name}" : _viewModel.DocumentName;
+            var window = new PlotWindow(document, _viewModel.PlotSubject, job) { Owner = this };
+            window.ShowDialog();
+            if (window.Result is { } result) _viewModel.Session.Post(result);
+        }
+        finally
+        {
+            _plotOpen = false;
+            DrawingCanvas.Focus();
+        }
+    }
+
+    /// <summary>
+    /// Page Setup and Scale on the LAYOUT tab: a list made for the drawing's units (sheets, or scales written
+    /// as 1/4" = 1'-0" or 1:50), shown under the button.
+    /// </summary>
+    private void LayoutListButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button button) return;
+        var settings = _viewModel.Session.Document.Settings;
+        var choices = button.CommandParameter as string == "Scales" ? LayoutChoices.Scales(settings) : LayoutChoices.Papers(settings);
+        var menu = new ContextMenu { PlacementTarget = button, Placement = PlacementMode.Bottom };
+        foreach (var choice in choices)
+        {
+            var item = new MenuItem { Header = choice.Label.Replace("_", "__"), Tag = choice.Script };
+            item.Click += RibbonMenuItem_Click;
+            menu.Items.Add(item);
+        }
+        menu.IsOpen = true;
+    }
+
+    /// <summary>Right-click on a tab under the drawing: opens that tab and offers what can be done with a layout.</summary>
+    private void SpaceTab_RightClick(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not Button { DataContext: SpaceTabViewModel tab } button) return;
+        e.Handled = true;
+        _viewModel.Session.SwitchSpace(tab.Id);
+
+        var menu = new ContextMenu { PlacementTarget = button, Placement = PlacementMode.Top };
+        void Add(string header, string script)
+        {
+            var item = new MenuItem { Header = header, Tag = script };
+            item.Click += RibbonMenuItem_Click;
+            menu.Items.Add(item);
+        }
+        Add("New layout", "LAYOUT");
+        if (!tab.IsModel)
+        {
+            Add("Rename...", "LAYOUTRENAME");
+            Add("Page setup...", "PAGESETUP");
+            Add("Delete...", "LAYOUTDELETE");
+        }
+        menu.Items.Add(new Separator());
+        Add("Plot...", "PLOT");
+        menu.IsOpen = true;
     }
 
     private bool _gridWizardOpen;

@@ -90,6 +90,11 @@ internal sealed class RecordingSurface : IRenderSurface
 
     public int Count => Lines.Count + Polylines.Count + Circles.Count + Rectangles.Count;
 
+    public List<(double X, double Y, double W, double H)> Clips { get; } = new();
+    public int ClipDepth { get; private set; }
+    public void PushClip(double x, double y, double width, double height) { Clips.Add((x, y, width, height)); ClipDepth++; }
+    public void PopClip() => ClipDepth--;
+
     public List<(string Text, double X, double Y, double Height, double Angle, RenderStyle Style)> Texts { get; } = new();
     public void DrawText(string text, double cx, double cy, double height, double angle, in RenderStyle style) => Texts.Add((text, cx, cy, height, angle, style));
 

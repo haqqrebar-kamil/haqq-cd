@@ -25,7 +25,11 @@ public sealed class AddEntitiesAction : IUndoableAction
     public void Do(DrawingDocument document)
     {
         for (int i = 0; i < _entities.Count; i++)
+        {
+            // New objects belong to the space that is active when they are first added; a redo puts them back there.
+            if (!_entities[i].HasSpace) _entities[i].SpaceId = document.ActiveSpaceId;
             document.AddEntity(_entities[i].Clone(), _orders?[i]);
+        }
         _orders ??= _entities.Select(e => document.GetDrawOrder(e.Id)).ToArray();
     }
 
@@ -373,7 +377,7 @@ public sealed class ReplaceDimensionStyleAction : IUndoableAction
     {
         _old = document.ReplaceDimensionStyle(_style);
         var current = document.FindDimensionStyle(_style.Name)!;
-        _before = document.EntitiesUnordered.OfType<DimensionEntity>()
+        _before = document.AllEntities.OfType<DimensionEntity>()
             .Where(d => string.Equals(d.StyleName, current.Name, StringComparison.OrdinalIgnoreCase))
             .Select(d => d.Clone())
             .ToList();
@@ -407,5 +411,87 @@ public sealed class SetCurrentDimensionStyleAction : IUndoableAction
     public string Name => "Set current dimension style";
     public void Do(DrawingDocument document) => document.CurrentDimensionStyleName = _after;
     public void Undo(DrawingDocument document) => document.CurrentDimensionStyleName = _before;
+}
+
+public sealed class AddLayoutAction : IUndoableAction
+{
+    private readonly Layout _layout;
+    public AddLayoutAction(Layout layout) => _layout = layout;
+    public string Name => "New layout";
+    public void Do(DrawingDocument document) => document.AddLayout(_layout);
+    public void Undo(DrawingDocument document) => document.RemoveLayout(_layout.Id);
+}
+
+/// <summary>Removes a layout. The objects on it must be removed first (in the same composite step).</summary>
+public sealed class RemoveLayoutAction : IUndoableAction
+{
+    private readonly Guid _id;
+    private Layout? _removed;
+    private int _index;
+
+    public RemoveLayoutAction(Guid id) => _id = id;
+    public string Name => "Delete layout";
+
+    public void Do(DrawingDocument document)
+    {
+        _removed = document.GetLayout(_id);
+        _index = document.RemoveLayout(_id);
+    }
+
+    public void Undo(DrawingDocument document)
+    {
+        if (_removed is not null) document.AddLayout(_removed, _index);
+    }
+}
+
+/// <summary>Changes the name or the paper size of a layout.</summary>
+public sealed class ReplaceLayoutAction : IUndoableAction
+{
+    private readonly Layout _layout;
+    private Layout? _old;
+
+    public ReplaceLayoutAction(string name, Layout layout)
+    {
+        Name = name;
+        _layout = layout;
+    }
+
+    public string Name { get; }
+    public void Do(DrawingDocument document) => _old = document.ReplaceLayout(_layout);
+
+    public void Undo(DrawingDocument document)
+    {
+        if (_old is not null) document.ReplaceLayout(_old);
+    }
+}
+
+/// <summary>Removes objects, whatever space they are in (used when a layout is deleted with everything on it).</summary>
+public sealed class RemoveEntitiesByIdAction : IUndoableAction
+{
+    private readonly List<Guid> _ids;
+    private List<(Entity Entity, long Order)> _removed = new();
+
+    public RemoveEntitiesByIdAction(string name, IEnumerable<Guid> ids)
+    {
+        Name = name;
+        _ids = ids.ToList();
+    }
+
+    public string Name { get; }
+
+    public void Do(DrawingDocument document)
+    {
+        _removed = new List<(Entity, long)>();
+        foreach (var id in _ids)
+        {
+            if (document.GetEntity(id) is not { } entity) continue;
+            _removed.Add((entity.Clone(), document.RemoveEntity(id)));
+        }
+    }
+
+    public void Undo(DrawingDocument document)
+    {
+        foreach (var (entity, order) in _removed) document.AddEntity(entity.Clone(), order);
+    }
 }
 

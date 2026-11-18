@@ -355,24 +355,113 @@ public sealed class DrawingDocument
 
     // ---------------------------------------------------------------- entities
 
-    public int EntityCount => _entities.Count;
+    /// <summary>Number of objects in the active space (the model, or the layout being looked at).</summary>
+    public int EntityCount => ActiveSpaceId == Guid.Empty && _layouts.Count == 0 ? _entities.Count : _entities.Values.Count(InActiveSpace);
 
-    /// <summary>All entities in draw order (oldest first).</summary>
+    private bool InActiveSpace(Entity e) => e.SpaceId == _activeSpace;
+
+    /// <summary>The objects of the active space in draw order (oldest first).</summary>
     public IReadOnlyList<Entity> Entities
     {
         get
         {
             if (_orderedCache is null)
             {
-                _orderedCache = _entities.Values.ToList();
+                _orderedCache = _entities.Values.Where(InActiveSpace).ToList();
                 _orderedCache.Sort((a, b) => _order[a.Id].CompareTo(_order[b.Id]));
             }
             return _orderedCache;
         }
     }
 
-    /// <summary>All entities in no particular order (cheaper than <see cref="Entities"/>).</summary>
-    public IReadOnlyCollection<Entity> EntitiesUnordered => _entities.Values;
+    /// <summary>The objects of the active space in no particular order (cheaper than <see cref="Entities"/>).</summary>
+    public IReadOnlyCollection<Entity> EntitiesUnordered =>
+        _layouts.Count == 0 ? _entities.Values : _entities.Values.Where(InActiveSpace).ToList();
+
+    /// <summary>Every object of the drawing: the model and all layouts.</summary>
+    public IReadOnlyCollection<Entity> AllEntities => _entities.Values;
+
+    /// <summary>Every object of the drawing in draw order (for saving).</summary>
+    public IReadOnlyList<Entity> AllEntitiesOrdered
+    {
+        get
+        {
+            var all = _entities.Values.ToList();
+            all.Sort((a, b) => _order[a.Id].CompareTo(_order[b.Id]));
+            return all;
+        }
+    }
+
+    // ---------------------------------------------------------------- layouts
+
+    private readonly List<Layout> _layouts = new();
+    private Guid _activeSpace = Guid.Empty;
+
+    /// <summary>The layouts (sheets) of the drawing, in tab order.</summary>
+    public IReadOnlyList<Layout> Layouts => _layouts;
+
+    public Layout? GetLayout(Guid id) => _layouts.FirstOrDefault(l => l.Id == id);
+
+    public Layout? FindLayout(string? name) =>
+        _layouts.FirstOrDefault(l => string.Equals(l.Name, name?.Trim(), StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
+    /// The space being looked at and worked in: <see cref="Guid.Empty"/> for the model, or a layout's id. It is
+    /// a view setting, not part of the drawing's content, so changing it does not make the drawing "changed".
+    /// </summary>
+    public Guid ActiveSpaceId
+    {
+        get => _activeSpace;
+        set
+        {
+            if (value != Guid.Empty && GetLayout(value) is null) throw new InvalidOperationException("That layout does not exist.");
+            if (_activeSpace == value) return;
+            _activeSpace = value;
+            _orderedCache = null;
+        }
+    }
+
+    /// <summary>The layout being looked at, or null in the model.</summary>
+    public Layout? ActiveLayout => _activeSpace == Guid.Empty ? null : GetLayout(_activeSpace);
+
+    public void AddLayout(Layout layout, int? index = null)
+    {
+        if (!layout.IsValid) throw new InvalidOperationException("That is not a usable layout (check its name and paper size).");
+        if (GetLayout(layout.Id) is not null) throw new InvalidOperationException("A layout with this id already exists.");
+        if (FindLayout(layout.Name) is not null) throw new InvalidOperationException($"There is already a layout named \"{layout.Name}\".");
+        if (index is int i && i >= 0 && i <= _layouts.Count) _layouts.Insert(i, layout); else _layouts.Add(layout);
+        OnChanged(DocumentChangeKind.Settings);
+    }
+
+    /// <summary>Removes an empty layout and returns its position among the tabs. The model becomes active if it was the active space.</summary>
+    public int RemoveLayout(Guid id)
+    {
+        int index = _layouts.FindIndex(l => l.Id == id);
+        if (index < 0) throw new InvalidOperationException("That layout does not exist.");
+        if (_entities.Values.Any(e => e.SpaceId == id)) throw new InvalidOperationException("The layout still has objects on it.");
+        _layouts.RemoveAt(index);
+        if (_activeSpace == id)
+        {
+            _activeSpace = Guid.Empty;
+            _orderedCache = null;
+        }
+        OnChanged(DocumentChangeKind.Settings);
+        return index;
+    }
+
+    /// <summary>Replaces the name and paper size of the layout with the same id. Returns what was replaced.</summary>
+    public Layout ReplaceLayout(Layout layout)
+    {
+        if (!layout.IsValid) throw new InvalidOperationException("That is not a usable layout (check its name and paper size).");
+        int index = _layouts.FindIndex(l => l.Id == layout.Id);
+        if (index < 0) throw new InvalidOperationException("That layout does not exist.");
+        if (_layouts.Any(l => l.Id != layout.Id && string.Equals(l.Name, layout.Name, StringComparison.OrdinalIgnoreCase)))
+            throw new InvalidOperationException($"There is already a layout named \"{layout.Name}\".");
+        var old = _layouts[index];
+        _layouts[index] = layout;
+        OnChanged(DocumentChangeKind.Settings);
+        return old;
+    }
 
     public Entity? GetEntity(Guid id) => _entities.GetValueOrDefault(id);
     public bool ContainsEntity(Guid id) => _entities.ContainsKey(id);
@@ -385,6 +474,10 @@ public sealed class DrawingDocument
         if (_entities.ContainsKey(entity.Id)) throw new InvalidOperationException("An entity with this id already exists.");
         if (GetLayer(entity.LayerId) is null) throw new InvalidOperationException("The entity's layer does not exist.");
         if (!entity.IsValid) throw new InvalidOperationException($"Invalid {entity.TypeName} geometry.");
+
+        // A new object goes into the space that is being looked at.
+        if (!entity.HasSpace) entity.SpaceId = _activeSpace;
+        if (entity.SpaceId != Guid.Empty && GetLayout(entity.SpaceId) is null) throw new InvalidOperationException("The entity's layout does not exist.");
 
         long order = drawOrder ?? _nextOrder;
         if (order >= _nextOrder) _nextOrder = order + 1;
@@ -421,21 +514,34 @@ public sealed class DrawingDocument
         OnChanged(DocumentChangeKind.Entities);
     }
 
-    /// <summary>Entities whose bounding box intersects <paramref name="box"/> (unordered).</summary>
-    public List<Entity> QueryEntities(BoundingBox box)
+    /// <summary>Objects of the active space whose bounding box intersects <paramref name="box"/> (unordered).</summary>
+    public List<Entity> QueryEntities(BoundingBox box) => QueryEntities(box, _activeSpace);
+
+    /// <summary>Objects of one space (<see cref="Guid.Empty"/> = the model) whose bounding box intersects <paramref name="box"/>.</summary>
+    public List<Entity> QueryEntities(BoundingBox box, Guid spaceId)
     {
         var ids = _index.Query(box);
         var result = new List<Entity>(ids.Count);
-        foreach (var id in ids) result.Add(_entities[id]);
+        foreach (var id in ids)
+        {
+            var entity = _entities[id];
+            if (entity.SpaceId == spaceId) result.Add(entity);
+        }
         return result;
     }
 
-    /// <summary>Bounding box of every entity on a displayed layer; empty for an empty drawing.</summary>
-    public BoundingBox GetExtents()
+    /// <summary>
+    /// Bounding box of every object of the active space on a displayed layer; on a layout the sheet is included.
+    /// Empty for an empty model.
+    /// </summary>
+    public BoundingBox GetExtents() => GetExtents(_activeSpace);
+
+    public BoundingBox GetExtents(Guid spaceId)
     {
-        var box = BoundingBox.Empty;
+        var box = GetLayout(spaceId) is { } layout ? layout.Sheet : BoundingBox.Empty;
         foreach (var e in _entities.Values)
         {
+            if (e.SpaceId != spaceId) continue;
             var layer = GetLayer(e.LayerId);
             if (layer is { IsDisplayed: true }) box = box.Union(e.Bounds);
         }

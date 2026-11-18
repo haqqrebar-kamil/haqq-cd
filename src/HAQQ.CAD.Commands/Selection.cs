@@ -63,7 +63,7 @@ public sealed class SelectionSet
 public static class SelectionService
 {
     public static bool IsSelectable(DrawingDocument document, Entity entity) =>
-        document.GetLayer(entity.LayerId) is { IsEditable: true };
+        entity.SpaceId == document.ActiveSpaceId && document.GetLayer(entity.LayerId) is { IsEditable: true };
 
     /// <summary>The entity whose curve is nearest to <paramref name="point"/> within <paramref name="tolerance"/> model units.</summary>
     public static Entity? PickAt(DrawingDocument document, Point2D point, double tolerance)

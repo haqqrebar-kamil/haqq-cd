@@ -48,6 +48,7 @@ public sealed class MainViewModel : ObservableObject
     private long _autosavedStamp = -1;
     private long _explorerStamp = -1;
     private Guid _explorerDocument;
+    private Guid _explorerSpace;
 
     private readonly UserSettingsStore _settingsStore;
     private readonly UserSettings _userSettings;
@@ -80,6 +81,7 @@ public sealed class MainViewModel : ObservableObject
             if (name == "Shortcuts") ShortcutsRequested?.Invoke(this, EventArgs.Empty);
             if (name == "DimensionStyles") DimensionStylesRequested?.Invoke(this, EventArgs.Empty);
             if (name == "GridLines") GridLinesRequested?.Invoke(this, EventArgs.Empty);
+            if (name == "Plot") PlotRequested?.Invoke(this, EventArgs.Empty);
         };
 
         RunCommandCommand = new RelayCommand(p => RunCommand(p as string ?? ""));
@@ -96,6 +98,7 @@ public sealed class MainViewModel : ObservableObject
         SetLayerColorCommand = new RelayCommand(p => SetSelectedLayerColor(p as string));
         PurgeLayersCommand = new RelayCommand(() => Session.PurgeLayers());
         CycleCoordinateModeCommand = new RelayCommand(CycleCoordinateMode);
+        SelectSpaceCommand = new RelayCommand(p => { if (p is Guid id) Session.SwitchSpace(id); });
 
         AddHistory("HAQQ CAD ready. Type a command (LINE, PLINE, RECTANG, CIRCLE, ARC, MOVE, COPY, OFFSET, TRIM, EXTEND, FILLET, ERASE) or use the ribbon.");
         if (_startupNote is not null) AddHistory(_startupNote);
@@ -126,6 +129,53 @@ public sealed class MainViewModel : ObservableObject
 
     /// <summary>The dimension style strip of the ribbon.</summary>
     public DimensionBarViewModel DimensionBar { get; }
+
+    /// <summary>The PLOT command asked the shell to show the plot window.</summary>
+    public event EventHandler? PlotRequested;
+
+    /// <summary>The tabs under the drawing: Model, then the layouts in order.</summary>
+    public ObservableCollection<SpaceTabViewModel> SpaceTabs { get; } = new();
+
+    /// <summary>Opens the tab whose id is the parameter (<see cref="Guid.Empty"/> for the model).</summary>
+    public RelayCommand SelectSpaceCommand { get; }
+
+    /// <summary>True while a layout is shown instead of the model.</summary>
+    public bool IsLayoutActive => Session.Document.ActiveLayout is not null;
+
+    /// <summary>What a plot would print now: "Layout "Plan" (36" x 24")" or "Model".</summary>
+    public string PlotSubject
+    {
+        get
+        {
+            var doc = Session.Document;
+            return doc.ActiveLayout is { } layout
+                ? $"Layout \"{layout.Name}\"  ({UnitFormatter.FormatLength(layout.PaperWidth, doc.Settings)} x {UnitFormatter.FormatLength(layout.PaperHeight, doc.Settings)})"
+                : "Model (fitted to the page)";
+        }
+    }
+
+    private void SyncSpaceTabs(DrawingDocument doc)
+    {
+        var wanted = new List<(Guid Id, string Name, string Detail)> { (Guid.Empty, "Model", "The model: everything is drawn here at its real size") };
+        foreach (var layout in doc.Layouts)
+            wanted.Add((layout.Id, layout.Name,
+                $"Layout: a sheet {UnitFormatter.FormatLength(layout.PaperWidth, doc.Settings)} x {UnitFormatter.FormatLength(layout.PaperHeight, doc.Settings)}. Right-click for rename, page setup and delete."));
+
+        bool same = SpaceTabs.Count == wanted.Count;
+        for (int i = 0; same && i < wanted.Count; i++) same = SpaceTabs[i].Id == wanted[i].Id;
+        if (!same)
+        {
+            SpaceTabs.Clear();
+            foreach (var w in wanted) SpaceTabs.Add(new SpaceTabViewModel(w.Id, w.Name));
+        }
+        for (int i = 0; i < wanted.Count; i++)
+        {
+            SpaceTabs[i].Name = wanted[i].Name;
+            SpaceTabs[i].Detail = wanted[i].Detail;
+            SpaceTabs[i].IsActive = wanted[i].Id == doc.ActiveSpaceId;
+        }
+        OnPropertyChanged(nameof(IsLayoutActive));
+    }
 
     /// <summary>The GRIDLINES command asked the shell to show the grid line wizard.</summary>
     public event EventHandler? GridLinesRequested;
@@ -869,6 +919,7 @@ public sealed class MainViewModel : ObservableObject
         Prompt = Session.Prompt;
         Title = $"{DocumentName}{(doc.IsDirty ? "*" : "")} - HAQQ CAD";
 
+        SyncSpaceTabs(doc);
         SyncLayers(doc);
         OnPropertyChanged(nameof(CurrentLayerName));
         OnPropertyChanged(nameof(CurrentLayerPlots));
@@ -914,9 +965,10 @@ public sealed class MainViewModel : ObservableObject
 
     private void RefreshExplorer(DrawingDocument doc)
     {
-        if (doc.ChangeStamp == _explorerStamp && doc.Id == _explorerDocument) return;
+        if (doc.ChangeStamp == _explorerStamp && doc.Id == _explorerDocument && doc.ActiveSpaceId == _explorerSpace) return;
         _explorerStamp = doc.ChangeStamp;
         _explorerDocument = doc.Id;
+        _explorerSpace = doc.ActiveSpaceId;
 
         int lines = 0, polylines = 0, circles = 0, arcs = 0;
         foreach (var e in doc.EntitiesUnordered)
@@ -932,7 +984,7 @@ public sealed class MainViewModel : ObservableObject
 
         var items = new List<string>
         {
-            "Model space",
+            doc.ActiveLayout is { } shown ? $"Layout \"{shown.Name}\"" : "Model space",
             $"   Lines: {lines}",
             $"   Polylines: {polylines}",
             $"   Circles: {circles}",

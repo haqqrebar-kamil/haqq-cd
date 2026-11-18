@@ -426,6 +426,19 @@ public sealed class PropertiesViewModel : ObservableObject
                 if (grid.IsArc) Rows.Add(Length("Radius", grid.Radius, id, (e, v) => ((GridLineEntity)e).Radius = v));
                 break;
 
+            case ViewportEntity viewport:
+                Rows.Add(Editable("Scale", LayoutStandards.ScaleName(viewport.Scale, settings), text =>
+                {
+                    if (LayoutStandards.TryParseScale(text, settings, out double scale)) return _session.SetViewportScale(new[] { id }, scale);
+                    _session.Post($"\"{text}\" is not a scale. Type for example 1/4\"=1' or 1:50.");
+                    return false;
+                }));
+                Rows.Add(Length("Width", viewport.Width, id, (e, v) => { var vp = (ViewportEntity)e; vp.SetFrame(BoundingBox.FromCorners(new Point2D(vp.Center.X - v / 2, vp.Frame.MinY), new Point2D(vp.Center.X + v / 2, vp.Frame.MaxY))); }));
+                Rows.Add(Length("Height", viewport.Height, id, (e, v) => { var vp = (ViewportEntity)e; vp.SetFrame(BoundingBox.FromCorners(new Point2D(vp.Frame.MinX, vp.Center.Y - v / 2), new Point2D(vp.Frame.MaxX, vp.Center.Y + v / 2))); }));
+                Rows.Add(new PropertyRow("Shows", $"{F(viewport.ModelBounds.Width)} x {F(viewport.ModelBounds.Height)} of the model"));
+                Rows.Add(new PropertyRow("Frame printed", _session.Document.GetLayer(viewport.LayerId)?.IsPlotted == true ? "Yes (its layer plots)" : "No (its layer does not plot)"));
+                break;
+
             case TextEntity label:
                 Rows.Add(Editable("Text", label.Text, text =>
                     _session.ModifyEntities(new[] { id }, e => ((TextEntity)e).Text = text.Trim(), "Edit text")));

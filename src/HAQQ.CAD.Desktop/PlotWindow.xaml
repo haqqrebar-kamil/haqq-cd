@@ -1,0 +1,46 @@
+<Window x:Class="HAQQ.CAD.Desktop.PlotWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:HAQQ.CAD.Desktop"
+        Title="Plot"
+        Width="860" Height="560" MinWidth="620" MinHeight="380"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False"
+        Background="{StaticResource PanelBrush}"
+        Foreground="{StaticResource TextBrush}"
+        FontFamily="Segoe UI" FontSize="12"
+        UseLayoutRounding="True">
+    <Grid Margin="10">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="270" />
+        </Grid.ColumnDefinitions>
+
+        <!-- What will come out of the printer -->
+        <Border Grid.Column="0" Background="{StaticResource WindowBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+            <local:PlotPreview x:Name="Preview" />
+        </Border>
+
+        <DockPanel Grid.Column="1" Margin="12,0,0,0" LastChildFill="False">
+            <TextBlock DockPanel.Dock="Top" Style="{StaticResource PanelHeader}" Text="WHAT IS PLOTTED" Margin="0,0,0,4" />
+            <TextBlock DockPanel.Dock="Top" x:Name="SubjectText" FontWeight="SemiBold" FontSize="13" TextWrapping="Wrap" />
+            <TextBlock DockPanel.Dock="Top" x:Name="SizeText" Margin="0,4,0,0" Foreground="{StaticResource DimTextBrush}" TextWrapping="Wrap" />
+
+            <TextBlock DockPanel.Dock="Top" Style="{StaticResource PanelHeader}" Text="COLOUR" Margin="0,16,0,4" />
+            <CheckBox DockPanel.Dock="Top" x:Name="BlackOnly" IsChecked="True" Content="Black lines only" Checked="BlackOnly_Changed" Unchecked="BlackOnly_Changed"
+                      ToolTip="On: everything is printed black. Off: objects keep their colours (white is printed black so that it shows on paper)." />
+
+            <TextBlock DockPanel.Dock="Top" Style="{StaticResource PanelHeader}" Text="GOOD TO KNOW" Margin="0,16,0,4" />
+            <TextBlock DockPanel.Dock="Top" Foreground="{StaticResource DimTextBrush}" TextWrapping="Wrap"
+                       Text="Layers with Plot switched off are left out, and so are layers that are off or frozen. Lines are printed with their lineweight." />
+            <TextBlock DockPanel.Dock="Top" Margin="0,6,0,0" Foreground="{StaticResource DimTextBrush}" TextWrapping="Wrap"
+                       Text="For a PDF, choose Microsoft Print to PDF as the printer. Choose the paper in the printer's own settings." />
+
+            <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Style="{StaticResource PanelButton}" Content="Choose printer and plot..." Click="Plot_Click" />
+                <Button Style="{StaticResource PanelButton}" Content="Close" Click="Close_Click" />
+            </StackPanel>
+            <TextBlock DockPanel.Dock="Bottom" x:Name="MessageText" Margin="0,0,0,8" Foreground="{StaticResource AccentBrush}" TextWrapping="Wrap" />
+        </DockPanel>
+    </Grid>
+</Window>

@@ -48,6 +48,10 @@ public sealed class CadCanvas : FrameworkElement
     private Point? _mouse;            // last mouse position over the canvas, in pixels
     private Point? _panLast;          // last position while panning with the middle button
     private bool _leftPan;            // the pan in progress is a left-button drag of the PAN command
+    private bool _panInViewport;      // the pan in progress started inside the entered viewport: it moves the model in it
+    private readonly Dictionary<Guid, (Point2D Center, double Scale)> _views = new();   // where each tab was left
+    private Guid _viewsDocument;
+    private Guid _shownSpace;
     private Point? _gripDown;         // where the left button went down on a grip, while it is still held
     private Point? _windowStart;      // first corner of a selection window, in pixels
     private bool _zoomExtentsPending = true;
@@ -267,6 +271,7 @@ public sealed class CadCanvas : FrameworkElement
         if (_viewModel is null || ActualWidth < 1 || ActualHeight < 1) return;
 
         _view.SetViewport(ActualWidth, ActualHeight);
+        RecallViewOfSpace();
         if (_zoomExtentsPending)
         {
             _zoomExtentsPending = false;
@@ -283,6 +288,7 @@ public sealed class CadCanvas : FrameworkElement
             PolarTrack = session.CurrentPolarTrack is { } track ? (track.From, track.AngleDegrees) : null,
             TrackLines = session.CurrentObjectTrack?.Lines ?? Array.Empty<(HAQQ.CAD.Geometry.Point2D, double)>(),
             TrackPoints = session.TrackingPoints,
+            ActiveViewportId = session.ActiveViewportId,
         };
 
         if (_mouse is { } mouse)
@@ -314,6 +320,34 @@ public sealed class CadCanvas : FrameworkElement
         DrawSnapLabel(drawingContext);
         if (_mouse is { } tipAnchor) DrawDynamicInput(drawingContext, tipAnchor);
     }
+
+    /// <summary>
+    /// The Model tab and each layout keep their own view: going to another tab remembers where this one was and
+    /// goes back to where that one was left (or shows all of it the first time).
+    /// </summary>
+    private void RecallViewOfSpace()
+    {
+        var document = _viewModel!.Session.Document;
+        if (document.Id != _viewsDocument)
+        {
+            _views.Clear();                     // another drawing
+            _viewsDocument = document.Id;
+            _shownSpace = document.ActiveSpaceId;
+            return;
+        }
+        if (document.ActiveSpaceId == _shownSpace) return;
+
+        _views[_shownSpace] = (_view.Center, _view.Scale);
+        _shownSpace = document.ActiveSpaceId;
+        _windowStart = null;
+        if (_views.TryGetValue(_shownSpace, out var saved)) _view.SetView(saved.Center, saved.Scale);
+        else _zoomExtentsPending = true;
+    }
+
+    /// <summary>True when the pixel is inside the viewport that was entered with a double-click.</summary>
+    private bool InEnteredViewport(Point pixel) =>
+        _viewModel?.Session is { ActiveViewportId: Guid id } session &&
+        session.Document.GetEntity(id) is HAQQ.CAD.Core.ViewportEntity viewport && viewport.Contains(ToModel(pixel));
 
     /// <summary>The name of the acquired object snap ("Tangent", "Endpoint"...) beside its marker.</summary>
     private void DrawSnapLabel(DrawingContext dc)
@@ -348,7 +382,10 @@ public sealed class CadCanvas : FrameworkElement
         // The middle button always pans; the left button pans while the PAN command runs.
         if (_panLast is { } last && (e.MiddleButton == MouseButtonState.Pressed || (_leftPan && e.LeftButton == MouseButtonState.Pressed)))
         {
-            _view.Pan(position.X - last.X, position.Y - last.Y);
+            // Inside the entered viewport the model moves in its window; otherwise the whole view moves.
+            bool inViewport = _panInViewport && _viewModel is not null &&
+                _viewModel.Session.PanActiveViewport(new Vector2D((position.X - last.X) / _view.Scale, -(position.Y - last.Y) / _view.Scale));
+            if (!inViewport) _view.Pan(position.X - last.X, position.Y - last.Y);
             _panLast = position;
         }
 
@@ -372,7 +409,10 @@ public sealed class CadCanvas : FrameworkElement
         base.OnMouseWheel(e);
         Point position = e.GetPosition(this);
         _view.SetViewport(ActualWidth, ActualHeight);
-        _view.ZoomAt(new ScreenPoint(position.X, position.Y), e.Delta > 0 ? WheelZoomFactor : 1.0 / WheelZoomFactor);
+        double factor = e.Delta > 0 ? WheelZoomFactor : 1.0 / WheelZoomFactor;
+        // Over the entered viewport the wheel changes what it shows; anywhere else it zooms the view.
+        if (!(InEnteredViewport(position) && _viewModel!.Session.ZoomActiveViewport(ToModel(position), factor)))
+            _view.ZoomAt(new ScreenPoint(position.X, position.Y), factor);
         TrackMouse(position);
         InvalidateVisual();
         e.Handled = true;
@@ -395,12 +435,14 @@ public sealed class CadCanvas : FrameworkElement
                 else
                 {
                     _panLast = position;
+                    _panInViewport = InEnteredViewport(position);
                     CaptureMouse();
                 }
                 break;
 
             case MouseButton.Left when _viewModel.Session.IsPanning:
                 _panLast = position;
+                _panInViewport = InEnteredViewport(position);
                 _leftPan = true;
                 CaptureMouse();
                 break;
@@ -413,6 +455,19 @@ public sealed class CadCanvas : FrameworkElement
                     _windowStart = null;
                     _gripDown = null;
                     break;
+                }
+                // On a layout: a double-click inside a viewport goes into it (the wheel and panning then move
+                // the model in it); a double-click outside it comes back out.
+                if (e.ClickCount == 2 && !_viewModel.Session.WantsPoint && _viewModel.Session.ActiveCommand is null &&
+                    _viewModel.Session.Document.ActiveLayout is not null)
+                {
+                    bool wasInside = _viewModel.Session.ActiveViewportId is not null;
+                    if (_viewModel.Session.EnterViewportAt(ToModel(position)) || wasInside)
+                    {
+                        _windowStart = null;
+                        _gripDown = null;
+                        break;
+                    }
                 }
                 OnLeftClick(position);
                 break;
@@ -453,6 +508,7 @@ public sealed class CadCanvas : FrameworkElement
         {
             _panLast = null;
             _leftPan = false;
+            _panInViewport = false;
             ReleaseMouseCapture();
         }
     }
@@ -462,6 +518,7 @@ public sealed class CadCanvas : FrameworkElement
         base.OnLostMouseCapture(e);
         _panLast = null;
         _leftPan = false;
+        _panInViewport = false;
     }
 
     private void ShowContextMenu()

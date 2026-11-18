@@ -36,6 +36,21 @@ public abstract class Entity
     /// </summary>
     public Guid? GroupId { get; set; }
 
+    private Guid? _space;
+
+    /// <summary>
+    /// The space the object is in: <see cref="Guid.Empty"/> for the model, or the id of the layout it is drawn
+    /// on. A new object gets the space that is active when it is first added to a drawing.
+    /// </summary>
+    public Guid SpaceId
+    {
+        get => _space ?? Guid.Empty;
+        set => _space = value;
+    }
+
+    /// <summary>False until the object has been given a space (see <see cref="SpaceId"/>).</summary>
+    public bool HasSpace => _space.HasValue;
+
     /// <summary>Extensible custom properties, preserved by the HCAD format.</summary>
     public Dictionary<string, string> CustomProperties { get; } = new(StringComparer.Ordinal);
 
@@ -72,6 +87,7 @@ public abstract class Entity
         target.LinetypeScale = LinetypeScale;
         target.LineweightMm = LineweightMm;
         target.GroupId = GroupId;
+        target._space = _space;
         foreach (var pair in CustomProperties) target.CustomProperties[pair.Key] = pair.Value;
         return target;
     }

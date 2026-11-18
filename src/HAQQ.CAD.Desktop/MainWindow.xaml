@@ -34,6 +34,8 @@
                     <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconCrosshair}" Content="Crosshair" Command="{Binding RunCommandCommand}" CommandParameter="CURSORSIZE" ToolTip="CURSORSIZE: crosshair size, 1 to 100 percent of the screen" />
                     <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconGridSpacing}" Content="Grid Spacing" Command="{Binding RunCommandCommand}" CommandParameter="GRID" ToolTip="GRID: distance between the lines of the background grid. It is saved with the drawing. F7 shows or hides the grid." />
                     <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconShortcuts}" Content="Shortcuts" Command="{Binding RunCommandCommand}" CommandParameter="SHORTCUTS" ToolTip="SHORTCUTS: choose the short names you type to start each command" />
+                    <Border Width="1" Margin="6,6" Background="{StaticResource BorderBrush}" />
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource GlyphPlot}" Content="Plot" Command="{Binding RunCommandCommand}" CommandParameter="PLOT" ToolTip="PLOT (PRINT): preview and print the open layout or the model, or make a PDF" />
                 </StackPanel>
             </TabItem>
             <TabItem Header="HOME">
@@ -279,6 +281,21 @@
                     </StackPanel>
                 </StackPanel>
             </TabItem>
+            <TabItem Header="LAYOUT">
+                <StackPanel Orientation="Horizontal" Margin="6,0">
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconModelSpace}" Content="Model" Command="{Binding RunCommandCommand}" CommandParameter="MODEL" ToolTip="MODEL (MS): back to the Model tab, where the drawing is made at its real size" />
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconLayoutNew}" Content="New Layout" Command="{Binding RunCommandCommand}" CommandParameter="LAYOUT" ToolTip="LAYOUT (LO): a new sheet with one viewport showing the whole model. Layouts are the tabs under the drawing." />
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconLayoutRename}" Content="Rename" Command="{Binding RunCommandCommand}" CommandParameter="LAYOUTRENAME" ToolTip="LAYOUTRENAME: a new name for the layout that is open" />
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconLayoutDelete}" Content="Delete" Command="{Binding RunCommandCommand}" CommandParameter="LAYOUTDELETE" ToolTip="LAYOUTDELETE: delete the layout that is open, with what is drawn on it. The model is not touched." />
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconPaper}" Content="Page Setup &#x25BE;" Click="LayoutListButton_Click" CommandParameter="Papers" ToolTip="PAGESETUP (PAPER): the sheet size of the layout that is open. For a size of your own type PAGESETUP and then width,height." />
+                    <Border Width="1" Margin="6,6" Background="{StaticResource BorderBrush}" />
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconViewport}" Content="Viewport" Command="{Binding RunCommandCommand}" CommandParameter="VIEWPORT" ToolTip="VIEWPORT (VP): another window onto the model - click two corners on the sheet. Double-click inside a viewport to move the model in it with the wheel and the middle button; double-click outside it when done." />
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconViewportScale}" Content="Scale &#x25BE;" Click="LayoutListButton_Click" CommandParameter="Scales" ToolTip="VPSCALE (VS): the scale of a viewport. Select the viewport by its border first, or pick it after choosing the scale. Any scale can be typed: VPSCALE then 3/16&quot;=1' or 1:75." />
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconViewportFit}" Content="Fit" Command="{Binding RunCommandCommand}" CommandParameter="VPFIT" ToolTip="VPFIT (VF): show the whole model in a viewport, as large as fits" />
+                    <Border Width="1" Margin="6,6" Background="{StaticResource BorderBrush}" />
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource GlyphPlot}" Content="Plot" Command="{Binding RunCommandCommand}" CommandParameter="PLOT" ToolTip="PLOT (PRINT): preview and print the open layout at true size (or the model fitted to the page). Print to PDF through Microsoft Print to PDF." />
+                </StackPanel>
+            </TabItem>
             <TabItem Header="LAYERS">
                 <StackPanel Orientation="Horizontal" Margin="6,0">
                     <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconLayers}" Content="Layers" Command="{Binding RunCommandCommand}" CommandParameter="LAYER" ToolTip="LAYER (LA): open the layer table (on/off, freeze, lock, name, colour, lineweight)" />
@@ -304,9 +321,37 @@
             </Grid.ColumnDefinitions>
 
             <!-- Centre: the CAD canvas -->
-            <Border Grid.Column="0" Background="#21252B" ClipToBounds="True">
-                <local:CadCanvas x:Name="DrawingCanvas" />
-            </Border>
+            <Grid Grid.Column="0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <Border Grid.Row="0" Background="#21252B" ClipToBounds="True">
+                    <local:CadCanvas x:Name="DrawingCanvas" />
+                </Border>
+
+                <!-- Model and the layouts (sheets). Right-click a layout for rename, page setup and delete. -->
+                <Border Grid.Row="1" Background="{StaticResource PanelAltBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0">
+                    <StackPanel Orientation="Horizontal" Margin="4,0">
+                        <ItemsControl ItemsSource="{Binding SpaceTabs}" Focusable="False">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Orientation="Horizontal" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Button Style="{StaticResource SpaceTab}" Content="{Binding Name}" ToolTip="{Binding Detail}"
+                                            Command="{Binding DataContext.SelectSpaceCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                            CommandParameter="{Binding Id}" MouseRightButtonUp="SpaceTab_RightClick" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <Button Style="{StaticResource SpaceTab}" Content="+" FontSize="14" Command="{Binding RunCommandCommand}" CommandParameter="LAYOUT"
+                                ToolTip="LAYOUT (LO): new layout - a sheet of paper with a viewport that shows the model at a scale" />
+                    </StackPanel>
+                </Border>
+            </Grid>
 
             <GridSplitter x:Name="PropertiesSplitter" Grid.Column="1" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Focusable="False" />
 

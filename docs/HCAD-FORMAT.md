@@ -16,7 +16,7 @@ The reader and writer live in `src/HAQQ.CAD.Documents/HcadSerializer.cs`.
 ```json
 {
   "format": "HCAD",
-  "schemaVersion": 7,
+  "schemaVersion": 8,
   "minReaderVersion": 1,
   "generator": "HAQQ CAD 0.1.0",
   "recovery": { "originalPath": "C:\\Jobs\\footing.hcad", "savedUtc": "2026-11-14T06:30:00.000Z" },
@@ -193,3 +193,30 @@ rebar objects, bar marks and schedules, revision records, and a compressed conta
   letter, drawing units), `"angle"` (radians, counter-clockwise), `"text"`.
 - `minReaderVersion` stays 1: older readers keep these entities as unsupported objects and write them back.
 
+## Layouts and viewports (schema 8)
+
+`document.layouts` is an array, in tab order. It is always written and is empty for a drawing with only the model.
+
+| Field | Meaning |
+|---|---|
+| `id` | GUID of the layout |
+| `name` | 1 to 64 characters, unique without regard to case, never "Model" |
+| `paperWidth`, `paperHeight` | Sheet size in drawing units. The sheet's lower-left corner is at 0,0 |
+
+Every entity may carry `space`: the `id` of the layout it is drawn on. An entity without `space` is in the model.
+An entity whose `space` names no layout in the file is kept unmodified with the unsupported objects and a warning is given.
+
+Entity type `viewport` (only meaningful with a `space`):
+
+| Field | Meaning |
+|---|---|
+| `center` | Middle of the window, on the sheet |
+| `width`, `height` | Size of the window on the sheet |
+| `modelCenter` | The model point shown at the middle of the window |
+| `scale` | Sheet units per model unit: 1/4" = 1'-0" is 0.0208333 (1/48) |
+
+Which tab was open is not saved: a drawing always opens on the model.
+
+Compatibility: a file that has at least one layout is written with `minReaderVersion` 8, because an older reader
+would show the objects of every sheet piled on the model. A file without layouts keeps the lower
+`minReaderVersion` and still opens in older versions. Files of schema 7 and earlier open unchanged.

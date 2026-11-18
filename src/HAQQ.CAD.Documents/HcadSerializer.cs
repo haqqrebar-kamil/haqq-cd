@@ -40,7 +40,7 @@ public static class HcadSerializer
     public const string FormatName = "HCAD";
 
     /// <summary>Schema version written by this build.</summary>
-    public const int SchemaVersion = 7;
+    public const int SchemaVersion = 8;
 
     /// <summary>
     /// Oldest reader that can safely open files written by this build. A file whose
@@ -69,8 +69,10 @@ public static class HcadSerializer
         w.WriteNumber("schemaVersion", SchemaVersion);
         // Polylines with arc segments or a width would be silently straightened or thinned by a
         // program that only knows schema 2, so such files require a schema 3 reader.
-        bool needsSchema3 = document.EntitiesUnordered.Any(e => e is PolylineEntity p && (p.HasArcs || p.HasWidths));
-        w.WriteNumber("minReaderVersion", needsSchema3 ? 3 : MinReaderVersion);
+        bool needsSchema3 = document.AllEntities.Any(e => e is PolylineEntity p && (p.HasArcs || p.HasWidths));
+        // A reader that does not know layouts would show the objects of every sheet piled on the model.
+        bool needsSchema8 = document.Layouts.Count > 0;
+        w.WriteNumber("minReaderVersion", needsSchema8 ? 8 : needsSchema3 ? 3 : MinReaderVersion);
         w.WriteString("generator", Generator);
 
         if (recovery is not null)
@@ -124,6 +126,19 @@ public static class HcadSerializer
 
         w.WriteString("currentLayerId", document.CurrentLayerId);
 
+        // Layouts (sheets). Their objects are in "entities" with "space" set to the layout's id.
+        w.WriteStartArray("layouts");
+        foreach (var layout in document.Layouts)
+        {
+            w.WriteStartObject();
+            w.WriteString("id", layout.Id);
+            w.WriteString("name", layout.Name);
+            w.WriteNumber("paperWidth", layout.PaperWidth);
+            w.WriteNumber("paperHeight", layout.PaperHeight);
+            w.WriteEndObject();
+        }
+        w.WriteEndArray();
+
         // Dimension styles
         w.WriteString("currentDimensionStyle", document.CurrentDimensionStyleName);
         w.WriteStartArray("dimensionStyles");
@@ -153,7 +168,7 @@ public static class HcadSerializer
         w.WriteEndArray();
 
         w.WriteStartArray("entities");
-        foreach (var entity in document.Entities) WriteEntity(w, entity);
+        foreach (var entity in document.AllEntitiesOrdered) WriteEntity(w, entity);
         foreach (string raw in document.UnknownEntities) w.WriteRawValue(raw, skipInputValidation: false);
         w.WriteEndArray();
 
@@ -173,6 +188,7 @@ public static class HcadSerializer
         if (entity.LinetypeScale != 1.0) w.WriteNumber("linetypeScale", entity.LinetypeScale);
         if (entity.LineweightMm is double lw) w.WriteNumber("lineweightMm", lw); else w.WriteNull("lineweightMm");
         if (entity.GroupId is Guid group) w.WriteString("groupId", group);
+        if (entity.SpaceId != Guid.Empty) w.WriteString("space", entity.SpaceId);
         if (entity.CustomProperties.Count > 0) WriteProperties(w, "properties", entity.CustomProperties);
 
         switch (entity)
@@ -190,6 +206,13 @@ public static class HcadSerializer
                 w.WriteNumber("radius", arc.Radius);
                 w.WriteNumber("startAngle", arc.StartAngle);
                 w.WriteNumber("endAngle", arc.EndAngle);
+                break;
+            case ViewportEntity viewport:
+                WritePoint(w, "center", viewport.Center);
+                w.WriteNumber("width", viewport.Width);
+                w.WriteNumber("height", viewport.Height);
+                WritePoint(w, "modelCenter", viewport.ModelCenter);
+                w.WriteNumber("scale", viewport.Scale);
                 break;
             case GridLineEntity grid:
                 if (grid.IsArc)
@@ -479,6 +502,23 @@ public static class HcadSerializer
         else
             document.CurrentLayerId = layer0.Id;
 
+        if (doc.TryGetProperty("layouts", out var layouts) && layouts.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var le in layouts.EnumerateArray())
+            {
+                string layoutName = le.ValueKind == JsonValueKind.Object ? GetString(le, "name") : "";
+                try
+                {
+                    document.AddLayout(new Layout(le.GetProperty("id").GetGuid(), layoutName.Trim(),
+                        le.GetProperty("paperWidth").GetDouble(), le.GetProperty("paperHeight").GetDouble()));
+                }
+                catch (Exception ex) when (ex is InvalidOperationException or FormatException or KeyNotFoundException)
+                {
+                    warnings.Add($"Layout \"{layoutName}\" could not be read and was skipped ({ex.Message})");
+                }
+            }
+        }
+
         // Entities
         if (doc.TryGetProperty("entities", out var entities) && entities.ValueKind == JsonValueKind.Array)
         {
@@ -506,6 +546,14 @@ public static class HcadSerializer
                     warnings.Add(problem is null
                         ? $"Object #{index} of unsupported type \"{type}\" was kept in the file but cannot be shown or edited."
                         : $"Object #{index} ({type}) could not be read and was kept unmodified in the file: {problem}");
+                    continue;
+                }
+
+                if (entity.SpaceId != Guid.Empty && document.GetLayout(entity.SpaceId) is null)
+                {
+                    // On a layout that is not in the file: it must not land on the model. Kept so nothing is lost.
+                    document.UnknownEntities.Add(ee.GetRawText());
+                    warnings.Add($"Object #{index} ({type}) is on a layout that is not in the file. It was kept in the file but is not shown.");
                     continue;
                 }
 
@@ -548,6 +596,13 @@ public static class HcadSerializer
             case ArcEntity.Type:
                 entity = new ArcEntity(ReadId(e), ReadPoint(e.GetProperty("center")), e.GetProperty("radius").GetDouble(),
                     e.GetProperty("startAngle").GetDouble(), e.GetProperty("endAngle").GetDouble());
+                break;
+            case ViewportEntity.Type:
+                entity = new ViewportEntity(ReadId(e), ReadPoint(e.GetProperty("center")), e.GetProperty("width").GetDouble(), e.GetProperty("height").GetDouble())
+                {
+                    ModelCenter = ReadPoint(e.GetProperty("modelCenter")),
+                    Scale = e.GetProperty("scale").GetDouble(),
+                };
                 break;
             case GridLineEntity.Type:
             {
@@ -622,6 +677,8 @@ public static class HcadSerializer
         if (e.TryGetProperty("linetypeScale", out var els) && els.ValueKind == JsonValueKind.Number &&
             els.GetDouble() > 0 && double.IsFinite(els.GetDouble())) entity.LinetypeScale = els.GetDouble();
         if (e.TryGetProperty("lineweightMm", out var lw) && lw.ValueKind == JsonValueKind.Number) entity.LineweightMm = lw.GetDouble();
+        // Always given a space here (the model when the file says nothing), whatever space is active while loading.
+        entity.SpaceId = e.TryGetProperty("space", out var space) && space.ValueKind == JsonValueKind.String && space.TryGetGuid(out var spaceId) ? spaceId : Guid.Empty;
         if (e.TryGetProperty("groupId", out var gid) && gid.ValueKind == JsonValueKind.String && gid.TryGetGuid(out var groupId)) entity.GroupId = groupId;
         ReadProperties(e, "properties", entity.CustomProperties);
         return entity;

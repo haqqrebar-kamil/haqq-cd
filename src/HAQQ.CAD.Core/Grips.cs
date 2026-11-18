@@ -36,6 +36,12 @@ public static class EntityGrips
                 return DimensionGrips(dimension);
             case TextEntity text:
                 return new[] { text.Position };
+            case ViewportEntity viewport:
+            {
+                // The four corners resize the window; the middle moves it.
+                var f = viewport.Frame;
+                return new[] { new Point2D(f.MinX, f.MinY), new Point2D(f.MaxX, f.MinY), new Point2D(f.MaxX, f.MaxY), new Point2D(f.MinX, f.MaxY), viewport.Center };
+            }
             case GridLineEntity grid:
                 // Start, middle, end. Stretching an end takes its label circle along.
                 return new[] { grid.StartPoint, grid.MidPoint, grid.EndPoint };
@@ -102,6 +108,24 @@ public static class EntityGrips
                 return true;
             case GridLineEntity grid:
                 return StretchGridLine(grid, gripIndex, target);
+            case ViewportEntity viewport:
+            {
+                if (gripIndex == 4) { viewport.Center = target; return true; }
+                if (gripIndex is < 0 or > 3) return false;
+                // The opposite corner stays where it is; what is seen through the window does not move on the sheet.
+                var f = viewport.Frame;
+                var opposite = gripIndex switch
+                {
+                    0 => new Point2D(f.MaxX, f.MaxY),
+                    1 => new Point2D(f.MinX, f.MaxY),
+                    2 => new Point2D(f.MinX, f.MinY),
+                    _ => new Point2D(f.MaxX, f.MinY),
+                };
+                var frame = BoundingBox.FromCorners(opposite, target);
+                if (!(frame.Width > GeoMath.Epsilon) || !(frame.Height > GeoMath.Epsilon)) return false;
+                viewport.SetFrame(frame);
+                return true;
+            }
         }
         return false;
     }

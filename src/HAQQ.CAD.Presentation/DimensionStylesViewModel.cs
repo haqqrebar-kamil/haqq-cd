@@ -109,7 +109,7 @@ public sealed class DimensionStylesViewModel : ObservableObject, IDisposable
         get
         {
             var style = Style;
-            int used = _session.Document.EntitiesUnordered.OfType<DimensionEntity>().Count(d => string.Equals(d.StyleName, style.Name, StringComparison.OrdinalIgnoreCase));
+            int used = _session.Document.AllEntities.OfType<DimensionEntity>().Count(d => string.Equals(d.StyleName, style.Name, StringComparison.OrdinalIgnoreCase));
             string current = style.Name == CurrentName ? "current style, " : "";
             return $"{style.Name}  ({current}used by {used} dimension{(used == 1 ? "" : "s")})";
         }
