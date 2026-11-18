@@ -263,11 +263,16 @@ public sealed class CommandRegistry
         r.Register("-LINETYPE", "Linetypes on the command line", () => new LinetypeCommand(), "-LT", "-LTYPE");
         r.Register("LTSCALE", "Linetype scale of the drawing", () => new LinetypeScaleCommand(), "LTS");
         // View, undo and settings
-        r.Register("ZOOM", "Zoom to show the whole drawing", null, "Z", "ZE", "ZA");
+        r.Register("ZOOM", "Zoom: All, Window, Center, In, Out", () => new ZoomCommand(), "Z");
+        r.Register("ZOOMALL", "Zoom to show the whole drawing", null, "ZA", "ZE");
+        r.Register("ZOOMWINDOW", "Zoom to a window you pick", () => new ZoomCommand("W"), "ZW");
+        r.Register("ZOOMIN", "Zoom in one step", () => new ZoomCommand("I"), "ZI");
+        r.Register("ZOOMOUT", "Zoom out one step", () => new ZoomCommand("O"), "ZO");
+        r.Register("PAN", "Move the view by dragging", () => new PanCommand(), "P");
         r.Register("UNDO", "Undo the last change", null, "U");
         r.Register("REDO", "Redo what was undone", null);
         r.Register("UNITS", "Drawing units and precision", () => new UnitsCommand(), "UN");
-        r.Register("GRID", "Grid spacing", () => new SpacingCommand(snap: false));
+        r.Register("GRID", "Spacing of the background grid", () => new SpacingCommand(snap: false), "GRIDSPACING");
         r.Register("CURSORSIZE", "Size of the crosshair", () => new CursorSizeCommand(), "CS", "CROSSHAIR");
         r.Register("LINEMODE", "LINE ends at the second point, or carries on", () => new LineModeCommand());
         r.Register("SHORTCUTS", "Change the shortcuts of commands", null, "KEYS");
@@ -492,6 +497,19 @@ public sealed class EditorSession
 
     /// <summary>Raised for view commands the shell must carry out (currently "ZoomExtents").</summary>
     public event Action<string>? ViewCommandRequested;
+
+    /// <summary>A command asks for another view (zoom window, zoom in...). The shell that owns the view carries it out.</summary>
+    public event Action<ViewChange>? ViewChangeRequested;
+
+    public void RequestView(ViewChange change)
+    {
+        // "All" goes the way it always went, so everything listening for it still hears it.
+        if (change.Kind == ViewChangeKind.Extents) ViewCommandRequested?.Invoke("ZoomExtents");
+        else ViewChangeRequested?.Invoke(change);
+    }
+
+    /// <summary>True while PAN runs: a left-button drag moves the view instead of giving a point.</summary>
+    public bool IsPanning => ActiveCommand is PanCommand;
 
     public void Post(string message) => MessagePosted?.Invoke(message);
 
@@ -808,8 +826,8 @@ public sealed class EditorSession
                 Post("Command: LINETYPE");
                 ViewCommandRequested?.Invoke("Linetypes");
                 return true;
-            case "ZOOM":
-                Post("Command: ZOOM (extents)");
+            case "ZOOMALL":
+                Post("Command: ZOOM (all)");
                 ViewCommandRequested?.Invoke("ZoomExtents");
                 return true;
             case "DIMSTYLE":

@@ -70,6 +70,7 @@ public sealed class MainViewModel : ObservableObject
         Session.MessagePosted += AddHistory;
         Session.StateChanged += (_, _) => Refresh();
         Session.DocumentReplaced += (_, _) => ZoomExtentsRequested?.Invoke(this, EventArgs.Empty);
+        Session.ViewChangeRequested += change => ViewChangeRequested?.Invoke(change);
         Session.ViewCommandRequested += name =>
         {
             if (name == "ZoomExtents") ZoomExtentsRequested?.Invoke(this, EventArgs.Empty);
@@ -189,6 +190,9 @@ public sealed class MainViewModel : ObservableObject
 
     /// <summary>The canvas should fit the drawing in the view.</summary>
     public event EventHandler? ZoomExtentsRequested;
+
+    /// <summary>ZOOM asked for another view (a window, a centre, in or out). The canvas carries it out.</summary>
+    public event Action<ViewChange>? ViewChangeRequested;
 
     // ---------------------------------------------------------- bound state
 

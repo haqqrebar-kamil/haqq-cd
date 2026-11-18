@@ -379,7 +379,7 @@ public class MainViewModelTests : IDisposable
         var vm = NewViewModel();
         int requests = 0;
         vm.ZoomExtentsRequested += (_, _) => requests++;
-        Type(vm, "ZOOM");
+        Type(vm, "ZOOM", "");                         // Enter takes the default: All
         Assert.Equal(1, requests);
         vm.NewDocument();
         Assert.Equal(2, requests);
@@ -1174,3 +1174,81 @@ public class ShortcutTests : IDisposable
         Assert.Equal(2, opened);
     }
 }
+
+public class ZoomPanTests : IDisposable
+{
+    private readonly TempDirectory _temp = new();
+    public void Dispose() => _temp.Dispose();
+
+    [Fact]
+    public void Zoom_offers_all_window_center_in_and_out()
+    {
+        var vm = new MainViewModel(new FakeUi(), new RecoveryStore(_temp.File("recovery")));
+        var s = vm.Session;
+        s.Document.Settings.Format = LengthFormat.Decimal;
+        var changes = new List<ViewChange>();
+        int all = 0;
+        vm.ViewChangeRequested += changes.Add;
+        vm.ZoomExtentsRequested += (_, _) => all++;
+
+        s.StartCommand("ZOOM");
+        Assert.Equal(new[] { "All", "Window", "Center", "In", "Out" }, s.ActiveCommand!.Options.ToArray());
+        s.SubmitKeyword("A");
+        Assert.Equal(1, all);
+        Assert.Null(s.ActiveCommand);
+        vm.RunCommand("ZA");                                   // straight to All
+        Assert.Equal(2, all);
+
+        vm.RunCommand("ZOOM W");                               // as the ribbon menu does
+        s.SubmitPoint(P(10, 20));
+        Assert.Equal(4, s.GetPreview().Count);                 // the window is shown while it is picked
+        s.SubmitPoint(P(110, 60));
+        Assert.Equal(ViewChangeKind.Window, changes[^1].Kind);
+        Assert.Equal(new BoundingBox(10, 20, 110, 60), changes[^1].Box);
+
+        s.StartCommand("Z");                                   // a click at the first prompt starts a window too
+        s.SubmitPoint(P(0, 0));
+        s.SubmitPoint(P(0, 0));                                // the same point: refused
+        Assert.NotNull(s.ActiveCommand);
+        s.SubmitPoint(P(5, 5));
+        Assert.Equal(new BoundingBox(0, 0, 5, 5), changes[^1].Box);
+
+        vm.RunCommand("ZOOM C");
+        s.SubmitPoint(P(50, 50));
+        s.SubmitText("4");
+        Assert.Equal(new ViewChange(ViewChangeKind.Center, Center: P(50, 50), Factor: 4), changes[^1]);
+        vm.RunCommand("ZOOM C");
+        s.SubmitPoint(P(7, 8));
+        s.SubmitEnter();                                       // keep the size
+        Assert.Equal(1.0, changes[^1].Factor);
+
+        vm.RunCommand("ZOOM I");
+        Assert.Equal(new ViewChange(ViewChangeKind.Factor, Factor: 2), changes[^1]);
+        vm.RunCommand("ZO");
+        Assert.Equal(0.5, changes[^1].Factor);
+        vm.RunCommand("ZW");
+        Assert.Contains("first corner", s.Prompt);
+        s.Cancel();
+        Assert.Equal(0, s.Document.EntityCount);               // zooming draws nothing
+        Assert.False(s.UndoStack.CanUndo);
+    }
+
+    [Fact]
+    public void Pan_runs_until_enter_and_takes_no_points()
+    {
+        var s = new EditorSession();
+        Assert.False(s.IsPanning);
+        s.StartCommand("PAN");
+        Assert.True(s.IsPanning);
+        s.SubmitPoint(P(5, 5));                                // a click is not a point for PAN
+        Assert.True(s.IsPanning);
+        Assert.Equal(0, s.Document.EntityCount);
+        s.SubmitEnter();
+        Assert.False(s.IsPanning);
+        s.StartCommand("P");
+        Assert.True(s.IsPanning);
+        s.Cancel();
+        Assert.False(s.IsPanning);
+    }
+}
+

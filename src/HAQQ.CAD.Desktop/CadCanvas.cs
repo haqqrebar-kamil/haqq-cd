@@ -47,6 +47,7 @@ public sealed class CadCanvas : FrameworkElement
     private MainViewModel? _viewModel;
     private Point? _mouse;            // last mouse position over the canvas, in pixels
     private Point? _panLast;          // last position while panning with the middle button
+    private bool _leftPan;            // the pan in progress is a left-button drag of the PAN command
     private Point? _gripDown;         // where the left button went down on a grip, while it is still held
     private Point? _windowStart;      // first corner of a selection window, in pixels
     private bool _zoomExtentsPending = true;
@@ -205,6 +206,28 @@ public sealed class CadCanvas : FrameworkElement
         _viewModel = viewModel;
         viewModel.RedrawRequested += (_, _) => InvalidateVisual();
         viewModel.ZoomExtentsRequested += (_, _) => ZoomExtents();
+        viewModel.ViewChangeRequested += ApplyViewChange;
+    }
+
+    /// <summary>Carries out a view change asked for by ZOOM: a window, a centre with a magnification, or in / out.</summary>
+    private void ApplyViewChange(HAQQ.CAD.Commands.ViewChange change)
+    {
+        if (ActualWidth < 1 || ActualHeight < 1) return;
+        _zoomExtentsPending = false;
+        _view.SetViewport(ActualWidth, ActualHeight);
+        switch (change.Kind)
+        {
+            case HAQQ.CAD.Commands.ViewChangeKind.Window:
+                _view.ZoomExtents(change.Box, 0.0);
+                break;
+            case HAQQ.CAD.Commands.ViewChangeKind.Center:
+                _view.SetView(change.Center, _view.Scale * change.Factor);
+                break;
+            case HAQQ.CAD.Commands.ViewChangeKind.Factor:
+                _view.ZoomAt(new ScreenPoint(ActualWidth / 2.0, ActualHeight / 2.0), change.Factor);
+                break;
+        }
+        InvalidateVisual();
     }
 
     /// <summary>Fits the whole drawing in the view.</summary>
@@ -322,11 +345,16 @@ public sealed class CadCanvas : FrameworkElement
         base.OnMouseMove(e);
         Point position = e.GetPosition(this);
 
-        if (_panLast is { } last && e.MiddleButton == MouseButtonState.Pressed)
+        // The middle button always pans; the left button pans while the PAN command runs.
+        if (_panLast is { } last && (e.MiddleButton == MouseButtonState.Pressed || (_leftPan && e.LeftButton == MouseButtonState.Pressed)))
         {
             _view.Pan(position.X - last.X, position.Y - last.Y);
             _panLast = position;
         }
+
+        // A four-way arrow shows that dragging moves the view; otherwise the crosshair is the cursor.
+        var wanted = _viewModel?.Session.IsPanning == true ? Cursors.SizeAll : Cursors.None;
+        if (!ReferenceEquals(Cursor, wanted)) Cursor = wanted;
 
         TrackMouse(position);
         InvalidateVisual();
@@ -369,6 +397,12 @@ public sealed class CadCanvas : FrameworkElement
                     _panLast = position;
                     CaptureMouse();
                 }
+                break;
+
+            case MouseButton.Left when _viewModel.Session.IsPanning:
+                _panLast = position;
+                _leftPan = true;
+                CaptureMouse();
                 break;
 
             case MouseButton.Left:
@@ -415,9 +449,10 @@ public sealed class CadCanvas : FrameworkElement
                 InvalidateVisual();
             }
         }
-        if (e.ChangedButton == MouseButton.Middle && _panLast is not null)
+        if ((e.ChangedButton == MouseButton.Middle || (e.ChangedButton == MouseButton.Left && _leftPan)) && _panLast is not null)
         {
             _panLast = null;
+            _leftPan = false;
             ReleaseMouseCapture();
         }
     }
@@ -426,6 +461,7 @@ public sealed class CadCanvas : FrameworkElement
     {
         base.OnLostMouseCapture(e);
         _panLast = null;
+        _leftPan = false;
     }
 
     private void ShowContextMenu()

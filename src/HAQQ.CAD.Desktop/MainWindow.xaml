@@ -32,6 +32,7 @@
                     <Border Width="1" Margin="6,6" Background="{StaticResource BorderBrush}" />
                     <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconUnits}" Content="Units" Command="{Binding RunCommandCommand}" CommandParameter="UNITS" ToolTip="UNITS: inches, feet, mm, cm or meters, and display precision" />
                     <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconCrosshair}" Content="Crosshair" Command="{Binding RunCommandCommand}" CommandParameter="CURSORSIZE" ToolTip="CURSORSIZE: crosshair size, 1 to 100 percent of the screen" />
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconGridSpacing}" Content="Grid Spacing" Command="{Binding RunCommandCommand}" CommandParameter="GRID" ToolTip="GRID: distance between the lines of the background grid. It is saved with the drawing. F7 shows or hides the grid." />
                     <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconShortcuts}" Content="Shortcuts" Command="{Binding RunCommandCommand}" CommandParameter="SHORTCUTS" ToolTip="SHORTCUTS: choose the short names you type to start each command" />
                 </StackPanel>
             </TabItem>
@@ -83,7 +84,19 @@
                     <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconUndo}" Content="Undo" Command="{Binding UndoCommand}" ToolTip="Undo (Ctrl+Z)" />
                     <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconRedo}" Content="Redo" Command="{Binding RedoCommand}" ToolTip="Redo (Ctrl+Y)" />
                     <Border Width="1" Margin="6,6" Background="{StaticResource BorderBrush}" />
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconZoom}" Content="Extents" Command="{Binding ZoomExtentsCommand}" ToolTip="Zoom extents (ZOOM, double-click the wheel)" />
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconZoomGlass}" Content="Zoom &#x25BE;" Click="RibbonMenuButton_Click" ToolTip="ZOOM (Z): All, Window, Center, In, Out. The wheel zooms and a double-click on the wheel shows everything.">
+                        <Button.ContextMenu>
+                            <ContextMenu>
+                                <MenuItem Header="All (the whole drawing)" Tag="ZOOM A" Click="RibbonMenuItem_Click" />
+                                <MenuItem Header="Window" Tag="ZOOM W" Click="RibbonMenuItem_Click" />
+                                <MenuItem Header="Center" Tag="ZOOM C" Click="RibbonMenuItem_Click" />
+                                <Separator />
+                                <MenuItem Header="In" Tag="ZOOM I" Click="RibbonMenuItem_Click" />
+                                <MenuItem Header="Out" Tag="ZOOM O" Click="RibbonMenuItem_Click" />
+                            </ContextMenu>
+                        </Button.ContextMenu>
+                    </Button>
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconPan}" Content="Pan" Command="{Binding RunCommandCommand}" CommandParameter="PAN" ToolTip="PAN (P): hold the left button and drag to move the view; Enter or Esc to finish. The middle button pans at any time." />
                     <Border Width="1" Margin="6,6" Background="{StaticResource BorderBrush}" />
                     <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconLayers}" Content="Layers" Command="{Binding RunCommandCommand}" CommandParameter="LAYER" ToolTip="LAYER (LA): open the layer table" />
                     <Border Width="1" Margin="6,6,12,6" Background="{StaticResource BorderBrush}" />
@@ -459,7 +472,7 @@
                 <ToggleButton DockPanel.Dock="Left" Style="{StaticResource StatusToggle}" Content="ORTHO" IsChecked="{Binding OrthoOn, Mode=TwoWay}" ToolTip="Restrict to horizontal / vertical (F8)" />
                 <ToggleButton DockPanel.Dock="Left" Style="{StaticResource StatusToggle}" Content="POLAR" IsChecked="{Binding PolarOn, Mode=TwoWay}" ToolTip="Polar tracking: lock onto horizontal and vertical when the cursor is close to them (F10)" />
                 <ToggleButton DockPanel.Dock="Left" Style="{StaticResource StatusToggle}" Content="OTRACK" IsChecked="{Binding TrackOn, Mode=TwoWay}" ToolTip="Object snap tracking (F11): hover over a snap point without clicking, then move away from it; the cursor locks onto a line through that point. Needs OSNAP on." />
-                <ToggleButton DockPanel.Dock="Left" Style="{StaticResource StatusToggle}" Content="GRID" IsChecked="{Binding GridOn, Mode=TwoWay}" ToolTip="Show the grid (F7)" />
+                <ToggleButton DockPanel.Dock="Left" Style="{StaticResource StatusToggle}" Content="GRID" IsChecked="{Binding GridOn, Mode=TwoWay}" ToolTip="Show the background grid (F7). To change its spacing: FILE tab, Grid Spacing (or type GRID)." />
                 <Border DockPanel.Dock="Left" Margin="8,0,2,0" Padding="9,2" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="2">
                     <TextBlock Text="MODEL" FontWeight="SemiBold" />
                 </Border>

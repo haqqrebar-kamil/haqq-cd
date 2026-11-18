@@ -135,7 +135,7 @@ public sealed class SpacingCommand : CadCommandBase
 
     public override string Prompt => _snap
         ? $"SNAP  Specify snap spacing or [ON/OFF] <{UnitFormatter.FormatLength(Current, Document.Settings)}>:"
-        : $"GRID  Specify grid spacing <{UnitFormatter.FormatLength(Current, Document.Settings)}>:";
+        : $"GRID  Enter the spacing of the background grid lines <{UnitFormatter.FormatLength(Current, Document.Settings)}>:";
 
     public override IReadOnlyList<string> Options => _snap ? new[] { "ON", "OFF" } : Array.Empty<string>();
 
