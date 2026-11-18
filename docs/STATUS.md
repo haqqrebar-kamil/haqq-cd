@@ -184,5 +184,8 @@ Projects for later phases are intentionally not in the solution yet, so nothing 
 - Nothing is built. Open decisions for the owner: which AI service (text and voice), whose account pays for the
   testers' use and how their copies reach it without a key inside the program, and whether drafting commands
   run at once or are shown first for approval.
+- A token system "just like MyBuckPlan" was asked for on 2026-11-18 as well (users spend tokens on AI use).
+  Not started: it needs a HAQQ server that knows each user and their balance, so it comes with the decision
+  above about how copies reach the AI service. How MyBuckPlan does it has not been looked at yet.
 - The logo for it was sent as a ChatGPT share link, which could not be opened from the build workspace; the
   image file itself is needed.
