@@ -168,6 +168,7 @@ public sealed class PdfExportViewModel : ObservableObject
     /// </summary>
     public IReadOnlyList<(string SheetName, byte[] Pdf)>? Build()
     {
+        foreach (var sheet in Sheets) _session.FitWaitingViewports(sheet.Id);
         var chosen = Sheets.Where(s => s.Include).ToList();
         if (chosen.Count == 0) { Message = "Tick at least one sheet."; return null; }
         try

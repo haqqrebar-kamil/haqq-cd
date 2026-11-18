@@ -55,6 +55,8 @@ public interface IUserInteraction
 {
     string? PickOpenFile();
     string? PickSaveFile(string suggestedName);
+    /// <summary>Asks where a PDF is to be written; the name box already holds the suggestion. Null when cancelled.</summary>
+    string? PickPdfFile(string suggestedName);
     SaveChangesChoice ConfirmSaveChanges(string documentName);
     bool Confirm(string message, string title);
     void ShowError(string message, string title);

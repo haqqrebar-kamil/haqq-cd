@@ -106,6 +106,7 @@ public sealed class MainViewModel : ObservableObject
             if (name == "CopyPdf") DrawingCopyRequested?.Invoke(this, EventArgs.Empty);
             if (name == "NewLayout") NewLayoutRequested?.Invoke(this, EventArgs.Empty);
             if (name == "ExportPdf") PdfExportRequested?.Invoke(this, EventArgs.Empty);
+            if (name == "Pdf") SavePdf();
             if (name == "Text") TextEditorRequested?.Invoke(null);
             if (name == "Table") TableEditorRequested?.Invoke(null);
         };
@@ -872,6 +873,39 @@ public sealed class MainViewModel : ObservableObject
     }
 
     // ---------------------------------------------------------------- files
+
+    /// <summary>
+    /// PDF: writes one layout to a PDF file whose page is exactly the size of the sheet (a 36 x 24 inch sheet
+    /// gives a 36 x 24 inch page), with no printer involved. The layout is the open one, or the only one when
+    /// the Model tab is open; with several layouts and Model open, the window that lists them is shown instead.
+    /// The file name offered is the layout's name. Written in black, as sheets are printed; the PDF Sheets window can keep colours.
+    /// </summary>
+    public bool SavePdf()
+    {
+        var doc = Session.Document;
+        var layout = doc.ActiveLayout ?? (doc.Layouts.Count == 1 ? doc.Layouts[0] : null);
+        if (layout is null)
+        {
+            if (doc.Layouts.Count == 0) { Session.Post("A PDF page is a layout. Add one with the + beside the Model tab, then choose PDF again."); return false; }
+            PdfExportRequested?.Invoke(this, EventArgs.Empty);
+            return false;
+        }
+        string? path = _ui.PickPdfFile(PdfExportViewModel.SafeFileName(layout.Name));
+        if (path is null) return false;
+        try
+        {
+            Session.FitWaitingViewports(layout.Id);
+            byte[] pdf = HAQQ.CAD.Rendering.PdfExporter.Export(doc, new[] { layout.Id }, monochrome: true);
+            File.WriteAllBytes(path, pdf);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _ui.ShowError("The PDF could not be written: " + ex.Message + "\n\nIf the file is open in a PDF viewer, close it there and try again.", "PDF");
+            return false;
+        }
+        Session.Post($"PDF saved: {path}  (layout \"{layout.Name}\", page {UnitFormatter.FormatLength(layout.PaperWidth, doc.Settings)} x {UnitFormatter.FormatLength(layout.PaperHeight, doc.Settings)}, the size of the sheet)");
+        return true;
+    }
 
     public bool NewDocument()
     {

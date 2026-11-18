@@ -39,6 +39,20 @@ internal sealed class DialogService : IUserInteraction
         return dialog.ShowDialog(_owner) == true ? dialog.FileName : null;
     }
 
+    public string? PickPdfFile(string suggestedName)
+    {
+        var dialog = new SaveFileDialog
+        {
+            Title = "Save PDF",
+            Filter = "PDF (*.pdf)|*.pdf",
+            DefaultExt = ".pdf",
+            AddExtension = true,
+            OverwritePrompt = true,
+            FileName = suggestedName,
+        };
+        return dialog.ShowDialog(_owner) == true ? dialog.FileName : null;
+    }
+
     public SaveChangesChoice ConfirmSaveChanges(string documentName)
     {
         var result = MessageBox.Show(_owner, $"Save changes to {documentName}?", Caption,

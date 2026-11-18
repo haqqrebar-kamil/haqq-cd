@@ -46,8 +46,9 @@
 </HeaderedContentControl>
 <HeaderedContentControl Style="{StaticResource RibbonGroup}" Header="Output">
 <StackPanel Orientation="Horizontal">
-<Button Style="{StaticResource RibbonLargeButton}" Tag="{StaticResource GlyphPlot}" Content="Plot" Command="{Binding RunCommandCommand}" CommandParameter="PLOT" ToolTip="PLOT (PRINT): preview and print the open layout or the model, or make a PDF" />
-<Button Style="{StaticResource RibbonLargeButton}" Tag="{StaticResource IconPdfOut}" Content="Export PDF" Command="{Binding RunCommandCommand}" CommandParameter="EXPORTPDF" ToolTip="EXPORTPDF: write layouts to a PDF as lines and text, each page exactly the size of its sheet - one file for all sheets, or a file per sheet." />
+<Button Style="{StaticResource RibbonLargeButton}" Tag="{StaticResource IconPdfOut}" Content="PDF" Command="{Binding RunCommandCommand}" CommandParameter="PDF" ToolTip="PDF: save the open layout as a PDF file. The page is exactly the size of the sheet (a 36 x 24 sheet gives a 36 x 24 page); no printer is involved. The file is named after the layout." />
+<Button Style="{StaticResource RibbonLargeButton}" Tag="{StaticResource IconPdfOut}" Content="PDF Sheets" Command="{Binding RunCommandCommand}" CommandParameter="EXPORTPDF" ToolTip="EXPORTPDF: several layouts at once. write layouts to a PDF as lines and text, each page exactly the size of its sheet - one file for all sheets, or a file per sheet." />
+<Button Style="{StaticResource RibbonLargeButton}" Tag="{StaticResource GlyphPlot}" Content="Print" Command="{Binding RunCommandCommand}" CommandParameter="PLOT" ToolTip="PLOT (PRINT), Ctrl+P: for a paper printer. For a PDF use the PDF button, which gives the exact sheet size. preview and print the open layout or the model, or make a PDF" />
 </StackPanel>
 </HeaderedContentControl>
 </StackPanel>
@@ -330,6 +331,8 @@
                         </Button.ContextMenu>
                     </Button>
 <Button Style="{StaticResource RibbonIconButton}" Tag="{StaticResource IconPan}" Content="Pan" Command="{Binding RunCommandCommand}" CommandParameter="PAN" ToolTip="PAN (P): hold the left button and drag to move the view; Enter or Esc to finish. The middle button pans at any time." />
+<Border Width="1" Margin="5,4" Background="{StaticResource BorderBrush}" />
+<Button Style="{StaticResource RibbonIconButton}" Tag="{StaticResource IconPdfOut}" Command="{Binding RunCommandCommand}" CommandParameter="PDF" ToolTip="PDF: save the open layout as a PDF file. The page is exactly the size of the sheet (a 36 x 24 sheet gives a 36 x 24 page); no printer is involved. The file is named after the layout." />
 <Border Width="1" Margin="5,4" Background="{StaticResource BorderBrush}" />
 <Button x:Name="RibbonFoldButton" Style="{StaticResource RibbonIconButton}" Tag="{StaticResource IconRibbonFold}" Click="RibbonFold_Click" ToolTip="Fold the ribbon away to give the drawing more room; click again (or any tab) to bring it back" />
         </StackPanel>

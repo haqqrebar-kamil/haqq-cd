@@ -65,6 +65,9 @@ internal sealed class FakeUi : IUserInteraction
 
     public string? PickOpenFile() => OpenPath;
     public string? PickSaveFile(string suggestedName) => SavePath;
+    public string? PdfPath { get; set; }
+    public string? PdfSuggestion { get; private set; }
+    public string? PickPdfFile(string suggestedName) { PdfSuggestion = suggestedName; return PdfPath; }
 
     public SaveChangesChoice ConfirmSaveChanges(string documentName)
     {

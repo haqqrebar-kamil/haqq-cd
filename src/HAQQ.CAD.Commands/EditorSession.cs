@@ -270,7 +270,7 @@ public sealed class CommandRegistry
         r.Register("ZOOMOUT", "Zoom out one step", () => new ZoomCommand("O"), "ZO");
         r.Register("PAN", "Move the view by dragging", () => new PanCommand(), "P");
         // Copying drawings from other files
-        r.Register("COPYPDF", "Copy a drawing out of a PDF as editable lines, arcs, circles and text", null, "PDFIMPORT", "PDF");
+        r.Register("COPYPDF", "Copy a drawing out of a PDF as editable lines, arcs, circles and text", null, "PDFIMPORT");
         r.Register("CALIBRATE", "Give objects their true size from one known length", () => new CalibrateCommand(), "CAL");
         r.Register("CLEANUP", "Tidy lines: straighten, remove doubles, merge and join", () => new CleanupCommand(), "CLEAN");
         // Blocks
@@ -293,6 +293,7 @@ public sealed class CommandRegistry
         r.Register("COMPANY", "Your company's name, for the title block of new layouts", () => new CompanyNameCommand(), "COMPANYNAME");
         r.Register("VPLOCK", "Lock or unlock the view and scale of a viewport", () => new ViewportLockCommand(), "VL");
         r.Register("NEWLAYOUT", "New layout: choose the paper, the border and the title block", null, "LAYOUTNEW");
+        r.Register("PDF", "Save the open layout as a PDF file, the page exactly the size of the sheet", null, "SAVEPDF");
         r.Register("EXPORTPDF", "Export layouts as a vector PDF, one sheet per page", null, "PDFOUT");
         r.Register("VPFIT", "Show the whole model in a viewport", () => new ViewportScaleCommand(fit: true), "VF");
         r.Register("PLOT", "Print the layout or the model, or make a PDF", null, "PRINT");
@@ -899,6 +900,10 @@ public sealed class EditorSession
             case "NEWLAYOUT":
                 Post("Command: NEWLAYOUT");
                 ViewCommandRequested?.Invoke("NewLayout");
+                return true;
+            case "PDF":
+                Post("Command: PDF");
+                ViewCommandRequested?.Invoke("Pdf");
                 return true;
             case "EXPORTPDF":
                 Post("Command: EXPORTPDF");
@@ -1667,14 +1672,15 @@ public sealed class EditorSession
     /// <summary>
     /// A layout that was made before anything was drawn (the Layout 1 every new drawing starts with) aims its
     /// viewport at the model the first time it is opened with something drawn: whole model, largest standard
-    /// scale that fits. Once only, and not for a viewport the user has locked.
+    /// scale that fits. Once only, and not for a viewport the user has locked. Also done before such a layout
+    /// is written to a PDF without having been opened.
     /// </summary>
-    private void FitWaitingViewports(Guid spaceId)
+    public void FitWaitingViewports(Guid spaceId)
     {
         if (spaceId == Guid.Empty || _viewportsAwaitingModel.Count == 0) return;
         var model = Document.GetExtents(Guid.Empty);
         if (model.IsEmpty) return;
-        foreach (var viewport in Document.Entities.OfType<ViewportEntity>().Where(v => _viewportsAwaitingModel.Contains(v.Id)).ToList())
+        foreach (var viewport in Document.AllEntities.OfType<ViewportEntity>().Where(v => v.SpaceId == spaceId && _viewportsAwaitingModel.Contains(v.Id)).ToList())
         {
             _viewportsAwaitingModel.Remove(viewport.Id);
             if (viewport.Locked) continue;

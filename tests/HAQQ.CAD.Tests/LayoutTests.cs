@@ -917,3 +917,48 @@ public class StartingLayoutTests : IDisposable
     }
 }
 
+public class QuickPdfTests : IDisposable
+{
+    private readonly TempDirectory _temp = new();
+    public void Dispose() => _temp.Dispose();
+
+    [Fact]
+    public void PDF_writes_the_layout_at_its_sheet_size_named_after_the_layout_with_no_printer()
+    {
+        var ui = new FakeUi { PdfPath = _temp.File("out.pdf") };
+        var vm = new MainViewModel(ui, new RecoveryStore(_temp.File("recovery")));
+        var s = vm.Session;
+        s.Document.AddEntity(new LineEntity(new Point2D(5000, 5000), new Point2D(5480, 5240)) { LayerId = s.Document.CurrentLayerId });
+
+        vm.RunCommand("PDF");                                                         // from the Model tab: the only layout
+        Assert.Equal("Layout 1", ui.PdfSuggestion);
+        var pdf = PdfFile.Open(File.ReadAllBytes(ui.PdfPath));
+        Assert.Equal(1, pdf.PageCount);
+        var page = pdf.ReadPage(0);
+        Assert.Equal((36 * 72.0, 24 * 72.0), (page.Width, page.Height));              // 36 x 24 inches
+        Assert.Contains(page.Texts, t => t.Text == "COMPANY NAME");
+        Assert.True(page.Paths.Count > 5);                                            // border, title block and the line seen through the viewport
+        Assert.True(s.Document.AllEntities.OfType<ViewportEntity>().Single().ModelBounds.Contains(new Point2D(5240, 5120)));
+        Assert.Contains(vm.History, h => h.Contains("PDF saved") && h.Contains("3'-0\" x 2'-0\""));
+        Assert.False(vm.IsLayoutActive);                                              // the Model tab stays open
+
+        s.StartCommand("PAGESETUP");                                                  // nothing happens on Model; open the layout and resize it
+        s.Cancel();
+        vm.SelectSpaceCommand.Execute(vm.SpaceTabs[1].Id);
+        Assert.True(s.SetPaperSize(s.Document.ActiveLayout!.Id, 17, 11));
+        Assert.True(vm.SavePdf());
+        page = PdfFile.Open(File.ReadAllBytes(ui.PdfPath)).ReadPage(0);
+        Assert.Equal((17 * 72.0, 11 * 72.0), (page.Width, page.Height));
+
+        ui.PdfPath = null;                                                            // cancelled in the save window
+        Assert.False(vm.SavePdf());
+
+        int asked = 0;
+        vm.PdfExportRequested += (_, _) => asked++;
+        vm.RunCommand("LAYOUT");
+        vm.RunCommand("MODEL");
+        vm.RunCommand("PDF");                                                         // two layouts and Model open: the list is shown
+        Assert.Equal(1, asked);
+    }
+}
+

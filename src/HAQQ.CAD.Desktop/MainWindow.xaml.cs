@@ -509,8 +509,9 @@ public partial class MainWindow : Window
             AddMenuItem(menu, "Lock / unlock viewport", "VPLOCK");
         }
         menu.Items.Add(new Separator());
-        AddMenuItem(menu, "Plot / print...", "PLOT");
-        AddMenuItem(menu, "Export to PDF...", "EXPORTPDF");
+        AddMenuItem(menu, "PDF (sheet size)...", "PDF");
+        AddMenuItem(menu, "PDF of several layouts...", "EXPORTPDF");
+        AddMenuItem(menu, "Print on paper...", "PLOT");
     }
 
     /// <summary>Double-click on a layout tab: its name can be typed over, there in the tab.</summary>
