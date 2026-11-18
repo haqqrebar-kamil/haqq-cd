@@ -6,6 +6,8 @@
     <AssemblyName>HaqqCad</AssemblyName>
     <RootNamespace>HAQQ.CAD.Desktop</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- The round HAQQ CAD logo (owner's artwork): the program file, the taskbar button, the window corner and the shortcuts all show it. -->
+    <ApplicationIcon>haqq-cad.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
     <!-- Present only while tools/installer/make-installer.ps1 builds a test release: turns on the update check. -->
