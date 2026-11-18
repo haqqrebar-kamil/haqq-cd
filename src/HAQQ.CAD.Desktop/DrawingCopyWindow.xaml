@@ -1,0 +1,92 @@
+<Window x:Class="HAQQ.CAD.Desktop.DrawingCopyWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:HAQQ.CAD.Desktop"
+        Title="Drawing Copy - from PDF"
+        Width="1180" Height="720" MinWidth="900" MinHeight="520"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False"
+        Background="{StaticResource PanelBrush}"
+        Foreground="{StaticResource TextBrush}"
+        FontFamily="Segoe UI" FontSize="12"
+        UseLayoutRounding="True">
+    <Grid Margin="10">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="130" />
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="400" />
+        </Grid.ColumnDefinitions>
+
+        <!-- 1. Pages -->
+        <DockPanel Grid.Column="0">
+            <TextBlock DockPanel.Dock="Top" Style="{StaticResource PanelHeader}" Text="PAGES" Margin="0,0,0,4" />
+            <ListBox ItemsSource="{Binding Pages}" SelectedIndex="{Binding PageIndex, Mode=TwoWay}" />
+        </DockPanel>
+
+        <!-- 2. What the copy will look like -->
+        <DockPanel Grid.Column="1" Margin="10,0">
+            <TextBlock DockPanel.Dock="Top" FontWeight="SemiBold" FontSize="13" Text="{Binding FileName}" TextTrimming="CharacterEllipsis" />
+            <TextBlock DockPanel.Dock="Top" Margin="0,2,0,6" Foreground="{StaticResource DimTextBrush}" Text="{Binding PageInfo}" />
+            <TextBlock DockPanel.Dock="Bottom" Margin="0,6,0,0" TextWrapping="Wrap" Text="{Binding Summary}" />
+            <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                <local:EntityPreview Entities="{Binding Preview}" />
+            </Border>
+        </DockPanel>
+
+        <!-- 3. Scale, how it is copied, and the layers -->
+        <DockPanel Grid.Column="2" LastChildFill="True">
+            <TextBlock DockPanel.Dock="Top" Style="{StaticResource PanelHeader}" Text="SCALE OF THE SHEET" Margin="0,0,0,4" />
+            <TextBox DockPanel.Dock="Top" Text="{Binding ScaleText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                     ToolTip="1/4&quot;=1', 3/16&quot;=1'-0&quot;, 1&quot;=20', 1:50 ... Empty copies the sheet at its paper size; use Calibrate after placing." />
+            <TextBlock DockPanel.Dock="Top" Margin="0,3,0,0" Foreground="{StaticResource DimTextBrush}" TextWrapping="Wrap" Text="{Binding ScaleHint}" />
+
+            <TextBlock DockPanel.Dock="Top" Style="{StaticResource PanelHeader}" Text="HOW IT IS COPIED" Margin="0,14,0,4" />
+            <CheckBox DockPanel.Dock="Top" IsChecked="{Binding Clean, Mode=TwoWay}" Content="Tidy the lines (off: every line exactly as in the PDF)"
+                      ToolTip="Makes lines that are a hair off horizontal or vertical exact, removes doubled lines, merges pieces lying on one line. Nothing moves further than the tolerance." />
+            <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="20,4,0,0">
+                <TextBlock Style="{StaticResource FieldLabel}" Text="Tolerance, mm on paper" />
+                <TextBox Width="60" Text="{Binding ToleranceText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                <CheckBox Margin="14,0,0,0" VerticalAlignment="Center" IsChecked="{Binding Join, Mode=TwoWay}" Content="Join into polylines" />
+            </StackPanel>
+            <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,8,0,0">
+                <CheckBox IsChecked="{Binding IncludeText, Mode=TwoWay}" Content="Text" Margin="0,0,18,0" />
+                <CheckBox IsChecked="{Binding IncludeFills, Mode=TwoWay}" Content="Filled shapes (arrowheads, solid areas)" />
+            </StackPanel>
+
+            <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
+                <Button Style="{StaticResource PanelButton}" Content="Place in drawing" Click="Place_Click" IsEnabled="{Binding CanPlace}" />
+                <Button Style="{StaticResource PanelButton}" Content="Cancel" Click="Cancel_Click" />
+            </StackPanel>
+            <TextBlock DockPanel.Dock="Bottom" Margin="0,6,0,0" Foreground="{StaticResource AccentBrush}" TextWrapping="Wrap" Text="{Binding Message}" />
+            <TextBlock DockPanel.Dock="Bottom" Margin="0,6,0,0" Foreground="{StaticResource DimTextBrush}" TextWrapping="Wrap"
+                       Text="After Place, click where it goes. It stays selected: Move puts it elsewhere, Calibrate gives it its true size from one known length, Undo takes the whole copy back." />
+            <ScrollViewer DockPanel.Dock="Bottom" MaxHeight="110" Margin="0,6,0,0" VerticalScrollBarVisibility="Auto" Focusable="False">
+                <TextBlock TextWrapping="Wrap" Text="{Binding Notes}" />
+            </ScrollViewer>
+
+            <TextBlock DockPanel.Dock="Top" Style="{StaticResource PanelHeader}" Text="LAYERS (BY PEN)" Margin="0,14,0,4" />
+            <ScrollViewer VerticalScrollBarVisibility="Auto" Focusable="False">
+                <ItemsControl ItemsSource="{Binding Groups}" Focusable="False">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Grid Margin="0,2">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="22" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="150" />
+                                </Grid.ColumnDefinitions>
+                                <CheckBox Grid.Column="0" VerticalAlignment="Center" IsChecked="{Binding Include, Mode=TwoWay}" ToolTip="Copy this group, or leave it out" />
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="2,0,6,0">
+                                    <TextBlock Text="{Binding Description}" TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Text="{Binding Count, StringFormat='{}{0} objects'}" Foreground="{StaticResource DimTextBrush}" FontSize="11" />
+                                </StackPanel>
+                                <TextBox Grid.Column="2" VerticalAlignment="Center" Text="{Binding LayerName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                         ToolTip="The layer these objects go on (made if it is not there). The name is remembered for the next copy." />
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+        </DockPanel>
+    </Grid>
+</Window>

@@ -79,6 +79,7 @@ public sealed class MainViewModel : ObservableObject
         Session.StateChanged += (_, _) => Refresh();
         Session.DocumentReplaced += (_, _) => ZoomExtentsRequested?.Invoke(this, EventArgs.Empty);
         Session.ViewChangeRequested += change => ViewChangeRequested?.Invoke(change);
+        Session.CopyCalibrated += RememberCalibration;
         Session.ObjectEditRequested += id =>
         {
             if (Session.Document.GetEntity(id) is TextEntity) TextEditorRequested?.Invoke(id);
@@ -95,6 +96,7 @@ public sealed class MainViewModel : ObservableObject
             if (name == "GridLines") GridLinesRequested?.Invoke(this, EventArgs.Empty);
             if (name == "Plot") PlotRequested?.Invoke(this, EventArgs.Empty);
             if (name == "Blocks") BlockLibraryRequested?.Invoke(this, EventArgs.Empty);
+            if (name == "CopyPdf") DrawingCopyRequested?.Invoke(this, EventArgs.Empty);
             if (name == "Text") TextEditorRequested?.Invoke(null);
             if (name == "Table") TableEditorRequested?.Invoke(null);
         };
@@ -144,6 +146,23 @@ public sealed class MainViewModel : ObservableObject
 
     /// <summary>The dimension style strip of the ribbon.</summary>
     public DimensionBarViewModel DimensionBar { get; }
+
+    /// <summary>The COPYPDF command asked the shell to choose a PDF and show the Drawing Copy window.</summary>
+    public event EventHandler? DrawingCopyRequested;
+
+    /// <summary>Where what was learned from earlier copies is kept; set by the shell (null keeps nothing between runs).</summary>
+    public DrawingCopyMemoryStore CopyMemory { get; set; } = new();
+
+    /// <summary>
+    /// A copied drawing was given its true size with CALIBRATE: the correction is remembered, so the same page
+    /// comes in at the right size the next time it is copied at the same scale.
+    /// </summary>
+    private void RememberCalibration(string sourceKey, double factor)
+    {
+        var memory = CopyMemory.Load();
+        memory.Corrections[sourceKey] = (memory.Corrections.TryGetValue(sourceKey, out double before) && before > 0 ? before : 1.0) * factor;
+        if (CopyMemory.Save(memory)) AddHistory("Remembered: the next copy of that page comes in at this size.");
+    }
 
     /// <summary>The INSERT command asked the shell to show the block library.</summary>
     public event EventHandler? BlockLibraryRequested;

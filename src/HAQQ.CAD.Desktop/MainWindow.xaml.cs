@@ -39,6 +39,8 @@ public partial class MainWindow : Window
         _viewModel.DimensionStylesRequested += (_, _) => Dispatcher.BeginInvoke(new Action(ShowDimensionStyles));
         _viewModel.GridLinesRequested += (_, _) => Dispatcher.BeginInvoke(new Action(ShowGridWizard));
         _viewModel.PlotRequested += (_, _) => Dispatcher.BeginInvoke(new Action(ShowPlot));
+        _viewModel.CopyMemory = new DrawingCopyMemoryStore(DrawingCopyMemoryStore.DefaultPath);
+        _viewModel.DrawingCopyRequested += (_, _) => Dispatcher.BeginInvoke(new Action(ShowDrawingCopy));
         _viewModel.BlockLibraryRequested += (_, _) => Dispatcher.BeginInvoke(new Action(ShowBlockLibrary));
         _viewModel.TextEditorRequested += id => Dispatcher.BeginInvoke(new Action(() => ShowTextEditor(id)));
         _viewModel.TableEditorRequested += id => Dispatcher.BeginInvoke(new Action(() => ShowTableEditor(id)));
@@ -303,6 +305,57 @@ public partial class MainWindow : Window
         try
         {
             new TableWindow(new TableEditorViewModel(_viewModel.Session, id, FontNames)) { Owner = this }.ShowDialog();
+        }
+        finally
+        {
+            _annotationOpen = false;
+            DrawingCanvas.Focus();
+        }
+    }
+
+    /// <summary>Asks for a PDF, reads it and shows the Drawing Copy window over the drawing.</summary>
+    private void ShowDrawingCopy()
+    {
+        if (_annotationOpen) return;
+        _annotationOpen = true;
+        try
+        {
+            var dialog = new Microsoft.Win32.OpenFileDialog
+            {
+                Title = "Copy a drawing from a PDF",
+                Filter = "PDF drawings (*.pdf)|*.pdf|All files (*.*)|*.*",
+                CheckFileExists = true,
+            };
+            if (dialog.ShowDialog(this) != true) return;
+
+            var copy = new DrawingCopyViewModel(_viewModel.Session, _viewModel.CopyMemory);
+            bool opened;
+            Mouse.OverrideCursor = Cursors.Wait;         // a large sheet takes a moment to read
+            try
+            {
+                var info = new FileInfo(dialog.FileName);
+                if (info.Length > 400L * 1024 * 1024)
+                {
+                    MessageBox.Show(this, "That file is larger than 400 MB, which is more than HAQQ CAD reads in one go.", "Drawing Copy", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
+                opened = copy.Open(File.ReadAllBytes(dialog.FileName), dialog.FileName);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                MessageBox.Show(this, "The file could not be read: " + ex.Message, "Drawing Copy", MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
+            finally
+            {
+                Mouse.OverrideCursor = null;
+            }
+            if (!opened)
+            {
+                MessageBox.Show(this, copy.Message, "Drawing Copy", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            new DrawingCopyWindow(copy) { Owner = this }.ShowDialog();
         }
         finally
         {

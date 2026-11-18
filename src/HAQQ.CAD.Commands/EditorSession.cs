@@ -269,6 +269,10 @@ public sealed class CommandRegistry
         r.Register("ZOOMIN", "Zoom in one step", () => new ZoomCommand("I"), "ZI");
         r.Register("ZOOMOUT", "Zoom out one step", () => new ZoomCommand("O"), "ZO");
         r.Register("PAN", "Move the view by dragging", () => new PanCommand(), "P");
+        // Copying drawings from other files
+        r.Register("COPYPDF", "Copy a drawing out of a PDF as editable lines, arcs, circles and text", null, "PDFIMPORT", "PDF");
+        r.Register("CALIBRATE", "Give objects their true size from one known length", () => new CalibrateCommand(), "CAL");
+        r.Register("CLEANUP", "Tidy lines: straighten, remove doubles, merge and join", () => new CleanupCommand(), "CLEAN");
         // Blocks
         r.Register("BLOCK", "Make a block from selected objects", () => new BlockCommand(), "B", "BMAKE");
         r.Register("INSERT", "Block library: place a block of the drawing, of your library or of the HAQQ library", null, "I", "BLOCKS", "LIBRARY");
@@ -562,6 +566,8 @@ public sealed class EditorSession
         OffsetDistance = null;
         FilletRadius = 0;
         ChamferDistances = (0, 0);
+        _lastCopyIds = new List<Guid>();
+        _lastCopyKey = "";
         _textDefaults = null;
         ActiveViewportId = null;
         _viewportBefore = null;
@@ -865,6 +871,10 @@ public sealed class EditorSession
             case "GRIDLINES":
                 Post("Command: GRIDLINES");
                 ViewCommandRequested?.Invoke("GridLines");
+                return true;
+            case "COPYPDF":
+                Post("Command: COPYPDF");
+                ViewCommandRequested?.Invoke("CopyPdf");
                 return true;
             case "INSERT":
                 Post("Command: INSERT");
@@ -1454,6 +1464,91 @@ public sealed class EditorSession
     {
         if (Document.GetEntity(id) is not TableEntity) { Post("That table is no longer in the drawing."); return false; }
         return ModifyEntities(new[] { id }, e => ((TableEntity)e).CopyContentFrom(edited), "Edit table");
+    }
+
+    // ---------------------------------------------------------- drawing copy
+
+    private List<Guid> _lastCopyIds = new();
+    private string _lastCopyKey = "";
+
+    /// <summary>The objects of the drawing that was copied in last (from a PDF), for CALIBRATE and for moving it.</summary>
+    public IReadOnlyList<Guid> LastCopyIds => _lastCopyIds;
+
+    /// <summary>The copied drawing was given its true size with CALIBRATE: where it came from, and by how much it was scaled.</summary>
+    public event Action<string, double>? CopyCalibrated;
+
+    internal void NoteCopyCalibrated(double factor)
+    {
+        if (_lastCopyKey.Length > 0) CopyCalibrated?.Invoke(_lastCopyKey, factor);
+    }
+
+    /// <summary>How far CLEANUP may move a point; the value last used, or a thousandth of a foot / a tenth of a millimetre to begin with.</summary>
+    public double CleanupTolerance
+    {
+        get => _cleanupTolerance ?? UnitConverter.Convert(0.1, LinearUnit.Millimeter, Document.Settings.Unit);
+        set => _cleanupTolerance = value;
+    }
+
+    private double? _cleanupTolerance;
+
+    /// <summary>Starts placing a copied drawing by a click (see <see cref="PlaceCopyCommand"/>).</summary>
+    public bool BeginCopyPlacement(IReadOnlyList<CopyLayer> layers, string sourceKey)
+    {
+        if (layers.Sum(l => l.Entities.Count) == 0) { Post("There is nothing to place: every group is switched off or empty."); return false; }
+        if (ActiveCommand is not null) Cancel();
+        _lastCommandName = "COPYPDF";
+        ActiveCommand = new PlaceCopyCommand(layers, sourceKey);
+        Complete(ActiveCommand.Start(this));
+        return true;
+    }
+
+    /// <summary>
+    /// Puts a copied drawing into the open space, moved by <paramref name="offset"/>: missing layers are made
+    /// (with the colour and linetype given), the objects go on them. One undo step. The objects are left selected.
+    /// </summary>
+    public bool PlaceCopy(IReadOnlyList<CopyLayer> layers, Vector2D offset, string sourceKey)
+    {
+        var actions = new List<IUndoableAction>();
+        var entities = new List<Entity>();
+        var move = Transform2D.Translation(offset);
+        var made = new Dictionary<string, Guid>(StringComparer.OrdinalIgnoreCase);
+        foreach (var layer in layers)
+        {
+            if (layer.Entities.Count == 0) continue;
+            string name = (layer.Name ?? "").Trim();
+            if (name.Length == 0 || name.Length > 64 || name.Any(char.IsControl)) { Post($"\"{layer.Name}\" cannot be used as a layer name (1 to 64 characters)."); return false; }
+            Guid layerId;
+            if (Document.FindLayer(name) is { } existing)
+            {
+                if (!existing.IsEditable) { Post($"Layer \"{existing.Name}\" is locked: unlock it or give that group another layer."); return false; }
+                layerId = existing.Id;
+            }
+            else if (!made.TryGetValue(name, out layerId))
+            {
+                var created = new Layer(Guid.NewGuid(), name) { Color = layer.Color, Linetype = Document.FindLinetype(layer.Linetype)?.Name ?? Linetypes.Solid };
+                layerId = created.Id;
+                made[name] = layerId;
+                actions.Add(new AddLayerAction(created));
+            }
+            foreach (var source in layer.Entities)
+            {
+                var copy = source.CopyWithNewId();
+                copy.Transform(move);
+                copy.LayerId = layerId;
+                if (copy.IsValid) entities.Add(copy);
+            }
+        }
+        if (entities.Count == 0) { Post("There is nothing to place."); return false; }
+        actions.Add(new AddEntitiesAction("Copy drawing", entities));
+        if (!Execute(actions.Count == 1 ? actions[0] : new CompositeAction("Copy drawing", actions.ToArray()))) return false;
+
+        _lastCopyIds = entities.Select(e => e.Id).ToList();
+        _lastCopyKey = sourceKey ?? "";
+        Selection.Clear();
+        Selection.AddRange(_lastCopyIds);
+        Post($"{entities.Count} object(s) copied onto {layers.Count(l => l.Entities.Count > 0)} layer(s). They are selected: MOVE puts them somewhere else, CALIBRATE gives them their true size from one known length.");
+        RaiseStateChanged();
+        return true;
     }
 
     // ----------------------------------------------------------------- blocks

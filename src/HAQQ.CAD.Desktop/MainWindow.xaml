@@ -289,6 +289,17 @@
                     </StackPanel>
                 </StackPanel>
             </TabItem>
+            <TabItem Header="DRAWING COPY">
+                <StackPanel Orientation="Horizontal" Margin="6,0">
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconCopyPdf}" Content="Copy from PDF" Command="{Binding RunCommandCommand}" CommandParameter="COPYPDF" ToolTip="COPYPDF (PDF): open a PDF drawing, choose a page, check its scale and layers, and place it as editable lines, polylines, arcs, circles and text. Works on PDFs that hold real line work (drawings exported from CAD); a scanned page is a picture and cannot be copied yet." />
+                    <Border Width="1" Margin="6,6" Background="{StaticResource BorderBrush}" />
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconCalibrate}" Content="Calibrate" Command="{Binding RunCommandCommand}" CommandParameter="CALIBRATE" ToolTip="CALIBRATE (CAL): give the copied drawing (or the selected objects) its true size - click the two ends of a length you know and type that length. The correction is remembered for that PDF page." />
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconCleanup}" Content="Clean Up" Command="{Binding RunCommandCommand}" CommandParameter="CLEANUP" ToolTip="CLEANUP (CLEAN): tidy the selected lines - make near-horizontal and near-vertical lines exact, remove doubled lines, merge pieces lying on one line, join lines that meet into polylines. Nothing moves further than the tolerance you type." />
+                    <Border Width="1" Margin="6,6" Background="{StaticResource BorderBrush}" />
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconMove}" Content="Move" Command="{Binding RunCommandCommand}" CommandParameter="MOVE" ToolTip="MOVE (M): put the copied drawing somewhere else (it is still selected after placing)" />
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconUndo}" Content="Undo Copy" Command="{Binding UndoCommand}" ToolTip="Undo (Ctrl+Z): takes the whole copy back in one step, with the layers it made" />
+                </StackPanel>
+            </TabItem>
             <TabItem Header="LAYOUT">
                 <StackPanel Orientation="Horizontal" Margin="6,0">
                     <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconModelSpace}" Content="Model" Command="{Binding RunCommandCommand}" CommandParameter="MODEL" ToolTip="MODEL (MS): back to the Model tab, where the drawing is made at its real size" />
