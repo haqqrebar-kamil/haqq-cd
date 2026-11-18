@@ -195,6 +195,24 @@ public static partial class UnitFormatter
         }
     }
 
+    /// <summary>An area in the drawing's unit squared; inch drawings also give square feet, which is what areas are quoted in.</summary>
+    public static string FormatArea(double area, DrawingSettings settings)
+    {
+        string unit = settings.Unit switch
+        {
+            LinearUnit.Inch => "sq in",
+            LinearUnit.Foot => "sq ft",
+            LinearUnit.Millimeter => "mm\u00B2",
+            LinearUnit.Centimeter => "cm\u00B2",
+            LinearUnit.Meter => "m\u00B2",
+            _ => "",
+        };
+        string text = (FormatDecimal(area, Math.Min(settings.DecimalPrecision, 4)) + " " + unit).TrimEnd();
+        if (settings.Unit == LinearUnit.Inch) text += $" ({FormatDecimal(area / 144.0, 2)} sq ft)";
+        if (settings.Unit == LinearUnit.Millimeter) text += $" ({FormatDecimal(area / 1e6, 3)} m\u00B2)";
+        return text;
+    }
+
     public static string FormatDecimal(double value, int precision)
     {
         precision = Math.Clamp(precision, 0, 12);

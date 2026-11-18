@@ -523,6 +523,35 @@ public sealed class PropertiesViewModel : ObservableObject
                 Rows.Add(new PropertyRow("Objects inside", block.Definition.Entities.Count.ToString(CultureInfo.InvariantCulture)));
                 break;
 
+            case HatchEntity hatch:
+            {
+                Rows.Add(Editable("Pattern", hatch.Pattern, text =>
+                {
+                    if (HatchPatterns.Find(text) is { } found)
+                        return _session.UpdateHatch(id, h => h.Pattern = found.Name);
+                    _session.Post("There is no hatch pattern with that name. Double-click the hatch to choose from the list.");
+                    return false;
+                }));
+                Rows.Add(Editable("Scale", hatch.Scale.ToString("0.######", CultureInfo.InvariantCulture), text =>
+                {
+                    if (double.TryParse(text.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out double scale) && scale > 1e-9 && double.IsFinite(scale))
+                        return _session.UpdateHatch(id, h => h.Scale = scale);
+                    _session.Post("The scale must be a number more than 0.");
+                    return false;
+                }));
+                Rows.Add(Editable("Angle", hatch.Angle.ToString("0.###", CultureInfo.InvariantCulture), text =>
+                {
+                    if (double.TryParse(text.Trim().TrimEnd('\u00B0'), NumberStyles.Float, CultureInfo.InvariantCulture, out double degrees) && double.IsFinite(degrees))
+                        return _session.UpdateHatch(id, h => h.Angle = degrees);
+                    _session.Post("Type the angle in degrees.");
+                    return false;
+                }));
+                Rows.Add(new PropertyRow("Area", UnitFormatter.FormatArea(hatch.Area, settings)));
+                Rows.Add(new PropertyRow("Islands", hatch.Islands.ToString()));
+                Rows.Add(new PropertyRow("Follows boundary", hatch.BoundaryLost ? "Boundary lost" : hatch.Associative ? "Yes" : "No"));
+                if (hatch.TooDense) Rows.Add(new PropertyRow("Note", "Pattern too fine: raise the scale"));
+                break;
+            }
             case TableEntity table:
                 Rows.Add(new PropertyRow("Size", $"{table.RowCount} rows x {table.ColumnCount} columns"));
                 Rows.Add(new PropertyRow("Cells", "Double-click the table to edit"));

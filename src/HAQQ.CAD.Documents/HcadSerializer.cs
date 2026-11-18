@@ -275,6 +275,35 @@ public static class HcadSerializer
                 w.WriteNumber("scale", reference.Scale);
                 w.WriteNumber("rotation", reference.Rotation);
                 break;
+            case HatchEntity hatch:
+                w.WriteString("pattern", hatch.Pattern);
+                w.WriteNumber("scale", hatch.Scale);
+                w.WriteNumber("angle", hatch.Angle);
+                WritePoint(w, "origin", hatch.Origin);
+                w.WriteString("islands", hatch.Islands.ToString());
+                w.WriteBoolean("associative", hatch.Associative);
+                if (hatch.BoundaryLost) w.WriteBoolean("boundaryLost", true);
+                if (hatch.GapTolerance > 0) w.WriteNumber("gapTolerance", hatch.GapTolerance);
+                if (hatch.Seed is { } seed) WritePoint(w, "seed", seed);
+                if (hatch.SourceIds.Count > 0)
+                {
+                    w.WriteStartArray("sources");
+                    foreach (var source in hatch.SourceIds) w.WriteStringValue(source.ToString("D"));
+                    w.WriteEndArray();
+                }
+                w.WriteStartArray("loops");
+                foreach (var loop in hatch.Loops)
+                {
+                    w.WriteStartArray();                          // x, y, x, y ... of one closed loop
+                    foreach (var point in loop)
+                    {
+                        w.WriteNumberValue(point.X);
+                        w.WriteNumberValue(point.Y);
+                    }
+                    w.WriteEndArray();
+                }
+                w.WriteEndArray();
+                break;
             case TableEntity table:
                 WritePoint(w, "position", table.Position);
                 w.WriteNumber("textHeight", table.TextHeight);
@@ -738,6 +767,35 @@ public static class HcadSerializer
                     Justify = Enum.TryParse(GetString(e, "justify"), ignoreCase: true, out TextJustify textJustify) && Enum.IsDefined(textJustify) ? textJustify : TextJustify.Center,
                 };
                 break;
+            case HatchEntity.Type:
+            {
+                var loops = new List<Point2D[]>();
+                foreach (var loopElement in e.GetProperty("loops").EnumerateArray())
+                {
+                    var numbers = loopElement.EnumerateArray().Select(v => v.GetDouble()).ToList();
+                    if (numbers.Count < 6 || numbers.Count % 2 != 0) throw new FormatException("a hatch loop needs at least three points");
+                    var loop = new Point2D[numbers.Count / 2];
+                    for (int k = 0; k < loop.Length; k++) loop[k] = new Point2D(numbers[2 * k], numbers[2 * k + 1]);
+                    loops.Add(loop);
+                }
+                var hatch = new HatchEntity(ReadId(e), loops)
+                {
+                    Pattern = GetString(e, "pattern") is { Length: > 0 } patternName ? patternName : HatchPatterns.Default,
+                    Scale = e.TryGetProperty("scale", out var hatchScale) && hatchScale.ValueKind == JsonValueKind.Number ? hatchScale.GetDouble() : 1.0,
+                    Angle = e.TryGetProperty("angle", out var hatchAngle) && hatchAngle.ValueKind == JsonValueKind.Number ? hatchAngle.GetDouble() : 0.0,
+                    Origin = e.TryGetProperty("origin", out var hatchOrigin) ? ReadPoint(hatchOrigin) : Point2D.Origin,
+                    Islands = Enum.TryParse(GetString(e, "islands"), ignoreCase: true, out HatchIslands hatchIslands) && Enum.IsDefined(hatchIslands) ? hatchIslands : HatchIslands.Normal,
+                    Associative = GetBool(e, "associative", false),
+                    BoundaryLost = GetBool(e, "boundaryLost", false),
+                    GapTolerance = e.TryGetProperty("gapTolerance", out var hatchGap) && hatchGap.ValueKind == JsonValueKind.Number && hatchGap.GetDouble() > 0 ? hatchGap.GetDouble() : 0,
+                    Seed = e.TryGetProperty("seed", out var hatchSeed) ? ReadPoint(hatchSeed) : null,
+                };
+                if (e.TryGetProperty("sources", out var hatchSources) && hatchSources.ValueKind == JsonValueKind.Array)
+                    foreach (var source in hatchSources.EnumerateArray())
+                        if (Guid.TryParse(source.GetString(), out Guid sourceId)) hatch.SourceIds.Add(sourceId);
+                entity = hatch;
+                break;
+            }
             case TableEntity.Type:
             {
                 var widths = e.GetProperty("columnWidths").EnumerateArray().Select(v => v.GetDouble()).ToList();

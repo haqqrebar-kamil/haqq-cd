@@ -100,6 +100,27 @@ internal sealed class WpfRenderSurface : IRenderSurface
         Target.DrawGeometry(GetFill(style, 255), null, geometry);
     }
 
+    public void FillRegion(IReadOnlyList<IReadOnlyList<ScreenPoint>> loops, in RenderStyle style)
+    {
+        if (Target is null) return;
+        var geometry = new StreamGeometry { FillRule = FillRule.EvenOdd };          // a loop inside a loop is a hole
+        bool any = false;
+        using (StreamGeometryContext context = geometry.Open())
+        {
+            foreach (var points in loops)
+            {
+                if (points.Count < 3) continue;
+                any = true;
+                context.BeginFigure(new Point(points[0].X, points[0].Y), true, true);
+                for (int i = 1; i < points.Count; i++)
+                    context.LineTo(new Point(points[i].X, points[i].Y), false, false);
+            }
+        }
+        if (!any) return;
+        geometry.Freeze();
+        Target.DrawGeometry(GetFill(style, 255), null, geometry);
+    }
+
     public void DrawCircle(double cx, double cy, double radius, in RenderStyle style)
     {
         Target?.DrawEllipse(null, GetPen(style), new Point(cx, cy), radius, radius);

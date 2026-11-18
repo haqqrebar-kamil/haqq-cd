@@ -75,6 +75,19 @@ internal sealed class PdfRenderSurface : IRenderSurface
         _out.Append("f\n");
     }
 
+    public void FillRegion(IReadOnlyList<IReadOnlyList<ScreenPoint>> loops, in RenderStyle style)
+    {
+        bool any = false;
+        foreach (var loop in loops)
+        {
+            if (loop.Count < 3) continue;
+            if (!any) Fill(style);
+            any = true;
+            Path(loop, true);
+        }
+        if (any) _out.Append("f*\n");                    // even-odd: a loop inside a loop is a hole
+    }
+
     public void DrawCircle(double cx, double cy, double radius, in RenderStyle style)
     {
         if (!(radius > 0)) return;

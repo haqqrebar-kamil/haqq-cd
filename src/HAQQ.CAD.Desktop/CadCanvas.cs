@@ -456,7 +456,7 @@ public sealed class CadCanvas : FrameworkElement
                     _gripDown = null;
                     // A text or a table opens for editing.
                     var picked = _viewModel.Session.GetSelectedEntities();
-                    if (picked.Count == 1 && picked[0] is HAQQ.CAD.Core.TextEntity or HAQQ.CAD.Core.TableEntity)
+                    if (picked.Count == 1 && picked[0] is HAQQ.CAD.Core.TextEntity or HAQQ.CAD.Core.TableEntity or HAQQ.CAD.Core.HatchEntity)
                         _viewModel.Session.RequestEdit(picked[0].Id);
                     break;
                 }

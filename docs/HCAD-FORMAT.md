@@ -292,3 +292,26 @@ entities; `units` says what unit the block was drawn in.
   title is not stored: it is worked out from `scale` when the viewport is drawn.
 - The order of `document.layouts` is the order of the tabs.
 
+
+### Hatch (added 18 Nov, still schema 9)
+
+A `hatch` entity is one filled area. An older reader does not know the type: it keeps the entity untouched
+(unknown entities are preserved and written back) and warns.
+
+| Property | Meaning |
+|---|---|
+| `loops` | Array of closed loops, each a flat array `x, y, x, y ...` of at least three points. Filled by the even-odd rule: a loop inside a loop is a hole. Curved boundaries are stored as many short sides (a full circle as 128) |
+| `pattern` | Pattern name (`ANSI31`, `BRICK`, `CONCRETE` ...); `SOLID` is a fill. An unknown name is kept and the hatch is drawn as its outline |
+| `scale` | Pattern size: pattern units times this are drawing units. More than 0 |
+| `angle` | Rotation of the pattern in degrees, counter-clockwise, about `origin` |
+| `origin` | `[x, y]` the pattern is laid out from |
+| `islands` | `Normal`, `Outer` or `Ignore`: how closed shapes inside the area were treated |
+| `associative` | True when the hatch follows its boundary objects |
+| `sources` | Ids of the boundary objects (associative hatches) |
+| `seed` | `[x, y]` inside the area, when it was found by a click; absent when it was made from selected objects |
+| `gapTolerance` | The opening between boundary objects that was allowed; absent for 0 |
+| `boundaryLost` | True when the boundary objects no longer close; the loops then hold the last area |
+
+The pattern lines are never stored. They are worked out from `pattern`, `scale`, `angle` and `origin`, so a file
+cannot hold lines that disagree with its definition. The pattern definitions themselves are part of the program,
+not of the file.

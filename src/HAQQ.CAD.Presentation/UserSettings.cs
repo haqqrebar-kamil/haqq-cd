@@ -16,6 +16,9 @@ public sealed class UserSettings
     /// <summary>The user's company name for title blocks; null or empty until given.</summary>
     public string? CompanyName { get; set; }
 
+    /// <summary>Hatch patterns the user marked as favourites.</summary>
+    public List<string> HatchFavorites { get; set; } = new();
+
     /// <summary>The unit new drawings start in ("Inch", "Foot", "Millimeter", "Centimeter", "Meter"); null = inches.</summary>
     public string? NewDrawingUnit { get; set; }
 
@@ -58,6 +61,11 @@ public sealed class UserSettingsStore
                 json.RootElement.TryGetProperty("companyName", out var cn) && cn.ValueKind == JsonValueKind.String)
                 settings.CompanyName = cn.GetString();
             if (json.RootElement.ValueKind == JsonValueKind.Object &&
+                json.RootElement.TryGetProperty("hatchFavorites", out var hf) && hf.ValueKind == JsonValueKind.Array)
+                foreach (var item in hf.EnumerateArray())
+                    if (item.ValueKind == JsonValueKind.String && item.GetString() is { Length: > 0 and <= 64 } favorite && settings.HatchFavorites.Count < 100)
+                        settings.HatchFavorites.Add(favorite);
+            if (json.RootElement.ValueKind == JsonValueKind.Object &&
                 json.RootElement.TryGetProperty("newDrawingUnit", out var nu) && nu.ValueKind == JsonValueKind.String)
                 settings.NewDrawingUnit = nu.GetString();
             if (json.RootElement.ValueKind == JsonValueKind.Object &&
@@ -88,8 +96,9 @@ public sealed class UserSettingsStore
             string panel = ",\n  \"propertiesCollapsed\": " + (settings.PropertiesCollapsed ? "true" : "false");
             string shortcuts = settings.Shortcuts.Count == 0 ? "" : ",\n  \"shortcuts\": " + JsonSerializer.Serialize(settings.Shortcuts);
             string company = string.IsNullOrWhiteSpace(settings.CompanyName) ? "" : ",\n  \"companyName\": " + JsonSerializer.Serialize(settings.CompanyName);
+            string favorites = settings.HatchFavorites.Count == 0 ? "" : ",\n  \"hatchFavorites\": " + JsonSerializer.Serialize(settings.HatchFavorites);
             string unit = string.IsNullOrWhiteSpace(settings.NewDrawingUnit) ? "" : ",\n  \"newDrawingUnit\": " + JsonSerializer.Serialize(settings.NewDrawingUnit);
-            File.WriteAllText(_path, "{\n  \"crosshairPercent\": " + settings.CrosshairPercent + snap + panel + unit + company + shortcuts + "\n}\n");
+            File.WriteAllText(_path, "{\n  \"crosshairPercent\": " + settings.CrosshairPercent + snap + panel + unit + company + favorites + shortcuts + "\n}\n");
             return true;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)

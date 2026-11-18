@@ -96,6 +96,7 @@
                             </ContextMenu>
                         </Button.ContextMenu>
                     </Button>
+<Button Style="{StaticResource RibbonLargeButton}" Tag="{StaticResource IconHatch}" Content="Hatch" Command="{Binding RunCommandCommand}" CommandParameter="HATCH" ToolTip="HATCH (H): fill a closed area with a pattern (ANSI31, concrete, brick ...) or a solid colour. Choose the pattern, then click inside the area. Double-click a hatch to change it." />
 <StackPanel VerticalAlignment="Center">
 <Button Style="{StaticResource RibbonSmallButton}" Tag="{StaticResource IconRectangle}" Content="Rectangle" Command="{Binding RunCommandCommand}" CommandParameter="RECTANG" ToolTip="RECTANG (REC)" />
 <Button Style="{StaticResource RibbonSmallButton}" Tag="{StaticResource IconGridLines}" Content="Grid Lines" Command="{Binding RunCommandCommand}" CommandParameter="GRIDLINES" ToolTip="GRIDLINES (GL): grid line wizard - a rectangular or a sector grid with labels, on its own layer" />

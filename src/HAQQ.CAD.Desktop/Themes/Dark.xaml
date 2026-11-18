@@ -251,6 +251,7 @@
         </Setter>
     </Style>
 
+    <Geometry x:Key="IconHatch">M3,3 L17,3 L17,17 L3,17 Z M3,8 L8,3 M3,13 L13,3 M4,17 L17,4 M9,17 L17,9 M14,17 L17,14</Geometry>
     <Geometry x:Key="IconRibbonFold">M3,5 L17,5 M3,16 L17,16 M6,12.5 L10,8.5 L14,12.5</Geometry>
 
     <!-- Ribbon button: glyph above caption. Tag carries the glyph geometry. -->

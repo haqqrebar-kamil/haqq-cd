@@ -554,13 +554,15 @@ public sealed class DrawingDocument
         _index.Insert(entity.Id, entity.Bounds);
         _orderedCache = null;
         MaybeRebuildIndex();
+        NoteForHatches(entity);
         OnChanged(DocumentChangeKind.Entities);
     }
 
     /// <summary>Removes an entity and returns its draw order so an undo can restore it.</summary>
     public long RemoveEntity(Guid id)
     {
-        if (!_entities.Remove(id)) throw new InvalidOperationException("Entity does not exist.");
+        if (!_entities.Remove(id, out var removed)) throw new InvalidOperationException("Entity does not exist.");
+        NoteForHatches(removed);
         long order = _order[id];
         _order.Remove(id);
         _index.Remove(id);
@@ -579,7 +581,77 @@ public sealed class DrawingDocument
         _entities[entity.Id] = entity;
         _index.Insert(entity.Id, entity.Bounds);
         _orderedCache = null;
+        NoteForHatches(entity);
         OnChanged(DocumentChangeKind.Entities);
+    }
+
+    // ------------------------------------------------------------------ associative hatches
+
+    private Dictionary<Guid, List<Guid>>? _hatchesBySource;        // boundary object -> the hatches that follow it
+    private readonly HashSet<Guid> _staleHatches = new();
+    private int _hatchCount;
+
+    /// <summary>An object was added, removed or replaced: the associative hatches bounded by it need working out again.</summary>
+    private void NoteForHatches(Entity entity)
+    {
+        if (entity is HatchEntity hatch)
+        {
+            _hatchesBySource = null;
+            _hatchCount = -1;
+            // A hatch put back (undo, redo, paste) may have been made for a boundary that has since changed.
+            if (hatch.Associative && _entities.ContainsKey(hatch.Id)) _staleHatches.Add(hatch.Id);
+            return;
+        }
+        if (_hatchCount < 0) _hatchCount = _entities.Values.Count(e => e is HatchEntity { Associative: true });
+        if (_hatchCount == 0) return;
+        if (_hatchesBySource is null)
+        {
+            _hatchesBySource = new Dictionary<Guid, List<Guid>>();
+            foreach (var e in _entities.Values)
+                if (e is HatchEntity { Associative: true } h)
+                    foreach (var source in h.SourceIds)
+                    {
+                        if (!_hatchesBySource.TryGetValue(source, out var list)) _hatchesBySource[source] = list = new List<Guid>(1);
+                        list.Add(h.Id);
+                    }
+        }
+        if (_hatchesBySource.TryGetValue(entity.Id, out var followers))
+            foreach (var id in followers) _staleHatches.Add(id);
+    }
+
+    /// <summary>
+    /// Brings associative hatches up to date with their boundary objects. Called once after each edit (not after
+    /// each object of it). A hatch whose boundary no longer closes keeps its last area and is flagged
+    /// (<see cref="HatchEntity.BoundaryLost"/>); it is never removed. Returns true when a hatch changed.
+    /// </summary>
+    public bool UpdateHatches()
+    {
+        if (_staleHatches.Count == 0) return false;
+        var ids = _staleHatches.ToList();
+        _staleHatches.Clear();
+        bool changed = false;
+        foreach (var id in ids)
+        {
+            if (_entities.GetValueOrDefault(id) is not HatchEntity { Associative: true } hatch) continue;
+            HatchBoundary.Regenerate(this, hatch);
+            changed = true;
+            _index.Insert(id, hatch.Bounds);
+        }
+        if (changed)
+        {
+            _orderedCache = null;
+            OnChanged(DocumentChangeKind.Entities);
+        }
+        return changed;
+    }
+
+    /// <summary>The draw order just under the lowest of the given objects, for a hatch that should lie behind its boundary.</summary>
+    public long DrawOrderBehind(IEnumerable<Guid> ids)
+    {
+        long lowest = long.MaxValue;
+        foreach (var id in ids)
+            if (_order.TryGetValue(id, out long order) && order < lowest) lowest = order;
+        return lowest == long.MaxValue ? _nextOrder : lowest - 1;
     }
 
     /// <summary>Objects of the active space whose bounding box intersects <paramref name="box"/> (unordered).</summary>

@@ -1,3 +1,4 @@
+using System.Globalization;
 using HAQQ.CAD.Core;
 using HAQQ.CAD.Geometry;
 using HAQQ.CAD.Snapping;
@@ -294,6 +295,9 @@ public sealed class CommandRegistry
         r.Register("VPLOCK", "Lock or unlock the view and scale of a viewport", () => new ViewportLockCommand(), "VL");
         r.Register("NEWLAYOUT", "New layout: choose the paper, the border and the title block", null, "LAYOUTNEW");
         r.Register("PDF", "Save the open layout as a PDF file, the page exactly the size of the sheet", null, "SAVEPDF");
+        r.Register("HATCH", "Fill closed areas with a pattern or a solid colour", null, "H", "BH");
+        r.Register("HATCHPICK", "Hatch: click inside closed areas", () => new HatchPickCommand());
+        r.Register("HATCHSELECT", "Hatch: the area enclosed by selected objects", () => new HatchSelectCommand());
         r.Register("EXPORTPDF", "Export layouts as a vector PDF, one sheet per page", null, "PDFOUT");
         r.Register("VPFIT", "Show the whole model in a viewport", () => new ViewportScaleCommand(fit: true), "VF");
         r.Register("PLOT", "Print the layout or the model, or make a PDF", null, "PRINT");
@@ -578,6 +582,7 @@ public sealed class EditorSession
         _lastCopyKey = "";
         _textDefaults = null;
         _viewportsAwaitingModel.Clear();
+        HatchDefaults = new HatchSettings();
         ActiveViewportId = null;
         _viewportBefore = null;
         LastDimensionId = null;
@@ -905,6 +910,11 @@ public sealed class EditorSession
                 Post("Command: PDF");
                 ViewCommandRequested?.Invoke("Pdf");
                 return true;
+            case "HATCH":
+                Post("Command: HATCH");
+                if (ViewCommandRequested is null) return StartCommand("HATCHPICK");
+                ViewCommandRequested.Invoke("Hatch");
+                return true;
             case "EXPORTPDF":
                 Post("Command: EXPORTPDF");
                 ViewCommandRequested?.Invoke("ExportPdf");
@@ -1079,6 +1089,7 @@ public sealed class EditorSession
         try
         {
             UndoStack.Execute(Document, action);
+            Document.UpdateHatches();               // associative hatches follow the boundary objects just changed
             return true;
         }
         catch (InvalidOperationException ex)
@@ -1093,6 +1104,7 @@ public sealed class EditorSession
         if (ActiveCommand is not null) Cancel();
         CommitActiveViewport();                 // what was changed in the entered viewport is the first thing to undo
         var action = UndoStack.Undo(Document);
+        Document.UpdateHatches();
         Post(action is null ? "Nothing to undo." : "Undo: " + action.Name);
     }
 
@@ -1100,6 +1112,7 @@ public sealed class EditorSession
     {
         if (ActiveCommand is not null) Cancel();
         var action = UndoStack.Redo(Document);
+        Document.UpdateHatches();
         Post(action is null ? "Nothing to redo." : "Redo: " + action.Name);
     }
 
@@ -1434,7 +1447,7 @@ public sealed class EditorSession
     /// <summary>Asks the shell to open a text or a table for editing. False when it is something else or on a locked layer.</summary>
     public bool RequestEdit(Guid id)
     {
-        if (Document.GetEntity(id) is not { } entity || entity is not (TextEntity or TableEntity)) return false;
+        if (Document.GetEntity(id) is not { } entity || entity is not (TextEntity or TableEntity or HatchEntity)) return false;
         if (entity.SpaceId != Document.ActiveSpaceId) return false;
         if (Document.GetLayer(entity.LayerId) is not { IsEditable: true }) { Post("That object is on a locked layer."); return false; }
         ObjectEditRequested?.Invoke(id);
@@ -1664,6 +1677,137 @@ public sealed class EditorSession
         Post(spaceId == Guid.Empty ? "<Model>" : $"<Layout \"{Document.ActiveLayout!.Name}\">");
         RaiseStateChanged();
         return true;
+    }
+
+    // ------------------------------------------------------------------ hatches
+
+    /// <summary>Pattern, scale, angle and the rest for the next hatch.</summary>
+    public HatchSettings HatchDefaults { get; private set; } = new();
+
+    /// <summary>Above this many objects in the space the hatch is not shown under the resting cursor (a click still works).</summary>
+    public const int HatchPreviewLimit = 1500;
+
+    public bool HatchPreviewAllowed => Document.EntityCount <= HatchPreviewLimit;
+
+    private IEnumerable<Entity> HatchBoundaryCandidates() =>
+        Document.EntitiesUnordered.Where(e => HatchBoundary.CanBound(e) && Document.GetLayer(e.LayerId) is { IsDisplayed: true });
+
+    /// <summary>A hatch scale that gives roughly forty pattern lines across the smaller side of an area.</summary>
+    public double SuggestHatchScale(string patternName, BoundingBox area)
+    {
+        double finest = HatchPatterns.Find(patternName) is { } pattern ? HatchPatterns.FinestSpacing(pattern) : 0;
+        double side = Math.Min(area.Width, area.Height);
+        if (!(finest > 0) || !(side > 0)) return 1;
+        double wanted = side / 40 / finest;
+        double[] steps = UnitConverter.IsImperial(Document.Settings.Unit)
+            ? new[] { 0.25, 0.5, 1, 2, 4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 384 }
+            : new[] { 0.5, 1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000, 2500, 5000, 10000 };
+        double best = steps[0];
+        foreach (double step in steps)
+            if (step <= wanted) best = step;
+        return best;
+    }
+
+    private HatchEntity MakeHatch(HatchRegion region, bool forPreview)
+    {
+        var h = HatchDefaults;
+        var hatch = new HatchEntity(region.Loops)
+        {
+            Pattern = HatchPatterns.Find(h.Pattern)?.Name ?? HatchPatterns.Default,
+            Angle = h.Angle,
+            Islands = h.Islands,
+            Seed = region.Seed,
+            GapTolerance = h.GapTolerance > 0 && double.IsFinite(h.GapTolerance) ? h.GapTolerance : 0,
+        };
+        double scale = h.Scale;
+        if (!h.ScaleChosen)
+        {
+            scale = SuggestHatchScale(hatch.Pattern, hatch.Bounds);
+            if (!forPreview)
+            {
+                h.Scale = scale;
+                h.ScaleChosen = true;
+                if (!hatch.IsSolid) Post($"Hatch scale set to {scale.ToString("0.###", CultureInfo.InvariantCulture)} to suit the size of this area. Change it in the Hatch window if the pattern should be finer or coarser.");
+            }
+        }
+        hatch.Scale = scale > 0 && double.IsFinite(scale) ? scale : 1;
+        if (h.OriginAtCorner) hatch.Origin = new Point2D(hatch.Bounds.MinX, hatch.Bounds.MinY);
+        ApplyNewObjectProperties(hatch);
+        hatch.Linetype = Linetypes.ByLayer;                     // the pattern has its own dashes
+        if (!forPreview && h.Associative && region.SourceIds.Count > 0)
+        {
+            hatch.Associative = true;
+            hatch.SourceIds.AddRange(region.SourceIds);
+        }
+        return hatch;
+    }
+
+    /// <summary>The hatch a click at this point would make, for showing under the cursor; null when there is no closed area.</summary>
+    public HatchEntity? PreviewHatchAt(Point2D point)
+    {
+        var region = HatchBoundary.AtPoint(HatchBoundaryCandidates(), point, HatchDefaults.Islands, HatchDefaults.GapTolerance, out _, out _);
+        if (region is null) return null;
+        var hatch = MakeHatch(region, forPreview: true);
+        return hatch.IsValid ? hatch : null;
+    }
+
+    /// <summary>
+    /// Hatches the closed area around a point (Pick Internal Point). One undo step. Null when there is no closed
+    /// area: the reason is posted and <paramref name="openEnds"/> holds loose ends near the point.
+    /// </summary>
+    public HatchEntity? HatchAt(Point2D point, out List<Point2D> openEnds)
+    {
+        var region = HatchBoundary.AtPoint(HatchBoundaryCandidates(), point, HatchDefaults.Islands, HatchDefaults.GapTolerance, out string? problem, out openEnds);
+        if (region is null)
+        {
+            Post(problem ?? "No closed area was found around that point.");
+            return null;
+        }
+        if (Document.Entities.OfType<HatchEntity>().Any(existing => existing.Contains(point) && Math.Abs(existing.Area - HatchGeometry.Area(region.Loops)) <= Math.Abs(existing.Area) * 1e-9))
+        {
+            Post("That area is hatched already. Double-click the hatch to change it.");
+            return null;
+        }
+        return AddHatch(MakeHatch(region, forPreview: false), region.SourceIds);
+    }
+
+    /// <summary>Hatches the area enclosed by the given objects themselves (Select Objects). One undo step.</summary>
+    public HatchEntity? HatchSelection(IReadOnlyList<Guid> ids)
+    {
+        var chosen = ids.Select(id => Document.GetEntity(id)).Where(e => e is not null && e.SpaceId == Document.ActiveSpaceId).Select(e => e!).ToList();
+        var region = HatchBoundary.FromObjects(chosen, HatchDefaults.Islands, HatchDefaults.GapTolerance, out string? problem);
+        if (region is null)
+        {
+            Post(problem ?? "The selected objects do not close around an area.");
+            return null;
+        }
+        return AddHatch(MakeHatch(region, forPreview: false), region.SourceIds);
+    }
+
+    private HatchEntity? AddHatch(HatchEntity hatch, IReadOnlyList<Guid> boundary)
+    {
+        if (!hatch.IsValid) { Post("That area cannot be hatched."); return null; }
+        if (Document.GetLayer(hatch.LayerId) is { IsEditable: false }) { Post("The current layer is locked or off: choose another layer for the hatch."); return null; }
+        // Behind its boundary, so the lines that bound it stay on top.
+        if (!Execute(new AddEntitiesAction("Hatch", new[] { hatch }, Document.DrawOrderBehind(boundary)))) return null;
+        var h = HatchDefaults;
+        h.Recent.RemoveAll(n => string.Equals(n, hatch.Pattern, StringComparison.OrdinalIgnoreCase));
+        h.Recent.Insert(0, hatch.Pattern);
+        if (h.Recent.Count > 8) h.Recent.RemoveRange(8, h.Recent.Count - 8);
+
+        var made = Document.GetEntity(hatch.Id) as HatchEntity;
+        string area = UnitFormatter.FormatArea(hatch.Area, Document.Settings);
+        if (made is { TooDense: true })
+            Post($"Hatched {area}, but {hatch.Pattern} at scale {hatch.Scale.ToString("0.###", CultureInfo.InvariantCulture)} is too fine for an area this size: only its outline is shown. Try scale {SuggestHatchScale(hatch.Pattern, hatch.Bounds).ToString("0.###", CultureInfo.InvariantCulture)} (double-click the hatch).");
+        else Post($"Hatched {area} with {(hatch.IsSolid ? "a solid fill" : hatch.Pattern)}.");
+        return made;
+    }
+
+    /// <summary>Changes a hatch (pattern, scale, angle, islands, associativity...). One undo step.</summary>
+    public bool UpdateHatch(Guid id, Action<HatchEntity> change)
+    {
+        if (Document.GetEntity(id) is not HatchEntity) { Post("That hatch is no longer in the drawing."); return false; }
+        return ModifyEntities(new[] { id }, e => change((HatchEntity)e), "Edit hatch");
     }
 
     /// <summary>Viewports made while the model was still empty: there was nothing to aim them at yet.</summary>

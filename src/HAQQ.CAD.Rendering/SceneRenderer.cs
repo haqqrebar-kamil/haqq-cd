@@ -29,6 +29,9 @@ public interface IRenderSurface
     /// <summary>Fills a closed polygon with the style's colour (used for tapered polyline segments).</summary>
     void FillPolygon(IReadOnlyList<ScreenPoint> points, in RenderStyle style);
 
+    /// <summary>Fills an area given as closed loops by the even-odd rule: a loop inside another is a hole (hatches).</summary>
+    void FillRegion(IReadOnlyList<IReadOnlyList<ScreenPoint>> loops, in RenderStyle style);
+
     /// <summary>Draws a rectangle outline, optionally filled with the stroke colour at <paramref name="fillAlpha"/> (0-255).</summary>
     void DrawRectangle(double x, double y, double width, double height, in RenderStyle style, byte fillAlpha);
 
@@ -375,13 +378,17 @@ public sealed class SceneRenderer
         surface.PushClip(x, y, w, h);
         try
         {
-            foreach (var entity in document.QueryEntities(viewport.ModelBounds, Guid.Empty))
-            {
-                if (document.GetLayer(entity.LayerId) is not { IsDisplayed: true } layer) continue;
-                if (_options.Plot && !layer.IsPlotted) continue;
-                DrawEntity(surface, entity, inside, WithLinetype(StyleFor(entity, layer), document, entity, inside));
-                drawn++;
-            }
+            // Hatches first, so a fill lies under the lines and the text it surrounds.
+            var seen = document.QueryEntities(viewport.ModelBounds, Guid.Empty);
+            for (int pass = 0; pass < 2; pass++)
+                foreach (var entity in seen)
+                {
+                    if (entity is HatchEntity != (pass == 0)) continue;
+                    if (document.GetLayer(entity.LayerId) is not { IsDisplayed: true } layer) continue;
+                    if (_options.Plot && !layer.IsPlotted) continue;
+                    DrawEntity(surface, entity, inside, WithLinetype(StyleFor(entity, layer), document, entity, inside));
+                    drawn++;
+                }
         }
         finally
         {
@@ -495,6 +502,10 @@ public sealed class SceneRenderer
                 DrawTable(surface, table, view, style);
                 break;
 
+            case HatchEntity hatch:
+                DrawHatch(surface, hatch, view, style);
+                break;
+
             case BlockReferenceEntity block:
                 // The contents take the look of the reference (its layer's colour and linetype, or its own).
                 foreach (var inner in block.Resolved) DrawEntity(surface, inner, view, style);
@@ -521,6 +532,63 @@ public sealed class SceneRenderer
     private static int AnchorOf(TextJustify justify) => justify switch { TextJustify.Left => -1, TextJustify.Center => 0, _ => 1 };
 
     /// <summary>The ruled lines of a table and the text of its cells, each cut off at its own cell.</summary>
+    /// <summary>
+    /// A hatch: a solid fill, or its pattern lines. On screen a pattern too fine to tell apart at the present
+    /// zoom is shown as an even tone instead of thousands of lines; a plot always gets the real lines. A hatch
+    /// that cannot show its pattern (too fine for its size, or an unknown pattern name) shows its outline.
+    /// </summary>
+    private void DrawHatch(IRenderSurface surface, HatchEntity hatch, ViewTransform view, in RenderStyle style)
+    {
+        List<IReadOnlyList<ScreenPoint>> Outline()
+        {
+            var loops = new List<IReadOnlyList<ScreenPoint>>(hatch.Loops.Count);
+            foreach (var loop in hatch.Loops)
+            {
+                var points = new ScreenPoint[loop.Length];
+                for (int i = 0; i < loop.Length; i++) points[i] = view.WorldToScreen(loop[i]);
+                loops.Add(points);
+            }
+            return loops;
+        }
+
+        var thin = style with { Width = Math.Min(style.Width, 1.0), Dashed = false, Pattern = null };
+        if (hatch.IsSolid)
+        {
+            surface.FillRegion(Outline(), thin);
+        }
+        else
+        {
+            var pattern = HatchPatterns.Find(hatch.Pattern);
+            var lines = hatch.Lines;
+            if (pattern is null || hatch.TooDense || lines.Count == 0)
+            {
+                foreach (var loop in Outline()) surface.DrawPolyline(loop, true, thin with { Dashed = !_options.Plot });
+                return;
+            }
+            double apart = HatchPatterns.FinestSpacing(pattern) * hatch.Scale * view.Scale;
+            if (!_options.Plot && apart < 2.5)
+            {
+                surface.FillRegion(Outline(), thin with { R = (byte)(thin.R * 0.45), G = (byte)(thin.G * 0.45), B = (byte)(thin.B * 0.45) });
+            }
+            else
+            {
+                double w = view.ViewportWidth, h = view.ViewportHeight;
+                const bool cull = true;
+                foreach (var (a, b) in lines)
+                {
+                    var p = view.WorldToScreen(a);
+                    var q = view.WorldToScreen(b);
+                    if (cull && ((p.X < 0 && q.X < 0) || (p.Y < 0 && q.Y < 0) || (p.X > w && q.X > w) || (p.Y > h && q.Y > h))) continue;
+                    if (p.X == q.X && p.Y == q.Y) surface.DrawLine(p.X - 0.5, p.Y, p.X + 0.5, p.Y, thin);      // a dot
+                    else surface.DrawLine(p.X, p.Y, q.X, q.Y, thin);
+                }
+            }
+        }
+        // The boundary objects no longer close: the hatch keeps its last area, and says so on screen.
+        if (hatch.BoundaryLost && !_options.Plot)
+            foreach (var loop in Outline()) surface.DrawPolyline(loop, true, thin with { Dashed = true });
+    }
+
     private void DrawTable(IRenderSurface surface, TableEntity table, ViewTransform view, in RenderStyle style)
     {
         var solid = style with { Pattern = null, Dashed = false };
@@ -1016,6 +1084,7 @@ internal sealed class PaperSurface : IRenderSurface
     public void DrawPolyline(IReadOnlyList<ScreenPoint> points, bool closed, in RenderStyle style) => _inner.DrawPolyline(points, closed, OnPaper(style));
     public void DrawCircle(double cx, double cy, double radius, in RenderStyle style) => _inner.DrawCircle(cx, cy, radius, OnPaper(style));
     public void FillPolygon(IReadOnlyList<ScreenPoint> points, in RenderStyle style) => _inner.FillPolygon(points, OnPaper(style));
+    public void FillRegion(IReadOnlyList<IReadOnlyList<ScreenPoint>> loops, in RenderStyle style) => _inner.FillRegion(loops, OnPaper(style));
     public void DrawRectangle(double x, double y, double width, double height, in RenderStyle style, byte fillAlpha) => _inner.DrawRectangle(x, y, width, height, OnPaper(style), fillAlpha);
     public void DrawText(string text, double cx, double cy, double height, double angle, in RenderStyle style) => _inner.DrawText(text, cx, cy, height, angle, OnPaper(style));
     public void DrawStyledText(string text, double x, double y, double height, double angle, in TextLook look, in RenderStyle style) => _inner.DrawStyledText(text, x, y, height, angle, look, OnPaper(style));

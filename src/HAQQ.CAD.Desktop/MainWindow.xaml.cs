@@ -44,6 +44,7 @@ public partial class MainWindow : Window
         _viewModel.NewLayoutRequested += (_, _) => Dispatcher.BeginInvoke(new Action(ShowNewLayout));
         _viewModel.PdfExportRequested += (_, _) => Dispatcher.BeginInvoke(new Action(ShowPdfExport));
         _viewModel.BlockLibraryRequested += (_, _) => Dispatcher.BeginInvoke(new Action(ShowBlockLibrary));
+        _viewModel.HatchRequested += id => Dispatcher.BeginInvoke(new Action(() => ShowHatch(id)));
         _viewModel.TextEditorRequested += id => Dispatcher.BeginInvoke(new Action(() => ShowTextEditor(id)));
         _viewModel.TableEditorRequested += id => Dispatcher.BeginInvoke(new Action(() => ShowTableEditor(id)));
         // Scroll after the list itself has taken in the new line. Scrolling from inside the change
@@ -432,6 +433,22 @@ public partial class MainWindow : Window
         {
             var store = new HAQQ.CAD.Documents.BlockLibraryStore(HAQQ.CAD.Documents.BlockLibraryStore.DefaultFolder);
             new BlocksWindow(new BlockLibraryViewModel(_viewModel.Session, store)) { Owner = this }.ShowDialog();
+        }
+        finally
+        {
+            _annotationOpen = false;
+            DrawingCanvas.Focus();
+        }
+    }
+
+    /// <summary>Shows the Hatch window: for a new hatch, or to change the hatch that was double-clicked.</summary>
+    private void ShowHatch(Guid? editing)
+    {
+        if (_annotationOpen) return;
+        _annotationOpen = true;
+        try
+        {
+            new HatchWindow(_viewModel.CreateHatchViewModel(editing)) { Owner = this }.ShowDialog();
         }
         finally
         {

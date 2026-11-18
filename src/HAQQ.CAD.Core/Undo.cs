@@ -13,10 +13,12 @@ public sealed class AddEntitiesAction : IUndoableAction
     private readonly List<Entity> _entities;
     private long[]? _orders;
 
-    public AddEntitiesAction(string name, IEnumerable<Entity> entities)
+    /// <param name="drawOrder">Where in the draw order the objects go (a hatch behind its boundary); null puts them on top.</param>
+    public AddEntitiesAction(string name, IEnumerable<Entity> entities, long? drawOrder = null)
     {
         Name = name;
         _entities = entities.Select(e => e.Clone()).ToList();
+        if (drawOrder is long order) _orders = _entities.Select(_ => order).ToArray();
     }
 
     public string Name { get; }

@@ -71,11 +71,19 @@ public static class SelectionService
         Entity? best = null;
         double bestDistance = double.PositiveInfinity;
         long bestOrder = long.MinValue;
+        Entity? hatch = null;
+        double hatchDistance = double.PositiveInfinity;
         foreach (var entity in document.QueryEntities(BoundingBox.FromCenter(point, tolerance)))
         {
             if (!IsSelectable(document, entity)) continue;
             double d = entity.DistanceTo(point);
             if (d > tolerance) continue;
+            // A hatch lies under its boundary and covers a whole area: it is taken only when nothing else is there.
+            if (entity is HatchEntity)
+            {
+                if (hatch is null || d < hatchDistance) { hatch = entity; hatchDistance = d; }
+                continue;
+            }
             long order = document.GetDrawOrder(entity.Id);
             // Nearest wins; when equally near, the object drawn last (on top) wins.
             if (d < bestDistance - GeoMath.Epsilon || (Math.Abs(d - bestDistance) <= GeoMath.Epsilon && order > bestOrder))
@@ -85,7 +93,7 @@ public static class SelectionService
                 bestOrder = order;
             }
         }
-        return best;
+        return best ?? hatch;
     }
 
     /// <summary>

@@ -90,6 +90,8 @@ internal sealed class RecordingSurface : IRenderSurface
 
     public List<(ScreenPoint[] Points, RenderStyle Style)> Polygons { get; } = new();
     public void FillPolygon(IReadOnlyList<ScreenPoint> points, in RenderStyle style) => Polygons.Add((points.ToArray(), style));
+    public List<(ScreenPoint[][] Loops, RenderStyle Style)> Regions { get; } = new();
+    public void FillRegion(IReadOnlyList<IReadOnlyList<ScreenPoint>> loops, in RenderStyle style) => Regions.Add((loops.Select(l => l.ToArray()).ToArray(), style));
 
     public int Count => Lines.Count + Polylines.Count + Circles.Count + Rectangles.Count;
 

@@ -91,6 +91,7 @@ public sealed class MainViewModel : ObservableObject
         {
             if (Session.Document.GetEntity(id) is TextEntity) TextEditorRequested?.Invoke(id);
             else if (Session.Document.GetEntity(id) is TableEntity) TableEditorRequested?.Invoke(id);
+            else if (Session.Document.GetEntity(id) is HatchEntity) HatchRequested?.Invoke(id);
         };
         Session.ViewCommandRequested += name =>
         {
@@ -107,6 +108,7 @@ public sealed class MainViewModel : ObservableObject
             if (name == "NewLayout") NewLayoutRequested?.Invoke(this, EventArgs.Empty);
             if (name == "ExportPdf") PdfExportRequested?.Invoke(this, EventArgs.Empty);
             if (name == "Pdf") SavePdf();
+            if (name == "Hatch") HatchRequested?.Invoke(null);
             if (name == "Text") TextEditorRequested?.Invoke(null);
             if (name == "Table") TableEditorRequested?.Invoke(null);
         };
@@ -176,6 +178,13 @@ public sealed class MainViewModel : ObservableObject
 
     /// <summary>The INSERT command asked the shell to show the block library.</summary>
     public event EventHandler? BlockLibraryRequested;
+
+    /// <summary>The Hatch window is wanted: for a new hatch (null) or to change the hatch with this id.</summary>
+    public event Action<Guid?>? HatchRequested;
+
+    /// <summary>The view model of the Hatch window, with the user's favourite patterns (kept in their settings).</summary>
+    public HatchViewModel CreateHatchViewModel(Guid? editing = null) =>
+        new(Session, editing, _userSettings.HatchFavorites, () => _settingsStore.Save(_userSettings));
 
     /// <summary>The Text window is wanted: for a new text (null) or to edit the text with this id.</summary>
     public event Action<Guid?>? TextEditorRequested;
