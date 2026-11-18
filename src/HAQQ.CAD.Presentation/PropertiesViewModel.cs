@@ -437,6 +437,23 @@ public sealed class PropertiesViewModel : ObservableObject
                 Rows.Add(Length("Width", viewport.Width, id, (e, v) => { var vp = (ViewportEntity)e; vp.SetFrame(BoundingBox.FromCorners(new Point2D(vp.Center.X - v / 2, vp.Frame.MinY), new Point2D(vp.Center.X + v / 2, vp.Frame.MaxY))); }));
                 Rows.Add(Length("Height", viewport.Height, id, (e, v) => { var vp = (ViewportEntity)e; vp.SetFrame(BoundingBox.FromCorners(new Point2D(vp.Frame.MinX, vp.Center.Y - v / 2), new Point2D(vp.Frame.MaxX, vp.Center.Y + v / 2))); }));
                 Rows.Add(new PropertyRow("Shows", $"{F(viewport.ModelBounds.Width)} x {F(viewport.ModelBounds.Height)} of the model"));
+                Rows.Add(Editable("Locked", viewport.Locked ? "Yes" : "No", text =>
+                {
+                    string t = text.Trim();
+                    bool yes = t.StartsWith("y", StringComparison.OrdinalIgnoreCase), no = t.StartsWith("n", StringComparison.OrdinalIgnoreCase);
+                    if (yes || no) return _session.SetViewportLock(new[] { id }, yes);
+                    _session.Post("Type Yes or No.");
+                    return false;
+                }));
+                Rows.Add(Editable("Title", viewport.Title, text =>
+                    _session.ModifyEntities(new[] { id }, e =>
+                    {
+                        var vp = (ViewportEntity)e;
+                        vp.Title = text.Trim();
+                        // A title given to a viewport that had none gets a height that suits the sheet.
+                        if (vp.Title.Length > 0 && !(vp.TitleHeight > 0)) vp.TitleHeight = Math.Min(vp.Width, vp.Height) / 40.0;
+                    }, "Edit viewport title")));
+                Rows.Add(Length("Title height", viewport.TitleHeight, id, (e, v) => ((ViewportEntity)e).TitleHeight = v));
                 Rows.Add(new PropertyRow("Frame printed", _session.Document.GetLayer(viewport.LayerId)?.IsPlotted == true ? "Yes (its layer plots)" : "No (its layer does not plot)"));
                 break;
 

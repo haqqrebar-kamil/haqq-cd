@@ -97,6 +97,8 @@ public sealed class MainViewModel : ObservableObject
             if (name == "Plot") PlotRequested?.Invoke(this, EventArgs.Empty);
             if (name == "Blocks") BlockLibraryRequested?.Invoke(this, EventArgs.Empty);
             if (name == "CopyPdf") DrawingCopyRequested?.Invoke(this, EventArgs.Empty);
+            if (name == "NewLayout") NewLayoutRequested?.Invoke(this, EventArgs.Empty);
+            if (name == "ExportPdf") PdfExportRequested?.Invoke(this, EventArgs.Empty);
             if (name == "Text") TextEditorRequested?.Invoke(null);
             if (name == "Table") TableEditorRequested?.Invoke(null);
         };
@@ -205,6 +207,48 @@ public sealed class MainViewModel : ObservableObject
                 ? $"Layout \"{layout.Name}\"  ({UnitFormatter.FormatLength(layout.PaperWidth, doc.Settings)} x {UnitFormatter.FormatLength(layout.PaperHeight, doc.Settings)})"
                 : "Model (fitted to the page)";
         }
+    }
+
+    /// <summary>The NEWLAYOUT command asked the shell to show the New Layout window.</summary>
+    public event EventHandler? NewLayoutRequested;
+
+    /// <summary>The EXPORTPDF command asked the shell to show the Export PDF window.</summary>
+    public event EventHandler? PdfExportRequested;
+
+    /// <summary>Where the user is working, for the status bar: MODEL, PAPER, or PAPER with a viewport entered.</summary>
+    public string SpaceLabel =>
+        Session.Document.ActiveLayout is null ? "MODEL" : Session.ActiveViewportId is not null ? "PAPER - IN VIEWPORT" : "PAPER";
+
+    /// <summary>The sheet of the open layout and the scale of the viewport in hand (entered, or the one selected); empty on the model.</summary>
+    public string SheetStatus
+    {
+        get
+        {
+            var doc = Session.Document;
+            if (doc.ActiveLayout is not { } layout) return "";
+            string sheet = $"{UnitFormatter.FormatLength(layout.PaperWidth, doc.Settings)} x {UnitFormatter.FormatLength(layout.PaperHeight, doc.Settings)}";
+            var viewport = Session.ActiveViewportId is Guid entered ? doc.GetEntity(entered) as ViewportEntity : null;
+            if (viewport is null)
+            {
+                var selected = Session.GetSelectedEntities();
+                if (selected.Count == 1) viewport = selected[0] as ViewportEntity;
+            }
+            return viewport is null ? sheet : $"{sheet}   Viewport {LayoutStandards.ScaleName(viewport.Scale, doc.Settings)}{(viewport.Locked ? ", locked" : "")}";
+        }
+    }
+
+    /// <summary>A copy of a layout beside it (the model is not copied).</summary>
+    public bool DuplicateSpace(SpaceTabViewModel tab) => !tab.IsModel && Session.DuplicateLayout(tab.Id) is not null;
+
+    /// <summary>Moves a layout's tab one place left (-1) or right (+1).</summary>
+    public bool MoveSpace(SpaceTabViewModel tab, int delta) => !tab.IsModel && Session.MoveLayout(tab.Id, delta);
+
+    /// <summary>Deletes a layout after the user has agreed. The model is not touched; Undo brings the layout back.</summary>
+    public bool DeleteSpace(SpaceTabViewModel tab)
+    {
+        if (tab.IsModel || Session.Document.GetLayout(tab.Id) is not { } layout) return false;
+        if (!_ui.Confirm($"Delete layout \"{layout.Name}\" and everything drawn on it?\n\nThe model is not touched. Undo brings the layout back.", "Delete layout")) return false;
+        return Session.DeleteLayout(tab.Id);
     }
 
     /// <summary>Starts typing a new name into a layout's tab (the Model tab keeps its name).</summary>
@@ -1003,6 +1047,8 @@ public sealed class MainViewModel : ObservableObject
 
         SyncSpaceTabs(doc);
         OnPropertyChanged(nameof(UnitLabel));
+        OnPropertyChanged(nameof(SpaceLabel));
+        OnPropertyChanged(nameof(SheetStatus));
         SyncLayers(doc);
         OnPropertyChanged(nameof(CurrentLayerName));
         OnPropertyChanged(nameof(CurrentLayerPlots));

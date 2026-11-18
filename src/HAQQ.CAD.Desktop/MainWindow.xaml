@@ -303,7 +303,7 @@
             <TabItem Header="LAYOUT">
                 <StackPanel Orientation="Horizontal" Margin="6,0">
                     <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconModelSpace}" Content="Model" Command="{Binding RunCommandCommand}" CommandParameter="MODEL" ToolTip="MODEL (MS): back to the Model tab, where the drawing is made at its real size" />
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconLayoutNew}" Content="New Layout" Command="{Binding RunCommandCommand}" CommandParameter="LAYOUT" ToolTip="LAYOUT (LO): a new sheet with one viewport showing the whole model. Layouts are the tabs under the drawing." />
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconLayoutNew}" Content="New Layout" Command="{Binding RunCommandCommand}" CommandParameter="NEWLAYOUT" ToolTip="NEWLAYOUT: a new sheet - choose the paper size and orientation, a border and title block, and a viewport. Layouts are the tabs at the bottom. (Typing LAYOUT makes one straight away with the standard sheet.)" />
                     <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconLayoutRename}" Content="Rename" Command="{Binding RunCommandCommand}" CommandParameter="LAYOUTRENAME" ToolTip="LAYOUTRENAME: a new name for the layout that is open" />
                     <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconLayoutDelete}" Content="Delete" Command="{Binding RunCommandCommand}" CommandParameter="LAYOUTDELETE" ToolTip="LAYOUTDELETE: delete the layout that is open, with what is drawn on it. The model is not touched." />
                     <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconPaper}" Content="Page Setup &#x25BE;" Click="LayoutListButton_Click" CommandParameter="Papers" ToolTip="PAGESETUP (PAPER): the sheet size of the layout that is open. For a size of your own type PAGESETUP and then width,height." />
@@ -311,8 +311,10 @@
                     <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconViewport}" Content="Viewport" Command="{Binding RunCommandCommand}" CommandParameter="VIEWPORT" ToolTip="VIEWPORT (VP): another window onto the model - click two corners on the sheet. Double-click inside a viewport to move the model in it with the wheel and the middle button; double-click outside it when done." />
                     <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconViewportScale}" Content="Scale &#x25BE;" Click="LayoutListButton_Click" CommandParameter="Scales" ToolTip="VPSCALE (VS): the scale of a viewport. Select the viewport by its border first, or pick it after choosing the scale. Any scale can be typed: VPSCALE then 3/16&quot;=1' or 1:75." />
                     <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconViewportFit}" Content="Fit" Command="{Binding RunCommandCommand}" CommandParameter="VPFIT" ToolTip="VPFIT (VF): show the whole model in a viewport, as large as fits" />
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconViewportLock}" Content="Lock" Command="{Binding RunCommandCommand}" CommandParameter="VPLOCK" ToolTip="VPLOCK (VL): lock the viewport's view and scale so the wheel cannot change them by accident; again to unlock. The frame can still be moved and resized." />
                     <Border Width="1" Margin="6,6" Background="{StaticResource BorderBrush}" />
                     <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource GlyphPlot}" Content="Plot" Command="{Binding RunCommandCommand}" CommandParameter="PLOT" ToolTip="PLOT (PRINT): preview and print the open layout at true size (or the model fitted to the page). Print to PDF through Microsoft Print to PDF." />
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconPdfOut}" Content="Export PDF" Command="{Binding RunCommandCommand}" CommandParameter="EXPORTPDF" ToolTip="EXPORTPDF: write layouts to a PDF as lines and text, each page exactly the size of its sheet - one file for all sheets, or a file per sheet." />
                 </StackPanel>
             </TabItem>
             <TabItem Header="LAYERS">
@@ -540,8 +542,13 @@
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
                 </ScrollViewer>
-                <Button DockPanel.Dock="Left" Style="{StaticResource SpaceTab}" Content="+" FontSize="14" FontWeight="Bold" Command="{Binding RunCommandCommand}" CommandParameter="LAYOUT"
-                        ToolTip="New layout (LAYOUT): a sheet of paper with a viewport that shows the model at a scale. Add as many as you need; double-click a layout tab to rename it." />
+                <Button DockPanel.Dock="Left" Style="{StaticResource SpaceTab}" Content="+" FontSize="14" FontWeight="Bold" Command="{Binding RunCommandCommand}" CommandParameter="NEWLAYOUT"
+                        ToolTip="New layout: choose the paper, the border and title block, and whether it gets a viewport. Add as many as you need; double-click a layout tab to rename it, right-click for more." />
+                <Border DockPanel.Dock="Left" Margin="8,0,2,0" Padding="9,2" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="2"
+                        ToolTip="Where you are working: MODEL (the drawing at real size), PAPER (a sheet), or inside a viewport of the sheet (the wheel and middle button then move the model in it; double-click outside or Esc to leave)">
+                    <TextBlock Text="{Binding SpaceLabel}" FontWeight="SemiBold" />
+                </Border>
+                <TextBlock DockPanel.Dock="Left" VerticalAlignment="Center" Margin="8,0,0,0" Foreground="{StaticResource DimTextBrush}" Text="{Binding SheetStatus}" />
                 <TextBlock DockPanel.Dock="Right" VerticalAlignment="Center" Foreground="{StaticResource DimTextBrush}" Text="{Binding StatusText}" />
                 <TextBlock DockPanel.Dock="Right" VerticalAlignment="Center" Margin="0,0,18,0" Text="{Binding UnitLabel, StringFormat='Units: {0}'}"
                            ToolTip="The unit of this drawing. FILE tab > Units changes it; lengths can also be typed with a unit in any drawing: 250mm, 2.5m, 30cm, 5'-6&quot;." />

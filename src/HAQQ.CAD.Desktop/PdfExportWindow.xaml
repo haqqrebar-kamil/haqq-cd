@@ -1,0 +1,42 @@
+<Window x:Class="HAQQ.CAD.Desktop.PdfExportWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Export PDF"
+        Width="480" Height="460" MinWidth="380" MinHeight="320"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False"
+        Background="{StaticResource PanelBrush}"
+        Foreground="{StaticResource TextBrush}"
+        FontFamily="Segoe UI" FontSize="12"
+        UseLayoutRounding="True">
+    <DockPanel Margin="12">
+        <TextBlock DockPanel.Dock="Top" Style="{StaticResource PanelHeader}" Text="SHEETS (IN TAB ORDER)" Margin="0,0,0,4" />
+        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
+            <Button Style="{StaticResource PanelButton}" Content="Export..." Click="Export_Click" />
+            <Button Style="{StaticResource PanelButton}" Content="Close" Click="Close_Click" />
+        </StackPanel>
+        <TextBlock DockPanel.Dock="Bottom" Margin="0,8,0,0" Foreground="{StaticResource AccentBrush}" TextWrapping="Wrap" Text="{Binding Message}" />
+        <TextBlock DockPanel.Dock="Bottom" Margin="0,8,0,0" Foreground="{StaticResource DimTextBrush}" TextWrapping="Wrap"
+                   Text="Each layout becomes a page of exactly its sheet size, drawn as lines and text (not a picture). Layers with Plot off are left out; viewport frames are not printed. Text is set in Helvetica." />
+        <CheckBox DockPanel.Dock="Bottom" Margin="0,6,0,0" IsChecked="{Binding Separate, Mode=TwoWay}" Content="A separate file for each sheet (named after the sheet)" />
+        <CheckBox DockPanel.Dock="Bottom" Margin="0,10,0,0" IsChecked="{Binding Monochrome, Mode=TwoWay}" Content="Black lines only" />
+        <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Background="{StaticResource WindowBrush}">
+            <ScrollViewer VerticalScrollBarVisibility="Auto" Focusable="False">
+                <ItemsControl ItemsSource="{Binding Sheets}" Margin="6" Focusable="False">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Grid Margin="0,3">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <CheckBox Grid.Column="0" IsChecked="{Binding Include, Mode=TwoWay}" Content="{Binding Name}" />
+                                <TextBlock Grid.Column="1" Margin="10,0,0,0" Foreground="{StaticResource DimTextBrush}" Text="{Binding Size}" />
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+        </Border>
+    </DockPanel>
+</Window>

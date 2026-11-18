@@ -282,3 +282,13 @@ and keeps the tables unmodified as unsupported objects.
 
 The user's block library is a folder of ordinary HCAD files, each holding one block in `document.blocks` and no
 entities; `units` says what unit the block was drawn in.
+
+### Additions of 18 Nov (still schema 9, all optional)
+
+- `document.activeLayout`: the `id` of the layout whose tab was open when the drawing was saved; absent when it
+  was the model. A reader that does not know it opens the drawing on the model.
+- `viewport` entities: `title` (the view's name written under the frame; absent for none), `titleHeight` (its
+  letter height on the sheet) and `locked` (true when the view and scale are locked). The scale line under the
+  title is not stored: it is worked out from `scale` when the viewport is drawn.
+- The order of `document.layouts` is the order of the tabs.
+

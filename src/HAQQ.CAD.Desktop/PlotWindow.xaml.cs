@@ -65,7 +65,7 @@ public partial class PlotWindow : Window
             }
 
             var plan = PlotPlanner.Plan(_document, pageWidth, pageHeight);
-            var options = new CadRenderOptions { Plot = true, PlotMonochrome = BlackOnly.IsChecked == true, ShowGrid = false, PixelsPerMm = plan.PixelsPerMm };
+            var options = new CadRenderOptions { Plot = true, PlotMonochrome = BlackOnly.IsChecked == true, ShowGrid = false, PixelsPerMm = plan.PixelsPerMm, MinTextSize = 0.75 };
 
             var visual = new DrawingVisual();
             var surface = new WpfRenderSurface();

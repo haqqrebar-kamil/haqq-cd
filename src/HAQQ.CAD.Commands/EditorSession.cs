@@ -283,13 +283,16 @@ public sealed class CommandRegistry
         r.Register("TABLE", "Table: rows and columns of text, with a title and a header", null, "TB");
         r.Register("TEXTEDIT", "Edit a text or a table (also a double-click on it)", () => new EditAnnotationCommand(), "ED", "TABLEDIT");
         // Layouts and plotting
-        r.Register("MODEL", "Go to the Model tab", null, "MS");
-        r.Register("LAYOUT", "New layout (sheet) with a viewport", null, "LAYOUTNEW", "LO");
+        r.Register("MODEL", "Go to the Model tab", null, "MS", "MSPACE");
+        r.Register("LAYOUT", "New layout straight away: standard sheet, title block and a viewport", null, "LO");
         r.Register("LAYOUTRENAME", "Rename the layout being looked at", () => new RenameLayoutCommand());
         r.Register("LAYOUTDELETE", "Delete the layout being looked at", () => new DeleteLayoutCommand());
         r.Register("PAGESETUP", "Paper size of the layout", () => new PageSetupCommand(), "PAPER");
-        r.Register("VIEWPORT", "New viewport on the layout", () => new ViewportCommand(), "VP", "MV");
+        r.Register("VIEWPORT", "New viewport on the layout", () => new ViewportCommand(), "VP", "MV", "MVIEW");
         r.Register("VPSCALE", "Scale of a viewport", () => new ViewportScaleCommand(fit: false), "VS");
+        r.Register("VPLOCK", "Lock or unlock the view and scale of a viewport", () => new ViewportLockCommand(), "VL");
+        r.Register("NEWLAYOUT", "New layout: choose the paper, the border and the title block", null, "LAYOUTNEW");
+        r.Register("EXPORTPDF", "Export layouts as a vector PDF, one sheet per page", null, "PDFOUT");
         r.Register("VPFIT", "Show the whole model in a viewport", () => new ViewportScaleCommand(fit: true), "VF");
         r.Register("PLOT", "Print the layout or the model, or make a PDF", null, "PRINT");
         r.Register("UNDO", "Undo the last change", null, "U");
@@ -887,6 +890,14 @@ public sealed class EditorSession
             case "TABLE":
                 Post("Command: TABLE");
                 ViewCommandRequested?.Invoke("Table");
+                return true;
+            case "NEWLAYOUT":
+                Post("Command: NEWLAYOUT");
+                ViewCommandRequested?.Invoke("NewLayout");
+                return true;
+            case "EXPORTPDF":
+                Post("Command: EXPORTPDF");
+                ViewCommandRequested?.Invoke("ExportPdf");
                 return true;
             case "MODEL":
                 SwitchSpace(Guid.Empty);
@@ -1656,11 +1667,17 @@ public sealed class EditorSession
         return new AddLayerAction(layer);
     }
 
+    /// <summary>Name of the layer the sheet border and the title block of new layouts are placed on.</summary>
+    public const string SheetLayerName = "Sheet";
+
     /// <summary>
-    /// Adds a layout with one viewport that shows the whole model, and opens it. The sheet is the standard one
-    /// for the drawing's units unless a size is given (in drawing units). One undo step.
+    /// Adds a layout and opens it. The sheet is the standard one for the drawing's units unless a size is given
+    /// (in drawing units). According to the template it gets a border and a title block; with a viewport, one
+    /// that shows the whole model at the largest standard scale that fits, with the layout's name and its
+    /// scale written under it. One undo step.
     /// </summary>
-    public Layout? AddLayout(string? name = null, double? paperWidth = null, double? paperHeight = null)
+    public Layout? AddLayout(string? name = null, double? paperWidth = null, double? paperHeight = null,
+        LayoutTemplate template = LayoutTemplate.TitleBlock, bool withViewport = true)
     {
         if (string.IsNullOrWhiteSpace(name))
         {
@@ -1675,24 +1692,132 @@ public sealed class EditorSession
         var layout = new Layout(Guid.NewGuid(), name, paperWidth ?? w, paperHeight ?? h);
         if (!layout.IsValid) { Post("The paper size must be more than 0."); return null; }
 
-        // One viewport, a margin in from the edge of the sheet, showing the whole model.
-        double margin = Math.Min(layout.PaperWidth, layout.PaperHeight) * 0.04;
-        var viewport = new ViewportEntity(layout.Sheet.Center, layout.PaperWidth - 2 * margin, layout.PaperHeight - 2 * margin) { SpaceId = layout.Id };
-        var model = Document.GetExtents(Guid.Empty);
-        if (model.IsEmpty) viewport.Scale = LayoutStandards.Scales(Document.Settings)[UnitConverter.IsImperial(Document.Settings.Unit) ? 8 : 6];
-        else
+        var actions = new List<IUndoableAction> { new AddLayoutAction(layout) };
+        var entities = new List<Entity>();
+        double width = layout.PaperWidth, height = layout.PaperHeight;
+        // Everything on the sheet is sized from the sheet: u is 1 inch on an Arch D sheet.
+        double u = Math.Min(width, height) / 24.0, margin = 0.5 * u, gap = 0.4 * u;
+        var window = new BoundingBox(width * 0.04, height * 0.04, width * 0.96, height * 0.96);
+        double titleHeight = 0;
+
+        if (template != LayoutTemplate.Blank)
         {
-            viewport.Fit(model);
-            viewport.Scale = RoundDownToStandardScale(viewport.Scale);
+            Guid sheetLayer;
+            if (Document.FindLayer(SheetLayerName) is { } existing) sheetLayer = existing.Id;
+            else
+            {
+                var created = new Layer(Guid.NewGuid(), SheetLayerName);
+                sheetLayer = created.Id;
+                actions.Add(new AddLayerAction(created));
+            }
+            entities.Add(new PolylineEntity(new[]
+            {
+                new Point2D(margin, margin), new Point2D(width - margin, margin),
+                new Point2D(width - margin, height - margin), new Point2D(margin, height - margin),
+            }, true) { LayerId = sheetLayer, SpaceId = layout.Id });
+
+            double below = 1.2 * u;                                 // room under the viewport for its title and scale
+            titleHeight = 0.25 * u;
+            if (template == LayoutTemplate.TitleBlock)
+            {
+                // The title block: a table, so its words are changed by a double-click like any table.
+                var block = new TableEntity(Point2D.Origin, 2, 2, 1, 0.7 * u, 0.18 * u)
+                {
+                    Title = "HAQQ CAD",
+                    HeaderRow = false,
+                    LayerId = sheetLayer,
+                    SpaceId = layout.Id,
+                };
+                block.SetColumnWidth(0, 5.5 * u);
+                block.SetColumnWidth(1, 2.5 * u);
+                block.SetCell(0, 0, name.ToUpperInvariant());
+                block.SetCell(1, 0, "PROJECT TITLE");
+                block.SetCell(1, 1, SheetNumberOf(name, Document.Layouts.Count + 1));
+                block.Position = new Point2D(width - margin - block.Width, margin + block.Height);
+                entities.Add(block);
+                below = block.Height + 0.5 * u;
+            }
+            window = new BoundingBox(margin + gap, margin + below, width - margin - gap, height - margin - gap);
         }
 
-        var actions = new List<IUndoableAction> { new AddLayoutAction(layout) };
-        if (ViewportLayerAction(out Guid layerId) is { } layerAction) actions.Add(layerAction);
-        viewport.LayerId = layerId;
-        actions.Add(new AddEntitiesAction("New layout", new Entity[] { viewport }));
-        if (!Execute(new CompositeAction("New layout", actions.ToArray()))) return null;
+        if (withViewport && window.Width > 0 && window.Height > 0)
+        {
+            var viewport = new ViewportEntity(window.Center, window.Width, window.Height)
+            {
+                SpaceId = layout.Id,
+                Title = titleHeight > 0 ? name.ToUpperInvariant() : "",
+                TitleHeight = titleHeight,
+            };
+            var model = Document.GetExtents(Guid.Empty);
+            if (model.IsEmpty) viewport.Scale = LayoutStandards.DefaultScale(Document.Settings);
+            else
+            {
+                viewport.Fit(model);
+                viewport.Scale = RoundDownToStandardScale(viewport.Scale);
+            }
+            if (ViewportLayerAction(out Guid layerId) is { } layerAction) actions.Add(layerAction);
+            viewport.LayerId = layerId;
+            entities.Add(viewport);
+        }
+
+        if (entities.Count > 0) actions.Add(new AddEntitiesAction("New layout", entities));
+        if (!Execute(actions.Count == 1 ? actions[0] : new CompositeAction("New layout", actions.ToArray()))) return null;
         SwitchSpace(layout.Id);
         return Document.GetLayout(layout.Id);
+    }
+
+    /// <summary>The sheet number for the title block: the leading "S-101" of a name like "S-101 Foundation", else the layout's place in the row.</summary>
+    private static string SheetNumberOf(string name, int ordinal)
+    {
+        string first = name.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "";
+        return first.Any(char.IsDigit) && first.Length <= 12 && first != name ? first : ordinal.ToString(System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>
+    /// Makes a copy of a layout beside it, with everything drawn on it: border, title block, text and the
+    /// viewports with their scales. The model is not copied; the new viewports look at the same model. One undo step.
+    /// </summary>
+    public Layout? DuplicateLayout(Guid layoutId)
+    {
+        if (Document.GetLayout(layoutId) is not { } source) { Post("That layout does not exist."); return null; }
+        string name;
+        int n = 2;
+        do { name = $"{source.Name} ({n++})"; } while (Document.FindLayout(name) is not null || name.Length > 64);
+        if (!Layout.IsValidName(name)) { Post("The copy's name would be too long: rename the layout first."); return null; }
+        var copy = source with { Id = Guid.NewGuid(), Name = name };
+        int index = Document.Layouts.ToList().FindIndex(l => l.Id == layoutId) + 1;
+        var entities = new List<Entity>();
+        foreach (var entity in Document.AllEntitiesOrdered.Where(e => e.SpaceId == layoutId))
+        {
+            var clone = entity.CopyWithNewId();
+            clone.SpaceId = copy.Id;
+            entities.Add(clone);
+        }
+        RegroupCopies(entities);
+        var actions = new List<IUndoableAction> { new AddLayoutAction(copy, index) };
+        if (entities.Count > 0) actions.Add(new AddEntitiesAction("Duplicate layout", entities));
+        if (!Execute(actions.Count == 1 ? actions[0] : new CompositeAction("Duplicate layout", actions.ToArray()))) return null;
+        SwitchSpace(copy.Id);
+        return Document.GetLayout(copy.Id);
+    }
+
+    /// <summary>Moves a layout's tab one place left (-1) or right (+1).</summary>
+    public bool MoveLayout(Guid layoutId, int delta)
+    {
+        int index = Document.Layouts.ToList().FindIndex(l => l.Id == layoutId);
+        if (index < 0) { Post("That layout does not exist."); return false; }
+        int target = Math.Clamp(index + delta, 0, Document.Layouts.Count - 1);
+        return target != index && Execute(new MoveLayoutAction(layoutId, target));
+    }
+
+    /// <summary>Locks or unlocks viewports (see <see cref="ViewportEntity.Locked"/>).</summary>
+    public bool SetViewportLock(IEnumerable<Guid> viewportIds, bool locked)
+    {
+        CommitActiveViewport();
+        bool ok = ModifyEntities(viewportIds, e => { if (e is ViewportEntity v) v.Locked = locked; }, locked ? "Lock viewport" : "Unlock viewport");
+        RestartActiveViewport();
+        if (ok) Post(locked ? "Viewport locked: its view and scale cannot be changed until it is unlocked." : "Viewport unlocked.");
+        return ok;
     }
 
     /// <summary>The largest standard scale that still shows everything <paramref name="scale"/> shows.</summary>
@@ -1741,7 +1866,7 @@ public sealed class EditorSession
         var viewport = new ViewportEntity(frame.Center, frame.Width, frame.Height) { SpaceId = layout.Id };
         if (!viewport.IsValid) { Post("That viewport has no size."); return false; }
         var model = Document.GetExtents(Guid.Empty);
-        if (model.IsEmpty) viewport.Scale = LayoutStandards.Scales(Document.Settings)[UnitConverter.IsImperial(Document.Settings.Unit) ? 8 : 6];
+        if (model.IsEmpty) viewport.Scale = LayoutStandards.DefaultScale(Document.Settings);
         else
         {
             viewport.Fit(model);
@@ -1757,6 +1882,8 @@ public sealed class EditorSession
     public bool SetViewportScale(IEnumerable<Guid> viewportIds, double scale)
     {
         if (!(scale > 1e-9) || !double.IsFinite(scale)) { Post("The scale must be more than 0."); return false; }
+        viewportIds = viewportIds.ToList();
+        if (viewportIds.Any(id => Document.GetEntity(id) is ViewportEntity { Locked: true })) { Post("That viewport is locked. Unlock it first (LAYOUT tab > Lock, or VPLOCK)."); return false; }
         CommitActiveViewport();
         bool ok = ModifyEntities(viewportIds, e => { if (e is ViewportEntity v) v.Scale = scale; }, "Viewport scale");
         if (ok) Post("Viewport scale: " + LayoutStandards.ScaleName(scale, Document.Settings));
@@ -1769,6 +1896,8 @@ public sealed class EditorSession
     {
         var model = Document.GetExtents(Guid.Empty);
         if (model.IsEmpty) { Post("The model is empty: there is nothing to fit."); return false; }
+        viewportIds = viewportIds.ToList();
+        if (viewportIds.Any(id => Document.GetEntity(id) is ViewportEntity { Locked: true })) { Post("That viewport is locked. Unlock it first (LAYOUT tab > Lock, or VPLOCK)."); return false; }
         CommitActiveViewport();
         bool ok = ModifyEntities(viewportIds, e => { if (e is ViewportEntity v) v.Fit(model); }, "Fit viewport");
         RestartActiveViewport();
@@ -1826,7 +1955,7 @@ public sealed class EditorSession
     /// <summary>Wheel in the entered viewport: the model under <paramref name="paperAnchor"/> stays put while it gets larger or smaller.</summary>
     public bool ZoomActiveViewport(Point2D paperAnchor, double factor)
     {
-        if (ActiveViewport is not { } viewport || !(factor > 0) || !double.IsFinite(factor)) return false;
+        if (ActiveViewport is not { Locked: false } viewport || !(factor > 0) || !double.IsFinite(factor)) return false;
         var copy = (ViewportEntity)viewport.Clone();
         var anchorModel = copy.PaperToModel(paperAnchor);
         double scale = copy.Scale * factor;
@@ -1841,7 +1970,7 @@ public sealed class EditorSession
     /// <summary>Pan in the entered viewport: the model moves with the cursor by <paramref name="paperDelta"/> on the sheet.</summary>
     public bool PanActiveViewport(Vector2D paperDelta)
     {
-        if (ActiveViewport is not { } viewport) return false;
+        if (ActiveViewport is not { Locked: false } viewport) return false;
         var copy = (ViewportEntity)viewport.Clone();
         copy.ModelCenter = copy.ModelCenter - paperDelta / copy.Scale;
         if (!copy.IsValid) return false;

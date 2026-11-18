@@ -66,9 +66,12 @@ public static class RenderTheme
     public static readonly RenderStyle CrossingSelect = new(80, 220, 120, 1.0, true);
     public static readonly RenderStyle PolarTrack = new(70, 225, 100, 1.0, true);
     public static readonly RenderStyle Crosshair = new(240, 240, 240, 1.5);
-    /// <summary>The sheet of a layout: a little lighter than the background, with an edge.</summary>
-    public static readonly RenderStyle Paper = new(40, 44, 52);
-    public static readonly RenderStyle PaperEdge = new(120, 128, 140);
+    /// <summary>A layout: white paper with an edge, lying on a light grey desk.</summary>
+    public static readonly RenderStyle Paper = new(255, 255, 255);
+    public static readonly RenderStyle PaperEdge = new(160, 164, 172);
+    public static readonly RenderStyle Desk = new(222, 224, 228);
+    /// <summary>The scale written inside a viewport's frame on screen (not printed).</summary>
+    public static readonly RenderStyle ViewportTag = new(42, 110, 200);
     /// <summary>The frame of the viewport that is being worked in (after a double-click inside it).</summary>
     public static readonly RenderStyle ActiveViewport = new(242, 163, 58, 2.5);
 }
@@ -88,6 +91,9 @@ public sealed class RenderOptions
     /// lineweight (<see cref="PixelsPerMm"/> wide per millimetre).
     /// </summary>
     public bool Plot { get; set; }
+
+    /// <summary>Text lower than this (in output units) is drawn as a stroke. 3 pixels on screen; much less on paper, where small text is still sharp.</summary>
+    public double MinTextSize { get; set; } = SceneRenderer.MinTextPixels;
 
     /// <summary>Plotting in black only (true), or in the objects' colours with near-white turned black.</summary>
     public bool PlotMonochrome { get; set; } = true;
@@ -143,6 +149,7 @@ public sealed class SceneRenderer
             // A layout: the sheet instead of the grid (the sheet itself is not part of a plot).
             if (!options.Plot)
             {
+                surface.DrawRectangle(0, 0, view.ViewportWidth, view.ViewportHeight, RenderTheme.Desk, 255);
                 var a = view.WorldToScreen(new Point2D(0, layout.PaperHeight));
                 var b = view.WorldToScreen(new Point2D(layout.PaperWidth, 0));
                 double x = Math.Max(a.X, -SafeCoordinate), y = Math.Max(a.Y, -SafeCoordinate);
@@ -152,6 +159,8 @@ public sealed class SceneRenderer
                     surface.DrawRectangle(x, y, w, h, RenderTheme.Paper, 255);
                     surface.DrawRectangle(x, y, w, h, RenderTheme.PaperEdge, 0);
                 }
+                // From here on everything is drawn for white paper: light colours are shown dark.
+                surface = new PaperSurface(surface);
             }
         }
         else if (options.ShowGrid && !options.Plot) DrawGrid(surface, document, view);
@@ -181,7 +190,12 @@ public sealed class SceneRenderer
                 layer = document.GetLayer(layerId);
             }
             if (layer is null || !layer.IsDisplayed) continue;
-            if (options.Plot && !layer.IsPlotted) continue;
+            if (options.Plot && !layer.IsPlotted)
+            {
+                // A viewport's frame is on a layer that does not plot, but the title under it belongs on the print.
+                if (entity is ViewportEntity { HasTitle: true } titled) DrawViewportTitle(surface, titled, view, StyleFor(entity, layer));
+                continue;
+            }
 
             if (options.IsSelected is not null && options.IsSelected(entity.Id))
             {
@@ -427,6 +441,13 @@ public sealed class SceneRenderer
                 DrawSegment(surface, view, p2, p3, frameStyle);
                 DrawSegment(surface, view, p3, p4, frameStyle);
                 DrawSegment(surface, view, p4, p1, frameStyle);
+                DrawViewportTitle(surface, viewport, view, style);
+                if (!_options.Plot && p2.X - p1.X > 90 && p1.Y - p4.Y > 30)
+                {
+                    // On screen only: the scale, inside the top-left corner, so it can be read without selecting the viewport.
+                    surface.DrawStyledText(ScaleNames.Name(viewport.Scale, _settings), p4.X + 7, p4.Y + 11, 8, 0,
+                        new TextLook(TextMeasure.DefaultFont, false, false, false, -1), RenderTheme.ViewportTag);
+                }
                 break;
             }
 
@@ -444,7 +465,7 @@ public sealed class SceneRenderer
                     var c = view.WorldToScreen(center);
                     if (Math.Abs(c.X) > SafeCoordinate || Math.Abs(c.Y) > SafeCoordinate || radius > SafeCoordinate) continue;
                     if (radius >= 1.0) surface.DrawCircle(c.X, c.Y, radius, solid);
-                    if (textPixels >= MinTextPixels) surface.DrawText(grid.Label, c.X, c.Y, textPixels, 0, plain);
+                    if (textPixels >= MinText) surface.DrawText(grid.Label, c.X, c.Y, textPixels, 0, plain);
                 }
                 break;
             }
@@ -460,7 +481,7 @@ public sealed class SceneRenderer
                     if (line.Length == 0) continue;
                     var at = view.WorldToScreen(text.LineAnchor(i));
                     if (Math.Abs(at.X) > SafeCoordinate || Math.Abs(at.Y) > SafeCoordinate) continue;
-                    if (pixels >= MinTextPixels) surface.DrawStyledText(line, at.X, at.Y, pixels, text.Angle, look, plain);
+                    if (pixels >= MinText) surface.DrawStyledText(line, at.X, at.Y, pixels, text.Angle, look, plain);
                     else
                     {
                         // Too small to read: a stroke as long as the line, where the line is.
@@ -484,10 +505,26 @@ public sealed class SceneRenderer
         }
     }
 
+    /// <summary>The view's name under the lower-left corner of a viewport, and its scale on the line below.</summary>
+    private void DrawViewportTitle(IRenderSurface surface, ViewportEntity viewport, ViewTransform view, in RenderStyle style)
+    {
+        if (!viewport.HasTitle) return;
+        double pixels = viewport.TitleHeight * view.Scale;
+        if (pixels < MinText) return;
+        var plain = style with { Pattern = null, Dashed = false, Width = 1.0 };
+        var f = viewport.Frame;
+        var title = view.WorldToScreen(new Point2D(f.MinX, f.MinY - viewport.TitleHeight * 1.4));
+        if (Math.Abs(title.X) > SafeCoordinate || Math.Abs(title.Y) > SafeCoordinate) return;
+        surface.DrawStyledText(viewport.Title, title.X, title.Y, pixels, 0, new TextLook(TextMeasure.DefaultFont, true, false, false, -1), plain);
+        var scale = view.WorldToScreen(new Point2D(f.MinX, f.MinY - viewport.TitleHeight * 2.9));
+        surface.DrawStyledText("SCALE: " + ScaleNames.Name(viewport.Scale, _settings), scale.X, scale.Y, pixels * 2 / 3,
+            0, new TextLook(TextMeasure.DefaultFont, false, false, false, -1), plain);
+    }
+
     private static int AnchorOf(TextJustify justify) => justify switch { TextJustify.Left => -1, TextJustify.Center => 0, _ => 1 };
 
     /// <summary>The ruled lines of a table and the text of its cells, each cut off at its own cell.</summary>
-    private static void DrawTable(IRenderSurface surface, TableEntity table, ViewTransform view, in RenderStyle style)
+    private void DrawTable(IRenderSurface surface, TableEntity table, ViewTransform view, in RenderStyle style)
     {
         var solid = style with { Pattern = null, Dashed = false };
         var plain = solid with { Width = 1.0 };
@@ -507,7 +544,7 @@ public sealed class SceneRenderer
         }
 
         double pixels = table.TextHeight * view.Scale;
-        if (pixels < MinTextPixels) return;                     // only the ruling when the text is too small to read
+        if (pixels < MinText) return;                     // only the ruling when the text is too small to read
         var visible = view.VisibleBounds;
 
         void Cell(string text, BoundingBox box, double height, bool bold, TextJustify justify)
@@ -554,6 +591,7 @@ public sealed class SceneRenderer
 
     /// <summary>Text smaller than this many pixels is left out (it could not be read anyway).</summary>
     public const double MinTextPixels = 3.0;
+    private double MinText => _options.MinTextSize;
 
     private void DrawDimension(IRenderSurface surface, ViewTransform view, DimensionEntity dimension, in RenderStyle style)
     {
@@ -573,7 +611,7 @@ public sealed class SceneRenderer
         }
 
         double height = dimension.TextHeight * view.Scale;          // pixels
-        if (height < MinTextPixels) return;                        // arrows and text too small to see
+        if (height < MinText) return;                        // arrows and text too small to see
 
         double size = dimension.Style.ArrowSize;
         var fill = solid with { Dashed = false, Width = 1.0 };
@@ -956,4 +994,34 @@ public sealed class SceneRenderer
         if (origin.X >= 0 && origin.X <= view.ViewportWidth)
             surface.DrawLine(origin.X, 0, origin.X, view.ViewportHeight, RenderTheme.AxisY);
     }
+}
+
+/// <summary>
+/// Drawing on the white paper of a layout: what would be white or pale on the dark model background is drawn
+/// dark, so that it can be seen. Everything else is passed on unchanged.
+/// </summary>
+internal sealed class PaperSurface : IRenderSurface
+{
+    private readonly IRenderSurface _inner;
+    public PaperSurface(IRenderSurface inner) => _inner = inner;
+
+    internal static RenderStyle OnPaper(in RenderStyle style)
+    {
+        int min = Math.Min(style.R, Math.Min(style.G, style.B));
+        if (min > 200) return style with { R = 25, G = 25, B = 25 };                 // white and near-white: black ink
+        double luminance = 0.299 * style.R + 0.587 * style.G + 0.114 * style.B;
+        if (luminance <= 170) return style;
+        // A pale colour: the same colour, darker.
+        return style with { R = (byte)(style.R * 0.6), G = (byte)(style.G * 0.6), B = (byte)(style.B * 0.6) };
+    }
+
+    public void DrawLine(double x1, double y1, double x2, double y2, in RenderStyle style) => _inner.DrawLine(x1, y1, x2, y2, OnPaper(style));
+    public void DrawPolyline(IReadOnlyList<ScreenPoint> points, bool closed, in RenderStyle style) => _inner.DrawPolyline(points, closed, OnPaper(style));
+    public void DrawCircle(double cx, double cy, double radius, in RenderStyle style) => _inner.DrawCircle(cx, cy, radius, OnPaper(style));
+    public void FillPolygon(IReadOnlyList<ScreenPoint> points, in RenderStyle style) => _inner.FillPolygon(points, OnPaper(style));
+    public void DrawRectangle(double x, double y, double width, double height, in RenderStyle style, byte fillAlpha) => _inner.DrawRectangle(x, y, width, height, OnPaper(style), fillAlpha);
+    public void DrawText(string text, double cx, double cy, double height, double angle, in RenderStyle style) => _inner.DrawText(text, cx, cy, height, angle, OnPaper(style));
+    public void DrawStyledText(string text, double x, double y, double height, double angle, in TextLook look, in RenderStyle style) => _inner.DrawStyledText(text, x, y, height, angle, look, OnPaper(style));
+    public void PushClip(double x, double y, double width, double height) => _inner.PushClip(x, y, width, height);
+    public void PopClip() => _inner.PopClip();
 }

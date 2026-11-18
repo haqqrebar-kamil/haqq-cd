@@ -4,26 +4,52 @@ using HAQQ.CAD.Geometry;
 
 namespace HAQQ.CAD.Commands;
 
+/// <summary>What a new layout starts with on its sheet.</summary>
+public enum LayoutTemplate
+{
+    /// <summary>Nothing but the paper.</summary>
+    Blank,
+    /// <summary>A border line half an inch in from the edge.</summary>
+    Border,
+    /// <summary>The border and a title block in the lower-right corner.</summary>
+    TitleBlock,
+}
+
 /// <summary>A standard sheet: its name and its size in inches (landscape).</summary>
 public sealed record PaperSize(string Key, string Name, double WidthInches, double HeightInches);
 
 /// <summary>Standard sheets and viewport scales, and how scales are written and read.</summary>
 public static class LayoutStandards
 {
+    /// <summary>The standard sheets, landscape (wide side first): architectural, ANSI and ISO.</summary>
     public static IReadOnlyList<PaperSize> Papers { get; } = new[]
     {
-        new PaperSize("LETTER", "Letter 11 x 8 1/2", 11, 8.5),
-        new PaperSize("TABLOID", "Tabloid 17 x 11", 17, 11),
-        new PaperSize("ARCHC", "Arch C 24 x 18", 24, 18),
-        new PaperSize("ARCHD", "Arch D 36 x 24", 36, 24),
-        new PaperSize("ARCHE1", "Arch E1 42 x 30", 42, 30),
-        new PaperSize("ARCHE", "Arch E 48 x 36", 48, 36),
-        new PaperSize("A4", "A4 297 x 210 mm", 297 / 25.4, 210 / 25.4),
-        new PaperSize("A3", "A3 420 x 297 mm", 420 / 25.4, 297 / 25.4),
-        new PaperSize("A2", "A2 594 x 420 mm", 594 / 25.4, 420 / 25.4),
-        new PaperSize("A1", "A1 841 x 594 mm", 841 / 25.4, 594 / 25.4),
-        new PaperSize("A0", "A0 1189 x 841 mm", 1189 / 25.4, 841 / 25.4),
+        new PaperSize("ARCHA", "ARCH A - 12 x 9 in", 12, 9),
+        new PaperSize("ARCHB", "ARCH B - 18 x 12 in", 18, 12),
+        new PaperSize("ARCHC", "ARCH C - 24 x 18 in", 24, 18),
+        new PaperSize("ARCHD", "ARCH D - 36 x 24 in", 36, 24),
+        new PaperSize("ARCHE1", "ARCH E1 - 42 x 30 in", 42, 30),
+        new PaperSize("ARCHE", "ARCH E - 48 x 36 in", 48, 36),
+        new PaperSize("ANSIA", "ANSI A (Letter) - 11 x 8.5 in", 11, 8.5),
+        new PaperSize("ANSIB", "ANSI B (Tabloid) - 17 x 11 in", 17, 11),
+        new PaperSize("ANSIC", "ANSI C - 22 x 17 in", 22, 17),
+        new PaperSize("ANSID", "ANSI D - 34 x 22 in", 34, 22),
+        new PaperSize("ANSIE", "ANSI E - 44 x 34 in", 44, 34),
+        new PaperSize("A4", "ISO A4 - 297 x 210 mm", 297 / 25.4, 210 / 25.4),
+        new PaperSize("A3", "ISO A3 - 420 x 297 mm", 420 / 25.4, 297 / 25.4),
+        new PaperSize("A2", "ISO A2 - 594 x 420 mm", 594 / 25.4, 420 / 25.4),
+        new PaperSize("A1", "ISO A1 - 841 x 594 mm", 841 / 25.4, 594 / 25.4),
+        new PaperSize("A0", "ISO A0 - 1189 x 841 mm", 1189 / 25.4, 841 / 25.4),
     };
+
+    /// <summary>Finds a sheet by its key; LETTER and TABLOID are the everyday names of ANSI A and B.</summary>
+    public static PaperSize? FindPaper(string? key)
+    {
+        string k = (key ?? "").Replace("-", "").Replace(" ", "").ToUpperInvariant();
+        if (k == "LETTER") k = "ANSIA";
+        if (k == "TABLOID") k = "ANSIB";
+        return Papers.FirstOrDefault(p => p.Key == k);
+    }
 
     /// <summary>The sheet a new layout starts with: Arch D for feet and inches, A1 for metric drawings.</summary>
     public static PaperSize DefaultPaper(DrawingSettings settings) =>
@@ -36,36 +62,16 @@ public static class LayoutStandards
 
     /// <summary>The usual scales, as the ratio of paper size to real size: 1/4" = 1'-0" is 1/48.</summary>
     public static IReadOnlyList<double> Scales(DrawingSettings settings) => UnitConverter.IsImperial(settings.Unit)
-        ? new[] { 1.0, 1 / 2.0, 1 / 4.0, 1 / 8.0, 1 / 12.0, 1 / 16.0, 1 / 24.0, 1 / 32.0, 1 / 48.0, 1 / 64.0, 1 / 96.0, 1 / 192.0 }
-        : new[] { 1.0, 1 / 2.0, 1 / 5.0, 1 / 10.0, 1 / 20.0, 1 / 25.0, 1 / 50.0, 1 / 100.0, 1 / 200.0, 1 / 500.0 };
+        ? new[] { 1.0, 1 / 4.0, 1 / 8.0, 1 / 12.0, 1 / 16.0, 1 / 24.0, 1 / 32.0, 1 / 48.0, 1 / 64.0, 1 / 96.0, 1 / 128.0, 1 / 192.0, 1 / 384.0 }
+        : new[] { 1.0, 1 / 2.0, 1 / 5.0, 1 / 10.0, 1 / 20.0, 1 / 25.0, 1 / 50.0, 1 / 75.0, 1 / 100.0, 1 / 200.0, 1 / 500.0, 1 / 1000.0 };
+
+    /// <summary>The scale a viewport starts with when there is no model yet to fit: 1/4" = 1'-0", or 1:50.</summary>
+    public static double DefaultScale(DrawingSettings settings) => UnitConverter.IsImperial(settings.Unit) ? 1 / 48.0 : 1 / 50.0;
 
     /// <summary>
     /// A scale as people write it: 1/4" = 1'-0" for the usual building scales in feet and inches, otherwise 1:48.
     /// </summary>
-    public static string ScaleName(double scale, DrawingSettings settings)
-    {
-        if (!(scale > 0) || !double.IsFinite(scale)) return "?";
-        if (UnitConverter.IsImperial(settings.Unit) && scale < 1)
-        {
-            // Inches on paper for one foot of the real thing.
-            double perFoot = scale * 12.0;
-            foreach (int denominator in new[] { 1, 2, 4, 8, 16, 32 })
-            {
-                double numerator = perFoot * denominator;
-                if (Math.Abs(numerator - Math.Round(numerator)) < 1e-9 && Math.Round(numerator) >= 1)
-                {
-                    long n = (long)Math.Round(numerator);
-                    string inches = denominator == 1 ? n.ToString(CultureInfo.InvariantCulture) : n >= denominator && n % denominator == 0 ? (n / denominator).ToString(CultureInfo.InvariantCulture)
-                        : n > denominator ? $"{n / denominator} {n % denominator}/{denominator}" : $"{n}/{denominator}";
-                    return $"{inches}\" = 1'-0\"";
-                }
-            }
-        }
-        double ratio = 1.0 / scale;
-        if (Math.Abs(ratio - Math.Round(ratio)) < 1e-9 * Math.Max(1, ratio)) return "1:" + Math.Round(ratio).ToString("0", CultureInfo.InvariantCulture);
-        if (scale > 1 && Math.Abs(scale - Math.Round(scale)) < 1e-9) return Math.Round(scale).ToString("0", CultureInfo.InvariantCulture) + ":1";
-        return "1:" + ratio.ToString("0.###", CultureInfo.InvariantCulture);
-    }
+    public static string ScaleName(double scale, DrawingSettings settings) => ScaleNames.Name(scale, settings);
 
     /// <summary>
     /// Reads a scale: 1:48, 1/48, 0.0208, or a paper length = a real length such as 1/4" = 1' or 1/4=1'.
@@ -212,6 +218,47 @@ public sealed class ViewportScaleCommand : CadCommandBase, IObjectPicker, IRawTe
     }
 }
 
+/// <summary>VPLOCK: locks the selected viewports (or the one clicked, or the only one), or unlocks them when they are locked.</summary>
+public sealed class ViewportLockCommand : CadCommandBase, IObjectPicker
+{
+    public override string Name => "VPLOCK";
+    public bool PickingObject => true;
+    public override string Prompt => "VPLOCK  Click the border of the viewport to lock or unlock:";
+
+    private CommandResult Toggle(IReadOnlyList<ViewportEntity> viewports)
+    {
+        // Any one unlocked: lock them all. All locked: unlock.
+        bool locked = viewports.Any(v => !v.Locked);
+        Session.SetViewportLock(viewports.Select(v => v.Id).ToList(), locked);
+        return CommandResult.Finished;
+    }
+
+    protected override CommandResult OnStart()
+    {
+        if (Document.ActiveLayout is null)
+        {
+            Session.Post("Viewports are on layouts. Open a layout tab first.");
+            return CommandResult.Finished;
+        }
+        var targets = Session.GetSelectedEntities().OfType<ViewportEntity>().ToList();
+        if (targets.Count == 0 && Session.ActiveViewportId is Guid active && Document.GetEntity(active) is ViewportEntity entered) targets.Add(entered);
+        if (targets.Count == 0)
+        {
+            var all = Document.EntitiesUnordered.OfType<ViewportEntity>().Take(2).ToList();
+            if (all.Count == 1) targets.Add(all[0]);
+        }
+        return targets.Count > 0 ? Toggle(targets) : CommandResult.Continue;
+    }
+
+    public override CommandResult OnInput(CommandInput input)
+    {
+        if (input is CommandInput.EnterInput) return CommandResult.Finished;
+        if (input is not CommandInput.PointInput p) return Invalid("Click the border of a viewport.");
+        if (SelectionService.PickAt(Document, p.Point, Session.PickTolerance) is not ViewportEntity viewport) return Invalid("That is not a viewport. Click on its border.");
+        return Toggle(new[] { viewport });
+    }
+}
+
 /// <summary>LAYOUTRENAME: a new name for the layout being looked at.</summary>
 public sealed class RenameLayoutCommand : CadCommandBase, IRawTextCommand
 {
@@ -288,7 +335,7 @@ public sealed class PageSetupCommand : CadCommandBase
                 return CommandResult.Finished;
             case CommandInput.KeywordInput k:
             {
-                var paper = LayoutStandards.Papers.FirstOrDefault(p => p.Key.Equals(k.Keyword.Replace("-", "").Replace(" ", ""), StringComparison.OrdinalIgnoreCase));
+                var paper = LayoutStandards.FindPaper(k.Keyword);
                 if (paper is null) return Invalid("That is not one of the sheets. Type its name, or the size as width,height.");
                 var (w, h) = LayoutStandards.SizeOf(paper, Document.Settings);
                 return Session.SetPaperSize(Document.ActiveSpaceId, w, h) ? CommandResult.Finished : CommandResult.Continue;

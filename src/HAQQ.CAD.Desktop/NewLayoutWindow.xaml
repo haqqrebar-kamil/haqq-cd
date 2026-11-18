@@ -1,0 +1,52 @@
+<Window x:Class="HAQQ.CAD.Desktop.NewLayoutWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="New Layout"
+        Width="440" SizeToContent="Height" ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False"
+        Background="{StaticResource PanelBrush}"
+        Foreground="{StaticResource TextBrush}"
+        FontFamily="Segoe UI" FontSize="12"
+        UseLayoutRounding="True">
+    <StackPanel Margin="14">
+        <TextBlock Text="Layout name" Foreground="{StaticResource DimTextBrush}" FontSize="11" Margin="1,0,0,3" />
+        <TextBox x:Name="NameBox" Text="{Binding Name, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                 ToolTip="Shown on the tab and in the title block. A name that starts with a sheet number (S-101 Foundation) puts that number in the title block." />
+
+        <TextBlock Text="Paper" Foreground="{StaticResource DimTextBrush}" FontSize="11" Margin="1,12,0,3" />
+        <ComboBox ItemsSource="{Binding Papers}" SelectedItem="{Binding Paper, Mode=TwoWay}" />
+        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+            <RadioButton GroupName="Orientation" Content="Landscape" IsChecked="{Binding Landscape, Mode=TwoWay}" Foreground="{StaticResource TextBrush}" Margin="0,0,18,0" />
+            <RadioButton GroupName="Orientation" Content="Portrait" IsChecked="{Binding Portrait, Mode=TwoWay}" Foreground="{StaticResource TextBrush}" />
+        </StackPanel>
+        <Grid Margin="0,8,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="10" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <StackPanel Grid.Column="0">
+                <TextBlock Text="Width" Foreground="{StaticResource DimTextBrush}" FontSize="11" Margin="1,0,0,3" />
+                <TextBox Text="{Binding WidthText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding IsCustom}"
+                         ToolTip="In the drawing's units. Choose &quot;Custom size&quot; above to type your own." />
+            </StackPanel>
+            <StackPanel Grid.Column="2">
+                <TextBlock Text="Height" Foreground="{StaticResource DimTextBrush}" FontSize="11" Margin="1,0,0,3" />
+                <TextBox Text="{Binding HeightText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding IsCustom}" />
+            </StackPanel>
+        </Grid>
+
+        <TextBlock Text="On the sheet" Foreground="{StaticResource DimTextBrush}" FontSize="11" Margin="1,12,0,3" />
+        <ComboBox ItemsSource="{Binding Templates}" SelectedItem="{Binding Template, Mode=TwoWay}"
+                  ToolTip="The border and the title block are ordinary objects on the sheet: the title block is a table, double-click it to change its words." />
+        <CheckBox Margin="0,10,0,0" IsChecked="{Binding WithViewport, Mode=TwoWay}" Content="With a viewport that shows the whole model"
+                  ToolTip="Off: an empty sheet; add viewports with LAYOUT tab > Viewport." />
+
+        <TextBlock Margin="0,10,0,0" Foreground="{StaticResource AccentBrush}" TextWrapping="Wrap" Text="{Binding Message}" />
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+            <Button Style="{StaticResource PanelButton}" Content="Create layout" Click="Create_Click" />
+            <Button Style="{StaticResource PanelButton}" Content="Cancel" Click="Cancel_Click" />
+        </StackPanel>
+    </StackPanel>
+</Window>

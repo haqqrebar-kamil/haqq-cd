@@ -459,12 +459,36 @@ public sealed class SetCurrentDimensionStyleAction : IUndoableAction
     public void Undo(DrawingDocument document) => document.CurrentDimensionStyleName = _before;
 }
 
+public sealed class MoveLayoutAction : IUndoableAction
+{
+    private readonly Guid _id;
+    private readonly int _index;
+    private int _from;
+
+    public MoveLayoutAction(Guid id, int index)
+    {
+        _id = id;
+        _index = index;
+    }
+
+    public string Name => "Move layout";
+    public void Do(DrawingDocument document) => _from = document.MoveLayout(_id, _index);
+    public void Undo(DrawingDocument document) => document.MoveLayout(_id, _from);
+}
+
 public sealed class AddLayoutAction : IUndoableAction
 {
     private readonly Layout _layout;
-    public AddLayoutAction(Layout layout) => _layout = layout;
+    private readonly int? _index;
+
+    public AddLayoutAction(Layout layout, int? index = null)
+    {
+        _layout = layout;
+        _index = index;
+    }
+
     public string Name => "New layout";
-    public void Do(DrawingDocument document) => document.AddLayout(_layout);
+    public void Do(DrawingDocument document) => document.AddLayout(_layout, _index);
     public void Undo(DrawingDocument document) => document.RemoveLayout(_layout.Id);
 }
 

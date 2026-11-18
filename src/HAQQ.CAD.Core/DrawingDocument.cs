@@ -456,6 +456,20 @@ public sealed class DrawingDocument
 
     public Layout? GetLayout(Guid id) => _layouts.FirstOrDefault(l => l.Id == id);
 
+    /// <summary>Puts a layout at another place in the row of tabs. Returns where it was.</summary>
+    public int MoveLayout(Guid id, int index)
+    {
+        int from = _layouts.FindIndex(l => l.Id == id);
+        if (from < 0) throw new InvalidOperationException("That layout does not exist.");
+        index = Math.Clamp(index, 0, _layouts.Count - 1);
+        if (index == from) return from;
+        var layout = _layouts[from];
+        _layouts.RemoveAt(from);
+        _layouts.Insert(index, layout);
+        OnChanged(DocumentChangeKind.Settings);
+        return from;
+    }
+
     public Layout? FindLayout(string? name) =>
         _layouts.FirstOrDefault(l => string.Equals(l.Name, name?.Trim(), StringComparison.OrdinalIgnoreCase));
 

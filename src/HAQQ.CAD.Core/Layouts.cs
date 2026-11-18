@@ -49,6 +49,24 @@ public sealed class ViewportEntity : Entity
     /// <summary>Size on paper of one drawing unit of the model: 1/48 shows the model at 1/4" = 1'-0".</summary>
     public double Scale { get; set; } = 1.0;
 
+    /// <summary>
+    /// The name of the view ("FOUNDATION PLAN"), written under the lower-left corner of the window with the
+    /// viewport's scale on a second line. The scale line is worked out from <see cref="Scale"/> each time it is
+    /// drawn, so it cannot go out of date. Empty for no title.
+    /// </summary>
+    public string Title { get; set; } = "";
+
+    /// <summary>Letter height of the title on the sheet; the scale line is two thirds of it.</summary>
+    public double TitleHeight { get; set; }
+
+    /// <summary>
+    /// Locked: the wheel and panning inside the viewport, Fit and a new scale are refused, so the view that was
+    /// set up cannot be changed by accident. The frame can still be moved and resized.
+    /// </summary>
+    public bool Locked { get; set; }
+
+    public bool HasTitle => !string.IsNullOrWhiteSpace(Title) && TitleHeight > GeoMath.Epsilon;
+
     public BoundingBox Frame => new(Center.X - Width / 2, Center.Y - Height / 2, Center.X + Width / 2, Center.Y + Height / 2);
 
     /// <summary>The part of the model seen through the window.</summary>
@@ -107,7 +125,8 @@ public sealed class ViewportEntity : Entity
 
     public override bool IsValid =>
         Center.IsFinite && ModelCenter.IsFinite && GeoMath.IsFinite(Width) && GeoMath.IsFinite(Height) && Width > GeoMath.Epsilon && Height > GeoMath.Epsilon &&
-        GeoMath.IsFinite(Scale) && Scale > 1e-12;
+        GeoMath.IsFinite(Scale) && Scale > 1e-12 &&
+        Title is not null && Title.Length <= 128 && !Title.Any(char.IsControl) && GeoMath.IsFinite(TitleHeight) && TitleHeight >= 0;
 
     /// <summary>Only the border picks the viewport, so what is drawn inside the window can still be clicked past.</summary>
     public override double DistanceTo(Point2D point) => Sides.Min(s => SegmentMath.DistanceToPoint(s.A, s.B, point));
@@ -122,7 +141,42 @@ public sealed class ViewportEntity : Entity
         Width *= k;
         Height *= k;
         Scale *= k;
+        TitleHeight *= k;
     }
 
-    protected override Entity CloneGeometry(Guid id) => new ViewportEntity(id, Center, Width, Height) { ModelCenter = ModelCenter, Scale = Scale };
+    protected override Entity CloneGeometry(Guid id) => new ViewportEntity(id, Center, Width, Height) { ModelCenter = ModelCenter, Scale = Scale, Title = Title, TitleHeight = TitleHeight, Locked = Locked };
+}
+
+/// <summary>How a scale is written on a drawing.</summary>
+public static class ScaleNames
+{
+    /// <summary>
+    /// A scale (paper size over real size) as people write it: 1/4" = 1'-0" for the usual building scales in
+    /// feet and inches, otherwise 1:48.
+    /// </summary>
+    public static string Name(double scale, DrawingSettings settings)
+    {
+        var invariant = System.Globalization.CultureInfo.InvariantCulture;
+        if (!(scale > 0) || !double.IsFinite(scale)) return "?";
+        if (UnitConverter.IsImperial(settings.Unit) && scale < 1)
+        {
+            // Inches on paper for one foot of the real thing.
+            double perFoot = scale * 12.0;
+            foreach (int denominator in new[] { 1, 2, 4, 8, 16, 32 })
+            {
+                double numerator = perFoot * denominator;
+                if (Math.Abs(numerator - Math.Round(numerator)) < 1e-9 && Math.Round(numerator) >= 1)
+                {
+                    long n = (long)Math.Round(numerator);
+                    string inches = denominator == 1 ? n.ToString(invariant) : n >= denominator && n % denominator == 0 ? (n / denominator).ToString(invariant)
+                        : n > denominator ? $"{n / denominator} {n % denominator}/{denominator}" : $"{n}/{denominator}";
+                    return $"{inches}\" = 1'-0\"";
+                }
+            }
+        }
+        double ratio = 1.0 / scale;
+        if (Math.Abs(ratio - Math.Round(ratio)) < 1e-9 * Math.Max(1, ratio)) return "1:" + Math.Round(ratio).ToString("0", invariant);
+        if (scale > 1 && Math.Abs(scale - Math.Round(scale)) < 1e-9) return Math.Round(scale).ToString("0", invariant) + ":1";
+        return "1:" + ratio.ToString("0.###", invariant);
+    }
 }

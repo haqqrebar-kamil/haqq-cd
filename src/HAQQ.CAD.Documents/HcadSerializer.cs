@@ -128,6 +128,9 @@ public static class HcadSerializer
 
         w.WriteString("currentLayerId", document.CurrentLayerId);
 
+        // The tab that was open when the drawing was saved (left out for the model).
+        if (document.ActiveLayout is { } openLayout) w.WriteString("activeLayout", openLayout.Id);
+
         // Layouts (sheets). Their objects are in "entities" with "space" set to the layout's id.
         w.WriteStartArray("layouts");
         foreach (var layout in document.Layouts)
@@ -230,6 +233,12 @@ public static class HcadSerializer
                 w.WriteNumber("height", viewport.Height);
                 WritePoint(w, "modelCenter", viewport.ModelCenter);
                 w.WriteNumber("scale", viewport.Scale);
+                if (viewport.Locked) w.WriteBoolean("locked", true);
+                if (viewport.HasTitle)
+                {
+                    w.WriteString("title", viewport.Title);
+                    w.WriteNumber("titleHeight", viewport.TitleHeight);
+                }
                 break;
             case GridLineEntity grid:
                 if (grid.IsArc)
@@ -667,6 +676,10 @@ public static class HcadSerializer
             }
         }
 
+        // Open on the tab the drawing was saved on.
+        if (doc.TryGetProperty("activeLayout", out var open) && open.ValueKind == JsonValueKind.String && open.TryGetGuid(out var openId) &&
+            document.GetLayout(openId) is not null) document.ActiveSpaceId = openId;
+
         document.Metadata.ModifiedUtc = modified;
         document.MarkSaved();
         return new HcadLoadResult(document, warnings, schema, recovery);
@@ -695,6 +708,9 @@ public static class HcadSerializer
                 {
                     ModelCenter = ReadPoint(e.GetProperty("modelCenter")),
                     Scale = e.GetProperty("scale").GetDouble(),
+                    Title = GetString(e, "title"),
+                    Locked = GetBool(e, "locked", false),
+                    TitleHeight = e.TryGetProperty("titleHeight", out var vth) && vth.ValueKind == JsonValueKind.Number ? vth.GetDouble() : 0,
                 };
                 break;
             case GridLineEntity.Type:

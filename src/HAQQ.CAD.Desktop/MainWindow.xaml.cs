@@ -41,6 +41,8 @@ public partial class MainWindow : Window
         _viewModel.PlotRequested += (_, _) => Dispatcher.BeginInvoke(new Action(ShowPlot));
         _viewModel.CopyMemory = new DrawingCopyMemoryStore(DrawingCopyMemoryStore.DefaultPath);
         _viewModel.DrawingCopyRequested += (_, _) => Dispatcher.BeginInvoke(new Action(ShowDrawingCopy));
+        _viewModel.NewLayoutRequested += (_, _) => Dispatcher.BeginInvoke(new Action(ShowNewLayout));
+        _viewModel.PdfExportRequested += (_, _) => Dispatcher.BeginInvoke(new Action(ShowPdfExport));
         _viewModel.BlockLibraryRequested += (_, _) => Dispatcher.BeginInvoke(new Action(ShowBlockLibrary));
         _viewModel.TextEditorRequested += id => Dispatcher.BeginInvoke(new Action(() => ShowTextEditor(id)));
         _viewModel.TableEditorRequested += id => Dispatcher.BeginInvoke(new Action(() => ShowTableEditor(id)));
@@ -313,6 +315,41 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>Shows the New Layout window.</summary>
+    private void ShowNewLayout()
+    {
+        if (_annotationOpen) return;
+        _annotationOpen = true;
+        try
+        {
+            new NewLayoutWindow(new NewLayoutViewModel(_viewModel.Session)) { Owner = this }.ShowDialog();
+        }
+        finally
+        {
+            _annotationOpen = false;
+            DrawingCanvas.Focus();
+        }
+    }
+
+    /// <summary>Shows the Export PDF window.</summary>
+    private void ShowPdfExport()
+    {
+        if (_annotationOpen) return;
+        _annotationOpen = true;
+        try
+        {
+            string name = Path.GetFileNameWithoutExtension(_viewModel.DocumentName) + ".pdf";
+            var window = new PdfExportWindow(new PdfExportViewModel(_viewModel.Session), name) { Owner = this };
+            window.ShowDialog();
+            if (window.Result is { } result) _viewModel.Session.Post(result);
+        }
+        finally
+        {
+            _annotationOpen = false;
+            DrawingCanvas.Focus();
+        }
+    }
+
     /// <summary>Asks for a PDF, reads it and shows the Drawing Copy window over the drawing.</summary>
     private void ShowDrawingCopy()
     {
@@ -486,17 +523,27 @@ public partial class MainWindow : Window
             item.Click += RibbonMenuItem_Click;
             menu.Items.Add(item);
         }
-        Add("New layout", "LAYOUT");
+        void Do(string header, Action action)
+        {
+            var item = new MenuItem { Header = header };
+            item.Click += (_, _) => action();
+            menu.Items.Add(item);
+        }
+        Add("New layout...", "NEWLAYOUT");
         if (!tab.IsModel)
         {
-            var rename = new MenuItem { Header = "Rename" };
-            rename.Click += (_, _) => _viewModel.BeginRenameSpace(tab);
-            menu.Items.Add(rename);
-            Add("Page setup...", "PAGESETUP");
-            Add("Delete...", "LAYOUTDELETE");
+            Do("Rename", () => _viewModel.BeginRenameSpace(tab));
+            Do("Duplicate", () => _viewModel.DuplicateSpace(tab));
+            Do("Delete...", () => _viewModel.DeleteSpace(tab));
+            menu.Items.Add(new Separator());
+            Do("Move left", () => _viewModel.MoveSpace(tab, -1));
+            Do("Move right", () => _viewModel.MoveSpace(tab, +1));
+            menu.Items.Add(new Separator());
+            Add("Page setup (paper size)...", "PAGESETUP");
         }
         menu.Items.Add(new Separator());
-        Add("Plot...", "PLOT");
+        Add("Plot / print...", "PLOT");
+        Add("Export to PDF...", "EXPORTPDF");
         menu.IsOpen = true;
     }
 
@@ -652,6 +699,7 @@ public partial class MainWindow : Window
                 case Key.O: _viewModel.Open(); e.Handled = true; return;
                 case Key.N: _viewModel.NewDocument(); e.Handled = true; return;
                 case Key.Q: Close(); e.Handled = true; return;
+                case Key.P: _viewModel.RunCommand("PLOT"); e.Handled = true; return;
                 case Key.Z when editBox is null && !CommandBox.IsKeyboardFocused:
                     _viewModel.Session.Undo(); e.Handled = true; return;
                 case Key.Y when editBox is null && !CommandBox.IsKeyboardFocused:
