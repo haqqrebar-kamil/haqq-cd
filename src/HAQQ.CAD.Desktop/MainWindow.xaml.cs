@@ -422,6 +422,56 @@ public partial class MainWindow : Window
         menu.IsOpen = true;
     }
 
+    /// <summary>Double-click on a layout tab: its name can be typed over, there in the tab.</summary>
+    private void SpaceTab_DoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not Button { DataContext: SpaceTabViewModel tab } || e.ChangedButton != MouseButton.Left) return;
+        e.Handled = true;
+        _viewModel.BeginRenameSpace(tab);
+    }
+
+    /// <summary>The name box of a tab has appeared: put the cursor in it with the old name selected.</summary>
+    private void SpaceTabBox_VisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (sender is not TextBox { IsVisible: true } box) return;
+        Dispatcher.BeginInvoke(new Action(() =>
+        {
+            box.Focus();
+            box.SelectAll();
+        }), DispatcherPriority.Input);
+    }
+
+    private void SpaceTabBox_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (sender is not TextBox { DataContext: SpaceTabViewModel tab }) return;
+        if (e.Key == Key.Enter)
+        {
+            e.Handled = true;
+            _viewModel.EndRenameSpace(tab, keep: true);
+            DrawingCanvas.Focus();
+        }
+        else if (e.Key == Key.Escape)
+        {
+            e.Handled = true;
+            _viewModel.EndRenameSpace(tab, keep: false);
+            DrawingCanvas.Focus();
+        }
+    }
+
+    /// <summary>Clicking anywhere else keeps what was typed.</summary>
+    private void SpaceTabBox_LostFocus(object sender, KeyboardFocusChangedEventArgs e)
+    {
+        if (sender is TextBox { DataContext: SpaceTabViewModel { IsRenaming: true } tab }) _viewModel.EndRenameSpace(tab, keep: true);
+    }
+
+    /// <summary>The wheel over the tabs slides them sideways when there are more than fit.</summary>
+    private void SpaceTabs_MouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        if (sender is not ScrollViewer viewer) return;
+        viewer.ScrollToHorizontalOffset(viewer.HorizontalOffset - e.Delta / 2.0);
+        e.Handled = true;
+    }
+
     /// <summary>Right-click on a tab under the drawing: opens that tab and offers what can be done with a layout.</summary>
     private void SpaceTab_RightClick(object sender, MouseButtonEventArgs e)
     {
@@ -439,7 +489,9 @@ public partial class MainWindow : Window
         Add("New layout", "LAYOUT");
         if (!tab.IsModel)
         {
-            Add("Rename...", "LAYOUTRENAME");
+            var rename = new MenuItem { Header = "Rename" };
+            rename.Click += (_, _) => _viewModel.BeginRenameSpace(tab);
+            menu.Items.Add(rename);
             Add("Page setup...", "PAGESETUP");
             Add("Delete...", "LAYOUTDELETE");
         }

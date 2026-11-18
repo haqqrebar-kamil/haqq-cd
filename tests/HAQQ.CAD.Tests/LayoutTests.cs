@@ -472,3 +472,49 @@ public class UnitTests : IDisposable
         Assert.Equal(0.1, s.Document.CurrentDimensionStyle.TextHeight, 9);
     }
 }
+
+public class LayoutTabTests : IDisposable
+{
+    private readonly TempDirectory _temp = new();
+    public void Dispose() => _temp.Dispose();
+
+    [Fact]
+    public void Tabs_follow_the_layouts_and_a_layout_is_renamed_in_its_tab()
+    {
+        var vm = new MainViewModel(new FakeUi(), new RecoveryStore(_temp.File("recovery")));
+        Assert.Equal(new[] { "Model" }, vm.SpaceTabs.Select(t => t.Name).ToArray());
+        Assert.True(vm.SpaceTabs[0].IsActive);
+
+        vm.RunCommand("LAYOUT");                                                      // the + beside the tabs
+        vm.RunCommand("LAYOUT");
+        vm.RunCommand("LAYOUT");
+        Assert.Equal(new[] { "Model", "Layout 1", "Layout 2", "Layout 3" }, vm.SpaceTabs.Select(t => t.Name).ToArray());
+        Assert.True(vm.SpaceTabs[3].IsActive && vm.IsLayoutActive);                   // a new layout is opened
+
+        vm.SelectSpaceCommand.Execute(vm.SpaceTabs[1].Id);
+        Assert.True(vm.SpaceTabs[1].IsActive && !vm.SpaceTabs[3].IsActive);
+
+        Assert.False(vm.BeginRenameSpace(vm.SpaceTabs[0]));                           // Model keeps its name
+        var tab = vm.SpaceTabs[2];
+        Assert.True(vm.BeginRenameSpace(tab));
+        Assert.Equal((true, "Layout 2"), (tab.IsRenaming, tab.EditName));
+        tab.EditName = "  S-101 Foundation Plan ";
+        Assert.True(vm.EndRenameSpace(tab, keep: true));
+        Assert.Equal("S-101 Foundation Plan", vm.SpaceTabs[2].Name);
+        Assert.False(vm.SpaceTabs[2].IsRenaming);
+        Assert.True(vm.SpaceTabs[1].IsActive);                                        // renaming does not change which tab is open
+
+        vm.BeginRenameSpace(vm.SpaceTabs[3]);                                         // a name that is taken, then Esc
+        vm.SpaceTabs[3].EditName = "s-101 foundation plan";
+        Assert.False(vm.EndRenameSpace(vm.SpaceTabs[3], keep: true));
+        Assert.Equal("Layout 3", vm.SpaceTabs[3].Name);
+        vm.BeginRenameSpace(vm.SpaceTabs[3]);
+        vm.SpaceTabs[3].EditName = "Something else";
+        Assert.False(vm.EndRenameSpace(vm.SpaceTabs[3], keep: false));
+        Assert.Equal("Layout 3", vm.SpaceTabs[3].Name);
+
+        vm.Session.Undo();                                                            // the rename is an undo step
+        Assert.Equal("Layout 2", vm.SpaceTabs[2].Name);
+    }
+}
+

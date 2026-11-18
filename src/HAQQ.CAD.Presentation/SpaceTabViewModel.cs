@@ -23,6 +23,15 @@ public sealed class SpaceTabViewModel : ObservableObject
     public string Name { get => _name; set => SetProperty(ref _name, value); }
     public bool IsActive { get => _isActive; set => SetProperty(ref _isActive, value); }
 
+    private bool _isRenaming;
+    private string _editName = "";
+
+    /// <summary>True while the name is being typed over in the tab itself.</summary>
+    public bool IsRenaming { get => _isRenaming; set => SetProperty(ref _isRenaming, value); }
+
+    /// <summary>The name as typed so far while renaming.</summary>
+    public string EditName { get => _editName; set => SetProperty(ref _editName, value ?? ""); }
+
     /// <summary>The tooltip: what the tab is, and for a layout its sheet size.</summary>
     public string Detail { get => _detail; set => SetProperty(ref _detail, value); }
 }

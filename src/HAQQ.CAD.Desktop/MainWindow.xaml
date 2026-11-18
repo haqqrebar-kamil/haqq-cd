@@ -349,28 +349,6 @@
                 <Border Grid.Row="0" Background="#21252B" ClipToBounds="True">
                     <local:CadCanvas x:Name="DrawingCanvas" />
                 </Border>
-
-                <!-- Model and the layouts (sheets). Right-click a layout for rename, page setup and delete. -->
-                <Border Grid.Row="1" Background="{StaticResource PanelAltBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0">
-                    <StackPanel Orientation="Horizontal" Margin="4,0">
-                        <ItemsControl ItemsSource="{Binding SpaceTabs}" Focusable="False">
-                            <ItemsControl.ItemsPanel>
-                                <ItemsPanelTemplate>
-                                    <StackPanel Orientation="Horizontal" />
-                                </ItemsPanelTemplate>
-                            </ItemsControl.ItemsPanel>
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <Button Style="{StaticResource SpaceTab}" Content="{Binding Name}" ToolTip="{Binding Detail}"
-                                            Command="{Binding DataContext.SelectSpaceCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                            CommandParameter="{Binding Id}" MouseRightButtonUp="SpaceTab_RightClick" />
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                        <Button Style="{StaticResource SpaceTab}" Content="+" FontSize="14" Command="{Binding RunCommandCommand}" CommandParameter="LAYOUT"
-                                ToolTip="LAYOUT (LO): new layout - a sheet of paper with a viewport that shows the model at a scale" />
-                    </StackPanel>
-                </Border>
             </Grid>
 
             <GridSplitter x:Name="PropertiesSplitter" Grid.Column="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Focusable="False" />
@@ -538,9 +516,32 @@
                 <ToggleButton DockPanel.Dock="Left" Style="{StaticResource StatusToggle}" Content="POLAR" IsChecked="{Binding PolarOn, Mode=TwoWay}" ToolTip="Polar tracking: lock onto horizontal and vertical when the cursor is close to them (F10)" />
                 <ToggleButton DockPanel.Dock="Left" Style="{StaticResource StatusToggle}" Content="OTRACK" IsChecked="{Binding TrackOn, Mode=TwoWay}" ToolTip="Object snap tracking (F11): hover over a snap point without clicking, then move away from it; the cursor locks onto a line through that point. Needs OSNAP on." />
                 <ToggleButton DockPanel.Dock="Left" Style="{StaticResource StatusToggle}" Content="GRID" IsChecked="{Binding GridOn, Mode=TwoWay}" ToolTip="Show the background grid (F7). To change its spacing: FILE tab, Grid Spacing (or type GRID)." />
-                <Border DockPanel.Dock="Left" Margin="8,0,2,0" Padding="9,2" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="2">
-                    <TextBlock Text="MODEL" FontWeight="SemiBold" />
-                </Border>
+                <!-- Model and the layouts (sheets): click to open, + adds a layout, double-click a layout to rename it,
+                     right-click for page setup, delete and plot. -->
+                <ScrollViewer DockPanel.Dock="Left" Margin="8,0,0,0" MaxWidth="560" VerticalScrollBarVisibility="Disabled"
+                              HorizontalScrollBarVisibility="Hidden" Focusable="False" PreviewMouseWheel="SpaceTabs_MouseWheel">
+                    <ItemsControl ItemsSource="{Binding SpaceTabs}" Focusable="False">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Orientation="Horizontal" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid>
+                                    <Button Style="{StaticResource SpaceTab}" Content="{Binding Name}" ToolTip="{Binding Detail}"
+                                            Command="{Binding DataContext.SelectSpaceCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                            CommandParameter="{Binding Id}" MouseRightButtonUp="SpaceTab_RightClick" MouseDoubleClick="SpaceTab_DoubleClick" />
+                                    <TextBox MinWidth="90" VerticalAlignment="Center" Text="{Binding EditName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                             Visibility="{Binding IsRenaming, Converter={StaticResource BoolToVisibility}}"
+                                             IsVisibleChanged="SpaceTabBox_VisibleChanged" KeyDown="SpaceTabBox_KeyDown" LostKeyboardFocus="SpaceTabBox_LostFocus" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+                <Button DockPanel.Dock="Left" Style="{StaticResource SpaceTab}" Content="+" FontSize="14" FontWeight="Bold" Command="{Binding RunCommandCommand}" CommandParameter="LAYOUT"
+                        ToolTip="New layout (LAYOUT): a sheet of paper with a viewport that shows the model at a scale. Add as many as you need; double-click a layout tab to rename it." />
                 <TextBlock DockPanel.Dock="Right" VerticalAlignment="Center" Foreground="{StaticResource DimTextBrush}" Text="{Binding StatusText}" />
                 <TextBlock DockPanel.Dock="Right" VerticalAlignment="Center" Margin="0,0,18,0" Text="{Binding UnitLabel, StringFormat='Units: {0}'}"
                            ToolTip="The unit of this drawing. FILE tab > Units changes it; lengths can also be typed with a unit in any drawing: 250mm, 2.5m, 30cm, 5'-6&quot;." />

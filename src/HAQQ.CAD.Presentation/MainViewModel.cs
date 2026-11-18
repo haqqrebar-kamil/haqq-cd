@@ -207,6 +207,34 @@ public sealed class MainViewModel : ObservableObject
         }
     }
 
+    /// <summary>Starts typing a new name into a layout's tab (the Model tab keeps its name).</summary>
+    public bool BeginRenameSpace(SpaceTabViewModel tab)
+    {
+        if (tab.IsModel || Session.Document.GetLayout(tab.Id) is null) return false;
+        foreach (var other in SpaceTabs) other.IsRenaming = false;
+        tab.EditName = tab.Name;
+        tab.IsRenaming = true;
+        return true;
+    }
+
+    /// <summary>
+    /// Ends the typing in a tab. With <paramref name="keep"/> the layout takes the name (one undo step); a name
+    /// that cannot be used leaves the old one, and the history says why.
+    /// </summary>
+    public bool EndRenameSpace(SpaceTabViewModel tab, bool keep)
+    {
+        if (!tab.IsRenaming) return false;
+        tab.IsRenaming = false;
+        string name = tab.EditName.Trim();
+        if (!keep || name.Length == 0 || name == tab.Name) return false;
+        if (Session.Document.Layouts.Any(l => l.Id != tab.Id && string.Equals(l.Name, name, StringComparison.OrdinalIgnoreCase)))
+        {
+            AddHistory($"There is already a layout named \"{name}\".");
+            return false;
+        }
+        return Session.RenameLayout(tab.Id, name);
+    }
+
     private void SyncSpaceTabs(DrawingDocument doc)
     {
         var wanted = new List<(Guid Id, string Name, string Detail)> { (Guid.Empty, "Model", "The model: everything is drawn here at its real size") };
