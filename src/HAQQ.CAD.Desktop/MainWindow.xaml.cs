@@ -193,6 +193,28 @@ public partial class MainWindow : Window
         menu.IsOpen = true;
     }
 
+    private bool _ribbonFolded;
+
+    /// <summary>The fold switch beside the tab names: hides the tools so the drawing gets the room, or brings them back.</summary>
+    private void RibbonFold_Click(object sender, RoutedEventArgs e)
+    {
+        SetRibbonFolded(!_ribbonFolded);
+        DrawingCanvas.Focus();
+    }
+
+    /// <summary>A click on a tab name while the ribbon is folded away brings it back.</summary>
+    private void RibbonTab_Click(object sender, MouseButtonEventArgs e)
+    {
+        if (_ribbonFolded) SetRibbonFolded(false);
+    }
+
+    private void SetRibbonFolded(bool folded)
+    {
+        _ribbonFolded = folded;
+        foreach (var item in Ribbon.Items)
+            if (item is TabItem { Content: UIElement content }) content.Visibility = folded ? Visibility.Collapsed : Visibility.Visible;
+    }
+
     private GridLength _propertiesWidth = new(270);
 
     /// <summary>Click on the strip at the left edge: folds the Properties panel away, or brings it back.</summary>

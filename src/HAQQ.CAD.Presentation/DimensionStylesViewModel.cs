@@ -289,7 +289,7 @@ public sealed class DimensionBarViewModel : ObservableObject
     public ObservableCollection<string> StyleNames { get; } = new();
     public IReadOnlyList<string> ArrowNames => DimensionStyleChoices.Arrows;
 
-    /// <summary>True while a dimension command runs or a dimension is selected: the strip is shown on the HOME tab then.</summary>
+    /// <summary>True while a dimension command runs or a dimension is selected: the Dimension Style group is shown on the HOME tab then.</summary>
     public bool IsActive
     {
         get => _isActive;

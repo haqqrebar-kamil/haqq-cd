@@ -120,6 +120,139 @@
 
     <Geometry x:Key="IconArrowDown">M0,0 L4,4 L8,0</Geometry>
 
+    <!-- The ribbon is made of named groups (Draw, Modify, Annotation...): the tools above, the group's name below. -->
+    <Style x:Key="RibbonGroup" TargetType="HeaderedContentControl">
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="IsTabStop" Value="False" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="HeaderedContentControl">
+                    <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,1,0">
+                        <DockPanel>
+                            <Border DockPanel.Dock="Bottom" Background="{StaticResource PanelAltBrush}" Padding="6,1,6,2">
+                                <ContentPresenter ContentSource="Header" HorizontalAlignment="Center"
+                                                  TextElement.Foreground="{StaticResource DimTextBrush}" TextElement.FontSize="10.5" />
+                            </Border>
+                            <ContentPresenter Margin="5,3" MinHeight="74" VerticalAlignment="Center" />
+                        </DockPanel>
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Large ribbon button: big glyph above its caption, for the tools used most. Tag carries the glyph. -->
+    <Style x:Key="RibbonLargeButton" TargetType="Button">
+        <Setter Property="MinWidth" Value="50" />
+        <Setter Property="Margin" Value="1,0" />
+        <Setter Property="VerticalAlignment" Value="Stretch" />
+        <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Bd" Background="Transparent" CornerRadius="3" Padding="6,4">
+                        <StackPanel VerticalAlignment="Center">
+                            <Viewbox Width="30" Height="30" HorizontalAlignment="Center">
+                                <Path Width="20" Height="20" Stroke="{TemplateBinding Foreground}" StrokeThickness="1.1"
+                                      StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                      Data="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}" />
+                            </Viewbox>
+                            <ContentPresenter HorizontalAlignment="Center" Margin="0,6,0,0" />
+                        </StackPanel>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource HoverBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource PressedBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Foreground" Value="{StaticResource DimTextBrush}" />
+                            <Setter TargetName="Bd" Property="Opacity" Value="0.55" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Small ribbon button: glyph and caption on one line; three of them stack in the height of a group. -->
+    <Style x:Key="RibbonSmallButton" TargetType="Button">
+        <Setter Property="Height" Value="24" />
+        <Setter Property="Margin" Value="1,0" />
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+        <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Bd" Background="Transparent" CornerRadius="3" Padding="5,0,6,0">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Viewbox Width="16" Height="16" >
+                                <Path Width="20" Height="20" Stroke="{TemplateBinding Foreground}" StrokeThickness="1.5"
+                                      StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                      Data="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}" />
+                            </Viewbox>
+                            <ContentPresenter VerticalAlignment="Center" Margin="5,0,0,0" />
+                        </StackPanel>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource HoverBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource PressedBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Foreground" Value="{StaticResource DimTextBrush}" />
+                            <Setter TargetName="Bd" Property="Opacity" Value="0.55" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Glyph only, for the few tools kept beside the tab names (undo, redo, zoom, pan). The tooltip names it. -->
+    <Style x:Key="RibbonIconButton" TargetType="Button">
+        <Setter Property="Width" Value="26" />
+        <Setter Property="Height" Value="24" />
+        <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Bd" Background="Transparent" CornerRadius="3" Padding="0">
+                        <Viewbox Width="16" Height="16" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <Path Width="20" Height="20" Stroke="{TemplateBinding Foreground}" StrokeThickness="1.5"
+                                      StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                      Data="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}" />
+                            </Viewbox>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource HoverBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource PressedBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Foreground" Value="{StaticResource DimTextBrush}" />
+                            <Setter TargetName="Bd" Property="Opacity" Value="0.55" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Geometry x:Key="IconRibbonFold">M3,5 L17,5 M3,16 L17,16 M6,12.5 L10,8.5 L14,12.5</Geometry>
+
     <!-- Ribbon button: glyph above caption. Tag carries the glyph geometry. -->
     <Style x:Key="RibbonButton" TargetType="Button">
         <Setter Property="Foreground" Value="{StaticResource TextBrush}" />

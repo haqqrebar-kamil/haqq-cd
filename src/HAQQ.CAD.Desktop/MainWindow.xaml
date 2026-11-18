@@ -22,31 +22,45 @@
         </Grid.RowDefinitions>
 
         <!-- ============================== Ribbon ============================== -->
-        <TabControl Grid.Row="0" SelectedIndex="1">
-            <TabItem Header="FILE">
-                <StackPanel Orientation="Horizontal" Margin="6,0">
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconNew}" Content="New" Command="{Binding NewCommand}" ToolTip="New drawing (Ctrl+N)" />
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconOpen}" Content="Open" Command="{Binding OpenCommand}" ToolTip="Open an HCAD drawing (Ctrl+O)" />
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconSave}" Content="Save" Command="{Binding SaveCommand}" ToolTip="Save (Ctrl+S)" />
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconSaveAs}" Content="Save As" Command="{Binding SaveAsCommand}" ToolTip="Save under a new name" />
-                    <Border Width="1" Margin="6,6" Background="{StaticResource BorderBrush}" />
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconUnits}" Content="Units" Command="{Binding RunCommandCommand}" CommandParameter="UNITS" ToolTip="UNITS: the unit of this drawing (inches, feet, mm, cm or meters), how lengths are written and the precision. Changing the unit of a drawing with objects asks whether they keep their real size or their numbers." />
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconUnits}" Content="New Dwg Units" Command="{Binding RunCommandCommand}" CommandParameter="NEWUNITS" ToolTip="NEWUNITS: the unit new drawings start in. Inches unless you change it; remembered on this computer. The open drawing is not changed." />
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconLayoutRename}" Content="Company" Command="{Binding RunCommandCommand}" CommandParameter="COMPANY" ToolTip="COMPANY: your company's name, written at the top of the title block of new layouts. Remembered on this computer." />
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconCrosshair}" Content="Crosshair" Command="{Binding RunCommandCommand}" CommandParameter="CURSORSIZE" ToolTip="CURSORSIZE: crosshair size, 1 to 100 percent of the screen" />
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconGridSpacing}" Content="Grid Spacing" Command="{Binding RunCommandCommand}" CommandParameter="GRID" ToolTip="GRID: distance between the lines of the background grid. It is saved with the drawing. F7 shows or hides the grid." />
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconShortcuts}" Content="Shortcuts" Command="{Binding RunCommandCommand}" CommandParameter="SHORTCUTS" ToolTip="SHORTCUTS: choose the short names you type to start each command" />
-                    <Border Width="1" Margin="6,6" Background="{StaticResource BorderBrush}" />
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource GlyphPlot}" Content="Plot" Command="{Binding RunCommandCommand}" CommandParameter="PLOT" ToolTip="PLOT (PRINT): preview and print the open layout or the model, or make a PDF" />
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconPdfOut}" Content="Export PDF" Command="{Binding RunCommandCommand}" CommandParameter="EXPORTPDF" ToolTip="EXPORTPDF: write layouts to a PDF as lines and text, each page exactly the size of its sheet - one file for all sheets, or a file per sheet." />
-                </StackPanel>
-            </TabItem>
-            <TabItem Header="HOME">
-                <StackPanel Orientation="Horizontal" Margin="6,0">
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconLine}" Content="Line" Command="{Binding RunCommandCommand}" CommandParameter="LINE" ToolTip="LINE (L)" />
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconPolyline}" Content="Polyline" Command="{Binding RunCommandCommand}" CommandParameter="PLINE" ToolTip="PLINE (PL)" />
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconRectangle}" Content="Rectangle" Command="{Binding RunCommandCommand}" CommandParameter="RECTANG" ToolTip="RECTANG (REC)" />
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconCircle}" Content="Circle &#x25BE;" Click="RibbonMenuButton_Click" ToolTip="CIRCLE (C): choose how to define the circle">
+        <TabControl x:Name="Ribbon" Grid.Row="0" SelectedIndex="1">
+<TabItem Header="FILE" PreviewMouseLeftButtonDown="RibbonTab_Click">
+<ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled" Focusable="False">
+<StackPanel Orientation="Horizontal" Margin="2,0">
+<HeaderedContentControl Style="{StaticResource RibbonGroup}" Header="Drawing">
+<StackPanel Orientation="Horizontal">
+<Button Style="{StaticResource RibbonLargeButton}" Tag="{StaticResource IconNew}" Content="New" Command="{Binding NewCommand}" ToolTip="New drawing (Ctrl+N)" />
+<Button Style="{StaticResource RibbonLargeButton}" Tag="{StaticResource IconOpen}" Content="Open" Command="{Binding OpenCommand}" ToolTip="Open an HCAD drawing (Ctrl+O)" />
+<Button Style="{StaticResource RibbonLargeButton}" Tag="{StaticResource IconSave}" Content="Save" Command="{Binding SaveCommand}" ToolTip="Save (Ctrl+S)" />
+<Button Style="{StaticResource RibbonLargeButton}" Tag="{StaticResource IconSaveAs}" Content="Save As" Command="{Binding SaveAsCommand}" ToolTip="Save under a new name" />
+</StackPanel>
+</HeaderedContentControl>
+<HeaderedContentControl Style="{StaticResource RibbonGroup}" Header="Settings">
+<StackPanel Orientation="Horizontal">
+<Button Style="{StaticResource RibbonLargeButton}" Tag="{StaticResource IconUnits}" Content="Units" Command="{Binding RunCommandCommand}" CommandParameter="UNITS" ToolTip="UNITS: the unit of this drawing (inches, feet, mm, cm or meters), how lengths are written and the precision. Changing the unit of a drawing with objects asks whether they keep their real size or their numbers." />
+<Button Style="{StaticResource RibbonLargeButton}" Tag="{StaticResource IconUnits}" Content="New Dwg Units" Command="{Binding RunCommandCommand}" CommandParameter="NEWUNITS" ToolTip="NEWUNITS: the unit new drawings start in. Inches unless you change it; remembered on this computer. The open drawing is not changed." />
+<Button Style="{StaticResource RibbonLargeButton}" Tag="{StaticResource IconLayoutRename}" Content="Company" Command="{Binding RunCommandCommand}" CommandParameter="COMPANY" ToolTip="COMPANY: your company's name, written at the top of the title block of new layouts. Remembered on this computer." />
+<Button Style="{StaticResource RibbonLargeButton}" Tag="{StaticResource IconCrosshair}" Content="Crosshair" Command="{Binding RunCommandCommand}" CommandParameter="CURSORSIZE" ToolTip="CURSORSIZE: crosshair size, 1 to 100 percent of the screen" />
+<Button Style="{StaticResource RibbonLargeButton}" Tag="{StaticResource IconGridSpacing}" Content="Grid Spacing" Command="{Binding RunCommandCommand}" CommandParameter="GRID" ToolTip="GRID: distance between the lines of the background grid. It is saved with the drawing. F7 shows or hides the grid." />
+<Button Style="{StaticResource RibbonLargeButton}" Tag="{StaticResource IconShortcuts}" Content="Shortcuts" Command="{Binding RunCommandCommand}" CommandParameter="SHORTCUTS" ToolTip="SHORTCUTS: choose the short names you type to start each command" />
+</StackPanel>
+</HeaderedContentControl>
+<HeaderedContentControl Style="{StaticResource RibbonGroup}" Header="Output">
+<StackPanel Orientation="Horizontal">
+<Button Style="{StaticResource RibbonLargeButton}" Tag="{StaticResource GlyphPlot}" Content="Plot" Command="{Binding RunCommandCommand}" CommandParameter="PLOT" ToolTip="PLOT (PRINT): preview and print the open layout or the model, or make a PDF" />
+<Button Style="{StaticResource RibbonLargeButton}" Tag="{StaticResource IconPdfOut}" Content="Export PDF" Command="{Binding RunCommandCommand}" CommandParameter="EXPORTPDF" ToolTip="EXPORTPDF: write layouts to a PDF as lines and text, each page exactly the size of its sheet - one file for all sheets, or a file per sheet." />
+</StackPanel>
+</HeaderedContentControl>
+</StackPanel>
+</ScrollViewer>
+</TabItem>
+<TabItem Header="HOME" PreviewMouseLeftButtonDown="RibbonTab_Click">
+<ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled" Focusable="False">
+<StackPanel Orientation="Horizontal" Margin="2,0">
+<HeaderedContentControl Style="{StaticResource RibbonGroup}" Header="Draw">
+<StackPanel Orientation="Horizontal">
+<Button Style="{StaticResource RibbonLargeButton}" Tag="{StaticResource IconLine}" Content="Line" Command="{Binding RunCommandCommand}" CommandParameter="LINE" ToolTip="LINE (L)" />
+<Button Style="{StaticResource RibbonLargeButton}" Tag="{StaticResource IconPolyline}" Content="Polyline" Command="{Binding RunCommandCommand}" CommandParameter="PLINE" ToolTip="PLINE (PL)" />
+<Button Style="{StaticResource RibbonLargeButton}" Tag="{StaticResource IconCircle}" Content="Circle &#x25BE;" Click="RibbonMenuButton_Click" ToolTip="CIRCLE (C): choose how to define the circle">
                         <Button.ContextMenu>
                             <ContextMenu>
                                 <MenuItem Header="Center, Radius" Tag="CIRCLE" Click="RibbonMenuItem_Click" />
@@ -60,7 +74,7 @@
                             </ContextMenu>
                         </Button.ContextMenu>
                     </Button>
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconArc}" Content="Arc &#x25BE;" Click="RibbonMenuButton_Click" ToolTip="ARC (A): choose how to define the arc">
+<Button Style="{StaticResource RibbonLargeButton}" Tag="{StaticResource IconArc}" Content="Arc &#x25BE;" Click="RibbonMenuButton_Click" ToolTip="ARC (A): choose how to define the arc">
                         <Button.ContextMenu>
                             <ContextMenu>
                                 <MenuItem Header="3-Point" Tag="ARC" Click="RibbonMenuItem_Click" />
@@ -81,34 +95,69 @@
                             </ContextMenu>
                         </Button.ContextMenu>
                     </Button>
-                    <Border Width="1" Margin="6,6" Background="{StaticResource BorderBrush}" />
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconMove}" Content="Move" Command="{Binding RunCommandCommand}" CommandParameter="MOVE" ToolTip="MOVE (M)" />
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconCopy}" Content="Copy" Command="{Binding RunCommandCommand}" CommandParameter="COPY" ToolTip="COPY (CO)" />
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconErase}" Content="Erase" Command="{Binding RunCommandCommand}" CommandParameter="ERASE" ToolTip="ERASE (E, Delete)" />
-                    <Border Width="1" Margin="6,6" Background="{StaticResource BorderBrush}" />
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconUndo}" Content="Undo" Command="{Binding UndoCommand}" ToolTip="Undo (Ctrl+Z)" />
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconRedo}" Content="Redo" Command="{Binding RedoCommand}" ToolTip="Redo (Ctrl+Y)" />
-                    <Border Width="1" Margin="6,6" Background="{StaticResource BorderBrush}" />
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconZoomGlass}" Content="Zoom &#x25BE;" Click="RibbonMenuButton_Click" ToolTip="ZOOM (Z): All, Window, Center, In, Out. The wheel zooms and a double-click on the wheel shows everything.">
-                        <Button.ContextMenu>
-                            <ContextMenu>
-                                <MenuItem Header="All (the whole drawing)" Tag="ZOOM A" Click="RibbonMenuItem_Click" />
-                                <MenuItem Header="Window" Tag="ZOOM W" Click="RibbonMenuItem_Click" />
-                                <MenuItem Header="Center" Tag="ZOOM C" Click="RibbonMenuItem_Click" />
-                                <Separator />
-                                <MenuItem Header="In" Tag="ZOOM I" Click="RibbonMenuItem_Click" />
-                                <MenuItem Header="Out" Tag="ZOOM O" Click="RibbonMenuItem_Click" />
-                            </ContextMenu>
-                        </Button.ContextMenu>
-                    </Button>
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconPan}" Content="Pan" Command="{Binding RunCommandCommand}" CommandParameter="PAN" ToolTip="PAN (P): hold the left button and drag to move the view; Enter or Esc to finish. The middle button pans at any time." />
-                    <Border Width="1" Margin="6,6" Background="{StaticResource BorderBrush}" />
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconLayers}" Content="Layers" Command="{Binding RunCommandCommand}" CommandParameter="LAYER" ToolTip="LAYER (LA): open the layer table" />
-                    <Border Width="1" Margin="6,6,12,6" Background="{StaticResource BorderBrush}" />
-                    <!-- Layer, colour, linetype and lineweight: of new objects, or of what is selected -->
-                    <StackPanel VerticalAlignment="Center" Margin="0,0,10,0" Width="170">
-                        <TextBlock Text="Layer" Foreground="{StaticResource DimTextBrush}" FontSize="11" Margin="1,0,0,3" />
-                        <ComboBox DropDownClosed="PropertyCombo_DropDownClosed" ItemsSource="{Binding Layers}" SelectedValuePath="Name"
+<StackPanel VerticalAlignment="Center">
+<Button Style="{StaticResource RibbonSmallButton}" Tag="{StaticResource IconRectangle}" Content="Rectangle" Command="{Binding RunCommandCommand}" CommandParameter="RECTANG" ToolTip="RECTANG (REC)" />
+<Button Style="{StaticResource RibbonSmallButton}" Tag="{StaticResource IconGridLines}" Content="Grid Lines" Command="{Binding RunCommandCommand}" CommandParameter="GRIDLINES" ToolTip="GRIDLINES (GL): grid line wizard - a rectangular or a sector grid with labels, on its own layer" />
+<Button Style="{StaticResource RibbonSmallButton}" Tag="{StaticResource IconGridAdd}" Content="Add Grid" Command="{Binding RunCommandCommand}" CommandParameter="GRIDADD" ToolTip="GRIDADD (GA): one more grid line beside an existing one - between two lines or past either end" />
+</StackPanel>
+</StackPanel>
+</HeaderedContentControl>
+<HeaderedContentControl Style="{StaticResource RibbonGroup}" Header="Modify">
+<StackPanel Orientation="Horizontal">
+<StackPanel VerticalAlignment="Center">
+<Button Style="{StaticResource RibbonSmallButton}" Tag="{StaticResource IconMove}" Content="Move" Command="{Binding RunCommandCommand}" CommandParameter="MOVE" ToolTip="MOVE (M)" />
+<Button Style="{StaticResource RibbonSmallButton}" Tag="{StaticResource IconCopy}" Content="Copy" Command="{Binding RunCommandCommand}" CommandParameter="COPY" ToolTip="COPY (CO)" />
+<Button Style="{StaticResource RibbonSmallButton}" Tag="{StaticResource IconOffset}" Content="Offset" Command="{Binding RunCommandCommand}" CommandParameter="OFFSET" ToolTip="OFFSET (O): parallel copy at a distance" />
+</StackPanel>
+<StackPanel VerticalAlignment="Center">
+<Button Style="{StaticResource RibbonSmallButton}" Tag="{StaticResource IconRotate}" Content="Rotate" Command="{Binding RunCommandCommand}" CommandParameter="ROTATE" ToolTip="ROTATE (RO): turn objects about a base point" />
+<Button Style="{StaticResource RibbonSmallButton}" Tag="{StaticResource IconMirror}" Content="Mirror" Command="{Binding RunCommandCommand}" CommandParameter="MIRROR" ToolTip="MIRROR (MI): reflect objects across a line" />
+<Button Style="{StaticResource RibbonSmallButton}" Tag="{StaticResource IconScale}" Content="Scale" Command="{Binding RunCommandCommand}" CommandParameter="SCALE" ToolTip="SCALE (SC): enlarge or reduce objects" />
+</StackPanel>
+<StackPanel VerticalAlignment="Center">
+<Button Style="{StaticResource RibbonSmallButton}" Tag="{StaticResource IconTrim}" Content="Trim" Command="{Binding RunCommandCommand}" CommandParameter="TRIM" ToolTip="TRIM (TR): click the part to remove; it is cut at the nearest crossings" />
+<Button Style="{StaticResource RibbonSmallButton}" Tag="{StaticResource IconExtend}" Content="Extend" Command="{Binding RunCommandCommand}" CommandParameter="EXTEND" ToolTip="EXTEND (EX): click near an end to lengthen it to the next object" />
+<Button Style="{StaticResource RibbonSmallButton}" Tag="{StaticResource IconJoin}" Content="Join" Command="{Binding RunCommandCommand}" CommandParameter="JOIN" ToolTip="JOIN (J): connect selected lines, arcs and open polylines that touch end to end into one polyline" />
+</StackPanel>
+<StackPanel VerticalAlignment="Center">
+<Button Style="{StaticResource RibbonSmallButton}" Tag="{StaticResource IconFillet}" Content="Fillet" Command="{Binding RunCommandCommand}" CommandParameter="FILLET" ToolTip="FILLET (F): round the corner between two lines (radius 0 = sharp corner)" />
+<Button Style="{StaticResource RibbonSmallButton}" Tag="{StaticResource IconChamfer}" Content="Chamfer" Command="{Binding RunCommandCommand}" CommandParameter="CHAMFER" ToolTip="CHAMFER (CHA): cut the corner between two lines" />
+<Button Style="{StaticResource RibbonSmallButton}" Tag="{StaticResource IconExplode}" Content="Explode" Command="{Binding RunCommandCommand}" CommandParameter="EXPLODE" ToolTip="EXPLODE (X): turn polylines into lines and arcs" />
+</StackPanel>
+<Button Style="{StaticResource RibbonLargeButton}" Tag="{StaticResource IconErase}" Content="Erase" Command="{Binding RunCommandCommand}" CommandParameter="ERASE" ToolTip="ERASE (E, Delete)" />
+</StackPanel>
+</HeaderedContentControl>
+<HeaderedContentControl Style="{StaticResource RibbonGroup}" Header="Annotation">
+<StackPanel Orientation="Horizontal">
+<Button Style="{StaticResource RibbonLargeButton}" Tag="{StaticResource IconText}" Content="Text" Command="{Binding RunCommandCommand}" CommandParameter="TEXT" ToolTip="TEXT (T): words in a font with height, bold, italic, underline and angle; one line or several. Then click where it goes. Double-click a text to edit it." />
+<Button Style="{StaticResource RibbonLargeButton}" Tag="{StaticResource IconDimLinear}" Content="Dimension &#x25BE;" Click="RibbonMenuButton_Click" ToolTip="Dimensions: choose the kind. Straight (DIM) measures horizontally or vertically between two points.">
+<Button.ContextMenu>
+<ContextMenu>
+<MenuItem Header="Straight (horizontal / vertical)" Tag="DIM" Click="RibbonMenuItem_Click" />
+<MenuItem Header="Aligned" Tag="DIMALIGN" Click="RibbonMenuItem_Click" />
+<Separator />
+<MenuItem Header="Radius" Tag="DIMRAD" Click="RibbonMenuItem_Click" />
+<MenuItem Header="Diameter" Tag="DIMDIA" Click="RibbonMenuItem_Click" />
+<MenuItem Header="Angle" Tag="DIMANGLE" Click="RibbonMenuItem_Click" />
+<MenuItem Header="Arc length" Tag="DIMARCLEN" Click="RibbonMenuItem_Click" />
+<Separator />
+<MenuItem Header="Chain (one after another)" Tag="DIMCHAIN" Click="RibbonMenuItem_Click" />
+<MenuItem Header="Stack (from one base)" Tag="DIMSTACK" Click="RibbonMenuItem_Click" />
+</ContextMenu>
+</Button.ContextMenu>
+</Button>
+<StackPanel VerticalAlignment="Center">
+<Button Style="{StaticResource RibbonSmallButton}" Tag="{StaticResource IconTable}" Content="Table" Command="{Binding RunCommandCommand}" CommandParameter="TABLE" ToolTip="TABLE (TB): rows and columns with a title and a header row. Fill it in, then click where it goes. Double-click a table to edit it." />
+<Button Style="{StaticResource RibbonSmallButton}" Tag="{StaticResource IconTextEdit}" Content="Edit Text" Command="{Binding RunCommandCommand}" CommandParameter="TEXTEDIT" ToolTip="TEXTEDIT (ED): click a text or a table to change it (the same as a double-click on it)" />
+<Button Style="{StaticResource RibbonSmallButton}" Tag="{StaticResource IconDimSettings}" Content="Dim Style" Command="{Binding RunCommandCommand}" CommandParameter="DIMSTYLE" ToolTip="DIMSTYLE (DST): dimension styles - text, arrows, extension lines and how lengths are written" />
+</StackPanel>
+</StackPanel>
+</HeaderedContentControl>
+<HeaderedContentControl Style="{StaticResource RibbonGroup}" Header="Layers">
+<StackPanel Orientation="Horizontal">
+<Button Style="{StaticResource RibbonLargeButton}" Tag="{StaticResource IconLayers}" Content="Layers" Command="{Binding RunCommandCommand}" CommandParameter="LAYER" ToolTip="LAYER (LA): open the layer table (on/off, freeze, lock, name, colour, lineweight)" />
+<StackPanel VerticalAlignment="Center" Width="176" Margin="2,0">
+<ComboBox DropDownClosed="PropertyCombo_DropDownClosed" ItemsSource="{Binding Layers}" SelectedValuePath="Name"
                                   SelectedValue="{Binding Properties.SelectedLayerName, Mode=TwoWay}"
                                   ToolTip="The layer new objects are drawn on. With objects selected: their layer.">
                             <ComboBox.ItemTemplate>
@@ -121,10 +170,27 @@
                                 </DataTemplate>
                             </ComboBox.ItemTemplate>
                         </ComboBox>
-                    </StackPanel>
-                    <StackPanel VerticalAlignment="Center" Margin="0,0,10,0" Width="120">
-                        <TextBlock Text="Color" Foreground="{StaticResource DimTextBrush}" FontSize="11" Margin="1,0,0,3" />
-                        <ComboBox DropDownClosed="PropertyCombo_DropDownClosed" ItemsSource="{Binding Properties.ColorNames}"
+<StackPanel Orientation="Horizontal" Margin="0,2,0,0"><Button Style="{StaticResource RibbonSmallButton}" Tag="{StaticResource IconLayers}" Content="New Layer" Command="{Binding AddLayerCommand}" ToolTip="Create a layer" /><Button Style="{StaticResource RibbonSmallButton}" Tag="{StaticResource IconLinetype}" Content="Linetype" Command="{Binding RunCommandCommand}" CommandParameter="LINETYPE" ToolTip="LINETYPE (LT): Linetype Manager - see every linetype, build your own with sliders, edit or delete" /></StackPanel>
+<StackPanel Orientation="Horizontal"><Button Style="{StaticResource RibbonSmallButton}" Tag="{StaticResource IconLinetype}" Content="LT Scale" Command="{Binding RunCommandCommand}" CommandParameter="LTSCALE" ToolTip="LTSCALE (LTS): make every dash and gap in the drawing longer or shorter" /><TextBlock Text="Plot" Foreground="{StaticResource DimTextBrush}" FontSize="11" VerticalAlignment="Center" Margin="10,0,4,0" /><ToggleButton Style="{StaticResource FlagToggle}" Foreground="{StaticResource TextBrush}"
+                                      Tag="{StaticResource GlyphPlot}" Content="{StaticResource GlyphNoPlot}"
+                                      IsChecked="{Binding CurrentLayerPlots, Mode=TwoWay}"
+                                      ToolTip="Plot switch of the current layer. Crossed out: the layer is shown on screen but will not be printed." /></StackPanel>
+</StackPanel>
+</StackPanel>
+</HeaderedContentControl>
+<HeaderedContentControl Style="{StaticResource RibbonGroup}" Header="Insert">
+<StackPanel Orientation="Horizontal">
+<Button Style="{StaticResource RibbonLargeButton}" Tag="{StaticResource IconBlockLibrary}" Content="Blocks" Command="{Binding RunCommandCommand}" CommandParameter="INSERT" ToolTip="INSERT (I): the blocks of this drawing, your own library and the HAQQ library (furniture, bedroom, plumbing, kitchen, doors). Choose one and click where it goes." />
+<StackPanel VerticalAlignment="Center">
+<Button Style="{StaticResource RibbonSmallButton}" Tag="{StaticResource IconBlockMake}" Content="Make Block" Command="{Binding RunCommandCommand}" CommandParameter="BLOCK" ToolTip="BLOCK (B): turn the selected objects into one block - select them, click the base point, type a name. EXPLODE (X) turns a block back into objects." />
+<Button Style="{StaticResource RibbonSmallButton}" Tag="{StaticResource IconCopyPdf}" Content="Copy PDF" Command="{Binding RunCommandCommand}" CommandParameter="COPYPDF" ToolTip="COPYPDF (PDF): open a PDF drawing, choose a page, check its scale and layers, and place it as editable lines, polylines, arcs, circles and text. Works on PDFs that hold real line work (drawings exported from CAD); a scanned page is a picture and cannot be copied yet." />
+</StackPanel>
+</StackPanel>
+</HeaderedContentControl>
+<HeaderedContentControl Style="{StaticResource RibbonGroup}" Header="Properties">
+<StackPanel Orientation="Horizontal">
+<StackPanel VerticalAlignment="Center" Width="178" Margin="4,0">
+<DockPanel Margin="0,1"><TextBlock DockPanel.Dock="Left" Width="62" VerticalAlignment="Center" Foreground="{StaticResource DimTextBrush}" FontSize="11" Text="Color" /><ComboBox DropDownClosed="PropertyCombo_DropDownClosed" ItemsSource="{Binding Properties.ColorNames}"
                                   SelectedItem="{Binding Properties.SelectedColor, Mode=TwoWay}"
                                   ToolTip="Colour of new objects (ByLayer uses the layer colour). With objects selected: their colour.">
                             <ComboBox.ItemTemplate>
@@ -137,185 +203,136 @@
                                     </StackPanel>
                                 </DataTemplate>
                             </ComboBox.ItemTemplate>
-                        </ComboBox>
-                    </StackPanel>
-                    <StackPanel VerticalAlignment="Center" Margin="0,0,10,0" Width="140">
-                        <TextBlock Text="Linetype" Foreground="{StaticResource DimTextBrush}" FontSize="11" Margin="1,0,0,3" />
-                        <ComboBox DropDownClosed="PropertyCombo_DropDownClosed" ItemsSource="{Binding Properties.LinetypeNames}"
+                        </ComboBox></DockPanel>
+<DockPanel Margin="0,1"><TextBlock DockPanel.Dock="Left" Width="62" VerticalAlignment="Center" Foreground="{StaticResource DimTextBrush}" FontSize="11" Text="Linetype" /><ComboBox DropDownClosed="PropertyCombo_DropDownClosed" ItemsSource="{Binding Properties.LinetypeNames}"
                                   SelectedItem="{Binding Properties.SelectedLinetype, Mode=TwoWay}"
-                                  ToolTip="Linetype of new objects (ByLayer uses the layer linetype). With objects selected: their linetype." />
-                    </StackPanel>
-                    <StackPanel VerticalAlignment="Center" Margin="0,0,10,0" Width="110">
-                        <TextBlock Text="Lineweight" Foreground="{StaticResource DimTextBrush}" FontSize="11" Margin="1,0,0,3" />
-                        <ComboBox DropDownClosed="PropertyCombo_DropDownClosed" ItemsSource="{Binding Properties.LineweightNames}"
+                                  ToolTip="Linetype of new objects (ByLayer uses the layer linetype). With objects selected: their linetype." /></DockPanel>
+<DockPanel Margin="0,1"><TextBlock DockPanel.Dock="Left" Width="62" VerticalAlignment="Center" Foreground="{StaticResource DimTextBrush}" FontSize="11" Text="Weight" /><ComboBox DropDownClosed="PropertyCombo_DropDownClosed" ItemsSource="{Binding Properties.LineweightNames}"
                                   SelectedItem="{Binding Properties.SelectedLineweight, Mode=TwoWay}"
-                                  ToolTip="Line thickness of new objects in millimetres (ByLayer uses the layer lineweight). With objects selected: their lineweight." />
-                    </StackPanel>
-                    <StackPanel VerticalAlignment="Center" Margin="0,0,10,0">
-                        <TextBlock Text="Plot" Foreground="{StaticResource DimTextBrush}" FontSize="11" Margin="1,0,0,1" HorizontalAlignment="Center" />
-                        <ToggleButton Style="{StaticResource FlagToggle}" Foreground="{StaticResource TextBrush}"
-                                      Tag="{StaticResource GlyphPlot}" Content="{StaticResource GlyphNoPlot}"
-                                      IsChecked="{Binding CurrentLayerPlots, Mode=TwoWay}"
-                                      ToolTip="Plot switch of the current layer. Crossed out: the layer is shown on screen but will not be printed." />
-                    </StackPanel>
-                    <StackPanel Orientation="Horizontal" Visibility="{Binding DimensionBar.IsActive, Converter={StaticResource BoolToVisibility}}">
-                        <Border Width="1" Margin="6,6,12,6" Background="{StaticResource BorderBrush}" />
-                        <!-- Dimension style: of new dimensions, or of the selected dimensions -->
-                        <StackPanel VerticalAlignment="Center" Margin="0,0,10,0" Width="150">
-                            <TextBlock Text="Dimension style" Foreground="{StaticResource DimTextBrush}" FontSize="11" Margin="1,0,0,3" />
-                            <ComboBox DropDownClosed="PropertyCombo_DropDownClosed" ItemsSource="{Binding DimensionBar.StyleNames}"
+                                  ToolTip="Line thickness of new objects in millimetres (ByLayer uses the layer lineweight). With objects selected: their lineweight." /></DockPanel>
+</StackPanel>
+</StackPanel>
+</HeaderedContentControl>
+<HeaderedContentControl Style="{StaticResource RibbonGroup}" Header="Dimension Style" Visibility="{Binding DimensionBar.IsActive, Converter={StaticResource BoolToVisibility}}">
+<StackPanel Orientation="Horizontal">
+<StackPanel VerticalAlignment="Center" Margin="4,0,6,0" Width="150">
+<TextBlock Text="Dimension style" Foreground="{StaticResource DimTextBrush}" FontSize="11" Margin="1,0,0,3" />
+<ComboBox DropDownClosed="PropertyCombo_DropDownClosed" ItemsSource="{Binding DimensionBar.StyleNames}"
                                       SelectedItem="{Binding DimensionBar.SelectedStyle, Mode=TwoWay}"
                                       ToolTip="The style new dimensions are drawn with. With dimensions selected: their style." />
-                        </StackPanel>
-                        <StackPanel VerticalAlignment="Center" Margin="0,0,10,0" Width="90">
-                            <TextBlock Text="Text height" Foreground="{StaticResource DimTextBrush}" FontSize="11" Margin="1,0,0,3" />
-                            <TextBox KeyDown="EditBox_KeyDown" Text="{Binding DimensionBar.TextHeightText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+</StackPanel>
+<StackPanel VerticalAlignment="Center" Margin="4,0,6,0" Width="90">
+<TextBlock Text="Text height" Foreground="{StaticResource DimTextBrush}" FontSize="11" Margin="1,0,0,3" />
+<TextBox KeyDown="EditBox_KeyDown" Text="{Binding DimensionBar.TextHeightText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                                      ToolTip="Text height of this style, in drawing units. Arrows and gaps change in proportion, for every dimension of the style." />
-                        </StackPanel>
-                        <StackPanel VerticalAlignment="Center" Margin="0,0,10,0" Width="90">
-                            <TextBlock Text="Ends" Foreground="{StaticResource DimTextBrush}" FontSize="11" Margin="1,0,0,3" />
-                            <ComboBox DropDownClosed="PropertyCombo_DropDownClosed" ItemsSource="{Binding DimensionBar.ArrowNames}"
+</StackPanel>
+<StackPanel VerticalAlignment="Center" Margin="4,0,6,0" Width="90">
+<TextBlock Text="Ends" Foreground="{StaticResource DimTextBrush}" FontSize="11" Margin="1,0,0,3" />
+<ComboBox DropDownClosed="PropertyCombo_DropDownClosed" ItemsSource="{Binding DimensionBar.ArrowNames}"
                                       SelectedItem="{Binding DimensionBar.SelectedArrow, Mode=TwoWay}"
                                       ToolTip="What is drawn at the ends of the dimension line, for every dimension of this style." />
-                        </StackPanel>
-                    </StackPanel>
-                </StackPanel>
-            </TabItem>
-            <TabItem Header="DRAW">
-                <StackPanel Orientation="Horizontal" Margin="6,0">
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconLine}" Content="Line" Command="{Binding RunCommandCommand}" CommandParameter="LINE" ToolTip="LINE (L)" />
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconPolyline}" Content="Polyline" Command="{Binding RunCommandCommand}" CommandParameter="PLINE" ToolTip="PLINE (PL)" />
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconRectangle}" Content="Rectangle" Command="{Binding RunCommandCommand}" CommandParameter="RECTANG" ToolTip="RECTANG (REC)" />
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconCircle}" Content="Circle &#x25BE;" Click="RibbonMenuButton_Click" ToolTip="CIRCLE (C): choose how to define the circle">
-                        <Button.ContextMenu>
-                            <ContextMenu>
-                                <MenuItem Header="Center, Radius" Tag="CIRCLE" Click="RibbonMenuItem_Click" />
-                                <MenuItem Header="Center, Diameter" Tag="CIRCLE D" Click="RibbonMenuItem_Click" />
-                                <Separator />
-                                <MenuItem Header="2-Point" Tag="CIRCLE 2P" Click="RibbonMenuItem_Click" />
-                                <MenuItem Header="3-Point" Tag="CIRCLE 3P" Click="RibbonMenuItem_Click" />
-                                <Separator />
-                                <MenuItem Header="Tan, Tan, Radius" Tag="CIRCLE TTR" Click="RibbonMenuItem_Click" />
-                                <MenuItem Header="Tan, Tan, Tan" Tag="CIRCLE TTT" Click="RibbonMenuItem_Click" />
-                            </ContextMenu>
-                        </Button.ContextMenu>
-                    </Button>
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconArc}" Content="Arc &#x25BE;" Click="RibbonMenuButton_Click" ToolTip="ARC (A): choose how to define the arc">
-                        <Button.ContextMenu>
-                            <ContextMenu>
-                                <MenuItem Header="3-Point" Tag="ARC" Click="RibbonMenuItem_Click" />
-                                <Separator />
-                                <MenuItem Header="Start, Center, End" Tag="ARC SCE" Click="RibbonMenuItem_Click" />
-                                <MenuItem Header="Start, Center, Angle" Tag="ARC SCA" Click="RibbonMenuItem_Click" />
-                                <MenuItem Header="Start, Center, Length" Tag="ARC SCL" Click="RibbonMenuItem_Click" />
-                                <Separator />
-                                <MenuItem Header="Start, End, Angle" Tag="ARC SEA" Click="RibbonMenuItem_Click" />
-                                <MenuItem Header="Start, End, Direction" Tag="ARC SED" Click="RibbonMenuItem_Click" />
-                                <MenuItem Header="Start, End, Radius" Tag="ARC SER" Click="RibbonMenuItem_Click" />
-                                <Separator />
-                                <MenuItem Header="Center, Start, End" Tag="ARC CSE" Click="RibbonMenuItem_Click" />
-                                <MenuItem Header="Center, Start, Angle" Tag="ARC CSA" Click="RibbonMenuItem_Click" />
-                                <MenuItem Header="Center, Start, Length" Tag="ARC CSL" Click="RibbonMenuItem_Click" />
-                                <Separator />
-                                <MenuItem Header="Continue" Tag="ARC CONTINUE" Click="RibbonMenuItem_Click" />
-                            </ContextMenu>
-                        </Button.ContextMenu>
-                    </Button>
-                    <Border Width="1" Margin="6,6" Background="{StaticResource BorderBrush}" />
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconGridLines}" Content="Grid Lines" Command="{Binding RunCommandCommand}" CommandParameter="GRIDLINES" ToolTip="GRIDLINES (GL): grid line wizard - a rectangular or a sector grid with labels, on its own layer" />
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconGridAdd}" Content="Add Grid Line" Command="{Binding RunCommandCommand}" CommandParameter="GRIDADD" ToolTip="GRIDADD (GA): one more grid line beside an existing one - between two lines or past either end" />
-                    <Border Width="1" Margin="6,6" Background="{StaticResource BorderBrush}" />
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconText}" Content="Text" Command="{Binding RunCommandCommand}" CommandParameter="TEXT" ToolTip="TEXT (T): words in a font with height, bold, italic, underline and angle; one line or several. Then click where it goes. Double-click a text to edit it." />
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconTable}" Content="Table" Command="{Binding RunCommandCommand}" CommandParameter="TABLE" ToolTip="TABLE (TB): rows and columns with a title and a header row. Fill it in, then click where it goes. Double-click a table to edit it." />
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconTextEdit}" Content="Edit Text" Command="{Binding RunCommandCommand}" CommandParameter="TEXTEDIT" ToolTip="TEXTEDIT (ED): click a text or a table to change it (the same as a double-click on it)" />
-                    <Border Width="1" Margin="6,6" Background="{StaticResource BorderBrush}" />
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconBlockMake}" Content="Make Block" Command="{Binding RunCommandCommand}" CommandParameter="BLOCK" ToolTip="BLOCK (B): turn the selected objects into one block - select them, click the base point, type a name. EXPLODE (X) turns a block back into objects." />
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconBlockLibrary}" Content="Block Library" Command="{Binding RunCommandCommand}" CommandParameter="INSERT" ToolTip="INSERT (I): the blocks of this drawing, your own library and the HAQQ library (furniture, bedroom, plumbing, kitchen, doors). Choose one and click where it goes." />
-                </StackPanel>
-            </TabItem>
-            <TabItem Header="MODIFY">
-                <StackPanel Orientation="Horizontal" Margin="6,0">
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconMove}" Content="Move" Command="{Binding RunCommandCommand}" CommandParameter="MOVE" ToolTip="MOVE (M)" />
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconCopy}" Content="Copy" Command="{Binding RunCommandCommand}" CommandParameter="COPY" ToolTip="COPY (CO)" />
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconErase}" Content="Erase" Command="{Binding RunCommandCommand}" CommandParameter="ERASE" ToolTip="ERASE (E, Delete)" />
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconRotate}" Content="Rotate" Command="{Binding RunCommandCommand}" CommandParameter="ROTATE" ToolTip="ROTATE (RO): turn objects about a base point" />
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconMirror}" Content="Mirror" Command="{Binding RunCommandCommand}" CommandParameter="MIRROR" ToolTip="MIRROR (MI): reflect objects across a line" />
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconScale}" Content="Scale" Command="{Binding RunCommandCommand}" CommandParameter="SCALE" ToolTip="SCALE (SC): enlarge or reduce objects" />
-                    <Border Width="1" Margin="6,6" Background="{StaticResource BorderBrush}" />
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconOffset}" Content="Offset" Command="{Binding RunCommandCommand}" CommandParameter="OFFSET" ToolTip="OFFSET (O): parallel copy at a distance" />
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconTrim}" Content="Trim" Command="{Binding RunCommandCommand}" CommandParameter="TRIM" ToolTip="TRIM (TR): click the part to remove; it is cut at the nearest crossings" />
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconExtend}" Content="Extend" Command="{Binding RunCommandCommand}" CommandParameter="EXTEND" ToolTip="EXTEND (EX): click near an end to lengthen it to the next object" />
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconFillet}" Content="Fillet" Command="{Binding RunCommandCommand}" CommandParameter="FILLET" ToolTip="FILLET (F): round the corner between two lines (radius 0 = sharp corner)" />
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconChamfer}" Content="Chamfer" Command="{Binding RunCommandCommand}" CommandParameter="CHAMFER" ToolTip="CHAMFER (CHA): cut the corner between two lines" />
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconExplode}" Content="Explode" Command="{Binding RunCommandCommand}" CommandParameter="EXPLODE" ToolTip="EXPLODE (X): turn polylines into lines and arcs" />
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconJoin}" Content="Join" Command="{Binding RunCommandCommand}" CommandParameter="JOIN" ToolTip="JOIN (J): connect selected lines, arcs and open polylines that touch end to end into one polyline" />
-                    <Border Width="1" Margin="6,6" Background="{StaticResource BorderBrush}" />
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconUndo}" Content="Undo" Command="{Binding UndoCommand}" ToolTip="Undo (Ctrl+Z)" />
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconRedo}" Content="Redo" Command="{Binding RedoCommand}" ToolTip="Redo (Ctrl+Y)" />
-                </StackPanel>
-            </TabItem>
-            <TabItem Header="DIMENSION">
-                <StackPanel Orientation="Horizontal" Margin="6,0">
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconDimLinear}" Content="Straight" Command="{Binding RunCommandCommand}" CommandParameter="DIM" ToolTip="DIM (DL): horizontal or vertical distance between two points. Place the line above or below for horizontal, beside for vertical." />
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconDimAligned}" Content="Aligned" Command="{Binding RunCommandCommand}" CommandParameter="DIMALIGN" ToolTip="DIMALIGN (DA): true distance between two points, along the slope" />
-                    <Border Width="1" Margin="6,6" Background="{StaticResource BorderBrush}" />
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconDimRadius}" Content="Radius" Command="{Binding RunCommandCommand}" CommandParameter="DIMRAD" ToolTip="DIMRAD (DR): radius of a circle or arc" />
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconDimDiameter}" Content="Diameter" Command="{Binding RunCommandCommand}" CommandParameter="DIMDIA" ToolTip="DIMDIA (DD): diameter of a circle or arc" />
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconDimAngle}" Content="Angle" Command="{Binding RunCommandCommand}" CommandParameter="DIMANGLE" ToolTip="DIMANGLE (DG): angle between two lines, or the angle an arc covers" />
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconDimArc}" Content="Arc Length" Command="{Binding RunCommandCommand}" CommandParameter="DIMARCLEN" ToolTip="DIMARCLEN (DARC): length along an arc" />
-                    <Border Width="1" Margin="6,6" Background="{StaticResource BorderBrush}" />
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconDimChain}" Content="Chain" Command="{Binding RunCommandCommand}" CommandParameter="DIMCHAIN" ToolTip="DIMCHAIN (DC): carry on from the last dimension, end to end on one line" />
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconDimStack}" Content="Stack" Command="{Binding RunCommandCommand}" CommandParameter="DIMSTACK" ToolTip="DIMSTACK (DS): more dimensions from the same first point, each on its own line" />
-                    <Border Width="1" Margin="6,6" Background="{StaticResource BorderBrush}" />
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconDimSettings}" Content="Settings" Command="{Binding RunCommandCommand}" CommandParameter="DIMSTYLE" ToolTip="DIMSTYLE (DST): dimension styles - text, arrows, extension lines and how lengths are written" />
-                    <StackPanel Orientation="Horizontal">
-                        <Border Width="1" Margin="6,6,12,6" Background="{StaticResource BorderBrush}" />
-                        <!-- Dimension style: of new dimensions, or of the selected dimensions -->
-                        <StackPanel VerticalAlignment="Center" Margin="0,0,10,0" Width="150">
-                            <TextBlock Text="Dimension style" Foreground="{StaticResource DimTextBrush}" FontSize="11" Margin="1,0,0,3" />
-                            <ComboBox DropDownClosed="PropertyCombo_DropDownClosed" ItemsSource="{Binding DimensionBar.StyleNames}"
+</StackPanel>
+</StackPanel>
+</HeaderedContentControl>
+</StackPanel>
+</ScrollViewer>
+</TabItem>
+<TabItem Header="ANNOTATE" PreviewMouseLeftButtonDown="RibbonTab_Click">
+<ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled" Focusable="False">
+<StackPanel Orientation="Horizontal" Margin="2,0">
+<HeaderedContentControl Style="{StaticResource RibbonGroup}" Header="Text">
+<StackPanel Orientation="Horizontal">
+<Button Style="{StaticResource RibbonLargeButton}" Tag="{StaticResource IconText}" Content="Text" Command="{Binding RunCommandCommand}" CommandParameter="TEXT" ToolTip="TEXT (T): words in a font with height, bold, italic, underline and angle; one line or several. Then click where it goes. Double-click a text to edit it." />
+<Button Style="{StaticResource RibbonLargeButton}" Tag="{StaticResource IconTable}" Content="Table" Command="{Binding RunCommandCommand}" CommandParameter="TABLE" ToolTip="TABLE (TB): rows and columns with a title and a header row. Fill it in, then click where it goes. Double-click a table to edit it." />
+<Button Style="{StaticResource RibbonLargeButton}" Tag="{StaticResource IconTextEdit}" Content="Edit Text" Command="{Binding RunCommandCommand}" CommandParameter="TEXTEDIT" ToolTip="TEXTEDIT (ED): click a text or a table to change it (the same as a double-click on it)" />
+</StackPanel>
+</HeaderedContentControl>
+<HeaderedContentControl Style="{StaticResource RibbonGroup}" Header="Dimensions">
+<StackPanel Orientation="Horizontal">
+<Button Style="{StaticResource RibbonLargeButton}" Tag="{StaticResource IconDimLinear}" Content="Straight" Command="{Binding RunCommandCommand}" CommandParameter="DIM" ToolTip="DIM (DL): horizontal or vertical distance between two points. Place the line above or below for horizontal, beside for vertical." />
+<Button Style="{StaticResource RibbonLargeButton}" Tag="{StaticResource IconDimAligned}" Content="Aligned" Command="{Binding RunCommandCommand}" CommandParameter="DIMALIGN" ToolTip="DIMALIGN (DA): true distance between two points, along the slope" />
+<Button Style="{StaticResource RibbonLargeButton}" Tag="{StaticResource IconDimRadius}" Content="Radius" Command="{Binding RunCommandCommand}" CommandParameter="DIMRAD" ToolTip="DIMRAD (DR): radius of a circle or arc" />
+<Button Style="{StaticResource RibbonLargeButton}" Tag="{StaticResource IconDimDiameter}" Content="Diameter" Command="{Binding RunCommandCommand}" CommandParameter="DIMDIA" ToolTip="DIMDIA (DD): diameter of a circle or arc" />
+<Button Style="{StaticResource RibbonLargeButton}" Tag="{StaticResource IconDimAngle}" Content="Angle" Command="{Binding RunCommandCommand}" CommandParameter="DIMANGLE" ToolTip="DIMANGLE (DG): angle between two lines, or the angle an arc covers" />
+<Button Style="{StaticResource RibbonLargeButton}" Tag="{StaticResource IconDimArc}" Content="Arc Length" Command="{Binding RunCommandCommand}" CommandParameter="DIMARCLEN" ToolTip="DIMARCLEN (DARC): length along an arc" />
+<Button Style="{StaticResource RibbonLargeButton}" Tag="{StaticResource IconDimChain}" Content="Chain" Command="{Binding RunCommandCommand}" CommandParameter="DIMCHAIN" ToolTip="DIMCHAIN (DC): carry on from the last dimension, end to end on one line" />
+<Button Style="{StaticResource RibbonLargeButton}" Tag="{StaticResource IconDimStack}" Content="Stack" Command="{Binding RunCommandCommand}" CommandParameter="DIMSTACK" ToolTip="DIMSTACK (DS): more dimensions from the same first point, each on its own line" />
+</StackPanel>
+</HeaderedContentControl>
+<HeaderedContentControl Style="{StaticResource RibbonGroup}" Header="Dimension Style">
+<StackPanel Orientation="Horizontal">
+<Button Style="{StaticResource RibbonLargeButton}" Tag="{StaticResource IconDimSettings}" Content="Settings" Command="{Binding RunCommandCommand}" CommandParameter="DIMSTYLE" ToolTip="DIMSTYLE (DST): dimension styles - text, arrows, extension lines and how lengths are written" />
+<StackPanel VerticalAlignment="Center" Margin="4,0,6,0" Width="150">
+<TextBlock Text="Dimension style" Foreground="{StaticResource DimTextBrush}" FontSize="11" Margin="1,0,0,3" />
+<ComboBox DropDownClosed="PropertyCombo_DropDownClosed" ItemsSource="{Binding DimensionBar.StyleNames}"
                                       SelectedItem="{Binding DimensionBar.SelectedStyle, Mode=TwoWay}"
                                       ToolTip="The style new dimensions are drawn with. With dimensions selected: their style." />
-                        </StackPanel>
-                        <StackPanel VerticalAlignment="Center" Margin="0,0,10,0" Width="90">
-                            <TextBlock Text="Text height" Foreground="{StaticResource DimTextBrush}" FontSize="11" Margin="1,0,0,3" />
-                            <TextBox KeyDown="EditBox_KeyDown" Text="{Binding DimensionBar.TextHeightText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+</StackPanel>
+<StackPanel VerticalAlignment="Center" Margin="4,0,6,0" Width="90">
+<TextBlock Text="Text height" Foreground="{StaticResource DimTextBrush}" FontSize="11" Margin="1,0,0,3" />
+<TextBox KeyDown="EditBox_KeyDown" Text="{Binding DimensionBar.TextHeightText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                                      ToolTip="Text height of this style, in drawing units. Arrows and gaps change in proportion, for every dimension of the style." />
-                        </StackPanel>
-                        <StackPanel VerticalAlignment="Center" Margin="0,0,10,0" Width="90">
-                            <TextBlock Text="Ends" Foreground="{StaticResource DimTextBrush}" FontSize="11" Margin="1,0,0,3" />
-                            <ComboBox DropDownClosed="PropertyCombo_DropDownClosed" ItemsSource="{Binding DimensionBar.ArrowNames}"
+</StackPanel>
+<StackPanel VerticalAlignment="Center" Margin="4,0,6,0" Width="90">
+<TextBlock Text="Ends" Foreground="{StaticResource DimTextBrush}" FontSize="11" Margin="1,0,0,3" />
+<ComboBox DropDownClosed="PropertyCombo_DropDownClosed" ItemsSource="{Binding DimensionBar.ArrowNames}"
                                       SelectedItem="{Binding DimensionBar.SelectedArrow, Mode=TwoWay}"
                                       ToolTip="What is drawn at the ends of the dimension line, for every dimension of this style." />
-                        </StackPanel>
-                    </StackPanel>
-                </StackPanel>
-            </TabItem>
-            <TabItem Header="DRAWING COPY">
-                <StackPanel Orientation="Horizontal" Margin="6,0">
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconCopyPdf}" Content="Copy from PDF" Command="{Binding RunCommandCommand}" CommandParameter="COPYPDF" ToolTip="COPYPDF (PDF): open a PDF drawing, choose a page, check its scale and layers, and place it as editable lines, polylines, arcs, circles and text. Works on PDFs that hold real line work (drawings exported from CAD); a scanned page is a picture and cannot be copied yet." />
-                    <Border Width="1" Margin="6,6" Background="{StaticResource BorderBrush}" />
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconCalibrate}" Content="Calibrate" Command="{Binding RunCommandCommand}" CommandParameter="CALIBRATE" ToolTip="CALIBRATE (CAL): give the copied drawing (or the selected objects) its true size - click the two ends of a length you know and type that length. The correction is remembered for that PDF page." />
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconCleanup}" Content="Clean Up" Command="{Binding RunCommandCommand}" CommandParameter="CLEANUP" ToolTip="CLEANUP (CLEAN): tidy the selected lines - make near-horizontal and near-vertical lines exact, remove doubled lines, merge pieces lying on one line, join lines that meet into polylines. Nothing moves further than the tolerance you type." />
-                    <Border Width="1" Margin="6,6" Background="{StaticResource BorderBrush}" />
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconMove}" Content="Move" Command="{Binding RunCommandCommand}" CommandParameter="MOVE" ToolTip="MOVE (M): put the copied drawing somewhere else (it is still selected after placing)" />
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconUndo}" Content="Undo Copy" Command="{Binding UndoCommand}" ToolTip="Undo (Ctrl+Z): takes the whole copy back in one step, with the layers it made" />
-                </StackPanel>
-            </TabItem>
-            <TabItem Header="LAYERS">
-                <StackPanel Orientation="Horizontal" Margin="6,0">
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconLayers}" Content="Layers" Command="{Binding RunCommandCommand}" CommandParameter="LAYER" ToolTip="LAYER (LA): open the layer table (on/off, freeze, lock, name, colour, lineweight)" />
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconLayers}" Content="New Layer" Command="{Binding AddLayerCommand}" ToolTip="Create a layer" />
-                    <Border Width="1" Margin="6,6" Background="{StaticResource BorderBrush}" />
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconLinetype}" Content="Linetype" Command="{Binding RunCommandCommand}" CommandParameter="LINETYPE" ToolTip="LINETYPE (LT): Linetype Manager - see every linetype, build your own with sliders, edit or delete" />
-                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconLinetype}" Content="LT Scale" Command="{Binding RunCommandCommand}" CommandParameter="LTSCALE" ToolTip="LTSCALE (LTS): make every dash and gap in the drawing longer or shorter" />
-                    <StackPanel VerticalAlignment="Center" Margin="14,0,0,0">
-                        <TextBlock Text="Current layer" Foreground="{StaticResource DimTextBrush}" FontSize="11" />
-                        <TextBlock Text="{Binding CurrentLayerName}" FontWeight="SemiBold" FontSize="14" Margin="0,2,0,0" />
-                    </StackPanel>
-                </StackPanel>
-            </TabItem>
+</StackPanel>
+</StackPanel>
+</HeaderedContentControl>
+<HeaderedContentControl Style="{StaticResource RibbonGroup}" Header="Grid Lines">
+<StackPanel Orientation="Horizontal">
+<Button Style="{StaticResource RibbonLargeButton}" Tag="{StaticResource IconGridLines}" Content="Grid Lines" Command="{Binding RunCommandCommand}" CommandParameter="GRIDLINES" ToolTip="GRIDLINES (GL): grid line wizard - a rectangular or a sector grid with labels, on its own layer" />
+<Button Style="{StaticResource RibbonLargeButton}" Tag="{StaticResource IconGridAdd}" Content="Add Grid Line" Command="{Binding RunCommandCommand}" CommandParameter="GRIDADD" ToolTip="GRIDADD (GA): one more grid line beside an existing one - between two lines or past either end" />
+</StackPanel>
+</HeaderedContentControl>
+</StackPanel>
+</ScrollViewer>
+</TabItem>
+<TabItem Header="INSERT" PreviewMouseLeftButtonDown="RibbonTab_Click">
+<ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled" Focusable="False">
+<StackPanel Orientation="Horizontal" Margin="2,0">
+<HeaderedContentControl Style="{StaticResource RibbonGroup}" Header="Block">
+<StackPanel Orientation="Horizontal">
+<Button Style="{StaticResource RibbonLargeButton}" Tag="{StaticResource IconBlockLibrary}" Content="Block Library" Command="{Binding RunCommandCommand}" CommandParameter="INSERT" ToolTip="INSERT (I): the blocks of this drawing, your own library and the HAQQ library (furniture, bedroom, plumbing, kitchen, doors). Choose one and click where it goes." />
+<Button Style="{StaticResource RibbonLargeButton}" Tag="{StaticResource IconBlockMake}" Content="Make Block" Command="{Binding RunCommandCommand}" CommandParameter="BLOCK" ToolTip="BLOCK (B): turn the selected objects into one block - select them, click the base point, type a name. EXPLODE (X) turns a block back into objects." />
+</StackPanel>
+</HeaderedContentControl>
+<HeaderedContentControl Style="{StaticResource RibbonGroup}" Header="Drawing Copy">
+<StackPanel Orientation="Horizontal">
+<Button Style="{StaticResource RibbonLargeButton}" Tag="{StaticResource IconCopyPdf}" Content="Copy from PDF" Command="{Binding RunCommandCommand}" CommandParameter="COPYPDF" ToolTip="COPYPDF (PDF): open a PDF drawing, choose a page, check its scale and layers, and place it as editable lines, polylines, arcs, circles and text. Works on PDFs that hold real line work (drawings exported from CAD); a scanned page is a picture and cannot be copied yet." />
+<Button Style="{StaticResource RibbonLargeButton}" Tag="{StaticResource IconCalibrate}" Content="Calibrate" Command="{Binding RunCommandCommand}" CommandParameter="CALIBRATE" ToolTip="CALIBRATE (CAL): give the copied drawing (or the selected objects) its true size - click the two ends of a length you know and type that length. The correction is remembered for that PDF page." />
+<Button Style="{StaticResource RibbonLargeButton}" Tag="{StaticResource IconCleanup}" Content="Clean Up" Command="{Binding RunCommandCommand}" CommandParameter="CLEANUP" ToolTip="CLEANUP (CLEAN): tidy the selected lines - make near-horizontal and near-vertical lines exact, remove doubled lines, merge pieces lying on one line, join lines that meet into polylines. Nothing moves further than the tolerance you type." />
+<Button Style="{StaticResource RibbonLargeButton}" Tag="{StaticResource IconMove}" Content="Move" Command="{Binding RunCommandCommand}" CommandParameter="MOVE" ToolTip="MOVE (M): put the copied drawing somewhere else (it is still selected after placing)" />
+<Button Style="{StaticResource RibbonLargeButton}" Tag="{StaticResource IconUndo}" Content="Undo Copy" Command="{Binding UndoCommand}" ToolTip="Undo (Ctrl+Z): takes the whole copy back in one step, with the layers it made" />
+</StackPanel>
+</HeaderedContentControl>
+</StackPanel>
+</ScrollViewer>
+</TabItem>
         </TabControl>
+        <!-- Always at hand, whatever tab is open: undo, redo, zoom, pan, and the switch that folds the ribbon away -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,2,6,0">
+<Button Style="{StaticResource RibbonIconButton}" Tag="{StaticResource IconUndo}" Content="Undo" Command="{Binding UndoCommand}" ToolTip="Undo (Ctrl+Z)" />
+<Button Style="{StaticResource RibbonIconButton}" Tag="{StaticResource IconRedo}" Content="Redo" Command="{Binding RedoCommand}" ToolTip="Redo (Ctrl+Y)" />
+<Border Width="1" Margin="5,4" Background="{StaticResource BorderBrush}" />
+<Button Style="{StaticResource RibbonIconButton}" Tag="{StaticResource IconZoomGlass}" Content="Zoom &#x25BE;" Click="RibbonMenuButton_Click" ToolTip="ZOOM (Z): All, Window, Center, In, Out. The wheel zooms and a double-click on the wheel shows everything.">
+                        <Button.ContextMenu>
+                            <ContextMenu>
+                                <MenuItem Header="All (the whole drawing)" Tag="ZOOM A" Click="RibbonMenuItem_Click" />
+                                <MenuItem Header="Window" Tag="ZOOM W" Click="RibbonMenuItem_Click" />
+                                <MenuItem Header="Center" Tag="ZOOM C" Click="RibbonMenuItem_Click" />
+                                <Separator />
+                                <MenuItem Header="In" Tag="ZOOM I" Click="RibbonMenuItem_Click" />
+                                <MenuItem Header="Out" Tag="ZOOM O" Click="RibbonMenuItem_Click" />
+                            </ContextMenu>
+                        </Button.ContextMenu>
+                    </Button>
+<Button Style="{StaticResource RibbonIconButton}" Tag="{StaticResource IconPan}" Content="Pan" Command="{Binding RunCommandCommand}" CommandParameter="PAN" ToolTip="PAN (P): hold the left button and drag to move the view; Enter or Esc to finish. The middle button pans at any time." />
+<Border Width="1" Margin="5,4" Background="{StaticResource BorderBrush}" />
+<Button x:Name="RibbonFoldButton" Style="{StaticResource RibbonIconButton}" Tag="{StaticResource IconRibbonFold}" Click="RibbonFold_Click" ToolTip="Fold the ribbon away to give the drawing more room; click again (or any tab) to bring it back" />
+        </StackPanel>
 
         <!-- ============================ Work area ============================ -->
         <Grid Grid.Row="1">
@@ -531,7 +548,7 @@
                 <ToggleButton DockPanel.Dock="Left" Style="{StaticResource StatusToggle}" Content="ORTHO" IsChecked="{Binding OrthoOn, Mode=TwoWay}" ToolTip="Restrict to horizontal / vertical (F8)" />
                 <ToggleButton DockPanel.Dock="Left" Style="{StaticResource StatusToggle}" Content="POLAR" IsChecked="{Binding PolarOn, Mode=TwoWay}" ToolTip="Polar tracking: lock onto horizontal and vertical when the cursor is close to them (F10)" />
                 <ToggleButton DockPanel.Dock="Left" Style="{StaticResource StatusToggle}" Content="OTRACK" IsChecked="{Binding TrackOn, Mode=TwoWay}" ToolTip="Object snap tracking (F11): hover over a snap point without clicking, then move away from it; the cursor locks onto a line through that point. Needs OSNAP on." />
-                <ToggleButton DockPanel.Dock="Left" Style="{StaticResource StatusToggle}" Content="GRID" IsChecked="{Binding GridOn, Mode=TwoWay}" ToolTip="Show the background grid (F7). To change its spacing: FILE tab, Grid Spacing (or type GRID)." />
+                <ToggleButton DockPanel.Dock="Left" Style="{StaticResource StatusToggle}" Content="GRID" IsChecked="{Binding GridOn, Mode=TwoWay}" ToolTip="Show the background grid (F7). To change its spacing: FILE tab &gt; Grid Spacing (or type GRID)." />
                 <Border DockPanel.Dock="Left" Margin="8,0,2,0" Padding="9,2" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="2"
                         ToolTip="Where you are working: MODEL (the drawing at real size), PAPER (a sheet), or inside a viewport of the sheet (the wheel and middle button then move the model in it; double-click outside or Esc to leave)">
                     <TextBlock Text="{Binding SpaceLabel}" FontWeight="SemiBold" />
