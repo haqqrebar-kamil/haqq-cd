@@ -39,6 +39,9 @@ public partial class MainWindow : Window
         _viewModel.DimensionStylesRequested += (_, _) => Dispatcher.BeginInvoke(new Action(ShowDimensionStyles));
         _viewModel.GridLinesRequested += (_, _) => Dispatcher.BeginInvoke(new Action(ShowGridWizard));
         _viewModel.PlotRequested += (_, _) => Dispatcher.BeginInvoke(new Action(ShowPlot));
+        _viewModel.BlockLibraryRequested += (_, _) => Dispatcher.BeginInvoke(new Action(ShowBlockLibrary));
+        _viewModel.TextEditorRequested += id => Dispatcher.BeginInvoke(new Action(() => ShowTextEditor(id)));
+        _viewModel.TableEditorRequested += id => Dispatcher.BeginInvoke(new Action(() => ShowTableEditor(id)));
         // Scroll after the list itself has taken in the new line. Scrolling from inside the change
         // notification forces a layout while the list is still one line behind, which WPF rejects.
         _viewModel.History.CollectionChanged += (_, _) =>
@@ -188,7 +191,7 @@ public partial class MainWindow : Window
 
     private GridLength _propertiesWidth = new(270);
 
-    /// <summary>Click on the strip at the right edge: folds the Properties panel away, or brings it back.</summary>
+    /// <summary>Click on the strip at the left edge: folds the Properties panel away, or brings it back.</summary>
     private void PropertiesToggle_Click(object sender, MouseButtonEventArgs e)
     {
         bool hide = PropertiesPanel.Visibility == Visibility.Visible;
@@ -213,7 +216,7 @@ public partial class MainWindow : Window
         }
         PropertiesPanel.Visibility = hide ? Visibility.Collapsed : Visibility.Visible;
         PropertiesSplitter.Visibility = hide ? Visibility.Collapsed : Visibility.Visible;
-        PropertiesToggleArrow.Text = hide ? "\u00AB" : "\u00BB";
+        PropertiesToggleArrow.Text = hide ? "\u00BB" : "\u00AB";     // the panel is at the left: the arrow points the way it will go
         PropertiesToggleLabel.Visibility = hide ? Visibility.Visible : Visibility.Collapsed;
     }
 
@@ -253,6 +256,76 @@ public partial class MainWindow : Window
         _layersWindow = new LayersWindow(_viewModel) { Owner = this };
         _layersWindow.Closed += (_, _) => _layersWindow = null;
         _layersWindow.Show();
+    }
+
+    private bool _annotationOpen;
+    private IReadOnlyList<string>? _fontNames;
+
+    /// <summary>The names of the fonts installed on this computer, read once.</summary>
+    private IReadOnlyList<string> FontNames
+    {
+        get
+        {
+            if (_fontNames is not null) return _fontNames;
+            try
+            {
+                _fontNames = System.Windows.Media.Fonts.SystemFontFamilies.Select(f => f.Source).Where(n => !string.IsNullOrWhiteSpace(n)).ToList();
+            }
+            catch (Exception)
+            {
+                _fontNames = Array.Empty<string>();     // the windows then offer a short list of usual fonts
+            }
+            return _fontNames;
+        }
+    }
+
+    /// <summary>Shows the Text window: for a new text, or for the text with this id.</summary>
+    private void ShowTextEditor(Guid? id)
+    {
+        if (_annotationOpen) return;
+        _annotationOpen = true;
+        try
+        {
+            new TextEditorWindow(new TextEditorViewModel(_viewModel.Session, id, FontNames)) { Owner = this }.ShowDialog();
+        }
+        finally
+        {
+            _annotationOpen = false;
+            DrawingCanvas.Focus();
+        }
+    }
+
+    /// <summary>Shows the Table window: for a new table, or for the table with this id.</summary>
+    private void ShowTableEditor(Guid? id)
+    {
+        if (_annotationOpen) return;
+        _annotationOpen = true;
+        try
+        {
+            new TableWindow(new TableEditorViewModel(_viewModel.Session, id, FontNames)) { Owner = this }.ShowDialog();
+        }
+        finally
+        {
+            _annotationOpen = false;
+            DrawingCanvas.Focus();
+        }
+    }
+
+    /// <summary>Shows the block library as a dialog over the drawing.</summary>
+    private void ShowBlockLibrary()
+    {
+        if (_annotationOpen) return;
+        _annotationOpen = true;
+        try
+        {
+            var store = new HAQQ.CAD.Documents.BlockLibraryStore(HAQQ.CAD.Documents.BlockLibraryStore.DefaultFolder);
+            new BlocksWindow(new BlockLibraryViewModel(_viewModel.Session, store)) { Owner = this }.ShowDialog();
+        }
+        finally
+        {
+            _annotationOpen = false;
+            DrawingCanvas.Focus();
+        }
     }
 
     private bool _plotOpen;

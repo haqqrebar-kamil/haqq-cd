@@ -12,6 +12,9 @@ public partial class App : Application
         AppDomain.CurrentDomain.UnhandledException += (_, args) => WriteLog(args.ExceptionObject as Exception);
         base.OnStartup(e);
 
+        // Text is measured with the fonts of this computer, so that picking and zooming go by its real width.
+        HAQQ.CAD.Core.TextMeasure.WidthPerHeight = WpfRenderSurface.MeasureWidthPerHeight;
+
         // The same program file doubles as its installer: a copy named HAQQ-CAD-Setup-*.exe installs
         // itself for the current Windows user, starts the installed copy and exits.
         if (SelfInstaller.IsSetupFile(Environment.ProcessPath))

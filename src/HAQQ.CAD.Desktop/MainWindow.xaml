@@ -221,6 +221,13 @@
                     <Border Width="1" Margin="6,6" Background="{StaticResource BorderBrush}" />
                     <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconGridLines}" Content="Grid Lines" Command="{Binding RunCommandCommand}" CommandParameter="GRIDLINES" ToolTip="GRIDLINES (GL): grid line wizard - a rectangular or a sector grid with labels, on its own layer" />
                     <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconGridAdd}" Content="Add Grid Line" Command="{Binding RunCommandCommand}" CommandParameter="GRIDADD" ToolTip="GRIDADD (GA): one more grid line beside an existing one - between two lines or past either end" />
+                    <Border Width="1" Margin="6,6" Background="{StaticResource BorderBrush}" />
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconText}" Content="Text" Command="{Binding RunCommandCommand}" CommandParameter="TEXT" ToolTip="TEXT (T): words in a font with height, bold, italic, underline and angle; one line or several. Then click where it goes. Double-click a text to edit it." />
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconTable}" Content="Table" Command="{Binding RunCommandCommand}" CommandParameter="TABLE" ToolTip="TABLE (TB): rows and columns with a title and a header row. Fill it in, then click where it goes. Double-click a table to edit it." />
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconTextEdit}" Content="Edit Text" Command="{Binding RunCommandCommand}" CommandParameter="TEXTEDIT" ToolTip="TEXTEDIT (ED): click a text or a table to change it (the same as a double-click on it)" />
+                    <Border Width="1" Margin="6,6" Background="{StaticResource BorderBrush}" />
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconBlockMake}" Content="Make Block" Command="{Binding RunCommandCommand}" CommandParameter="BLOCK" ToolTip="BLOCK (B): turn the selected objects into one block - select them, click the base point, type a name. EXPLODE (X) turns a block back into objects." />
+                    <Button Style="{StaticResource RibbonButton}" Tag="{StaticResource IconBlockLibrary}" Content="Block Library" Command="{Binding RunCommandCommand}" CommandParameter="INSERT" ToolTip="INSERT (I): the blocks of this drawing, your own library and the HAQQ library (furniture, bedroom, plumbing, kitchen, doors). Choose one and click where it goes." />
                 </StackPanel>
             </TabItem>
             <TabItem Header="MODIFY">
@@ -313,15 +320,16 @@
 
         <!-- ============================ Work area ============================ -->
         <Grid Grid.Row="1">
+            <!-- Properties are at the left (owner's request, 18 Nov); the right side is kept for the assistant panel. -->
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="4" />
-                <ColumnDefinition x:Name="PropertiesColumn" Width="270" MinWidth="170" />
                 <ColumnDefinition Width="Auto" />
+                <ColumnDefinition x:Name="PropertiesColumn" Width="270" MinWidth="170" />
+                <ColumnDefinition Width="4" />
+                <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
             <!-- Centre: the CAD canvas -->
-            <Grid Grid.Column="0">
+            <Grid Grid.Column="3">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="*" />
                     <RowDefinition Height="Auto" />
@@ -353,14 +361,14 @@
                 </Border>
             </Grid>
 
-            <GridSplitter x:Name="PropertiesSplitter" Grid.Column="1" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Focusable="False" />
+            <GridSplitter x:Name="PropertiesSplitter" Grid.Column="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Focusable="False" />
 
-            <!-- Right edge: strip that folds the properties panel away to the right and brings it back -->
-            <Border Grid.Column="3" Width="18" Background="{StaticResource PanelAltBrush}" BorderBrush="{StaticResource BorderBrush}"
-                    BorderThickness="1,0,0,0" Cursor="Hand" MouseLeftButtonDown="PropertiesToggle_Click"
+            <!-- Left edge: strip that folds the properties panel away to the left and brings it back -->
+            <Border Grid.Column="0" Width="18" Background="{StaticResource PanelAltBrush}" BorderBrush="{StaticResource BorderBrush}"
+                    BorderThickness="0,0,1,0" Cursor="Hand" MouseLeftButtonDown="PropertiesToggle_Click"
                     ToolTip="Hide or show the Properties panel">
                 <StackPanel VerticalAlignment="Top" Margin="0,8,0,0">
-                    <TextBlock x:Name="PropertiesToggleArrow" Text="&#x00BB;" FontSize="14" FontWeight="Bold" HorizontalAlignment="Center"
+                    <TextBlock x:Name="PropertiesToggleArrow" Text="&#x00AB;" FontSize="14" FontWeight="Bold" HorizontalAlignment="Center"
                                Foreground="{StaticResource TextBrush}" />
                     <TextBlock x:Name="PropertiesToggleLabel" Text="PROPERTIES" Visibility="Collapsed" Margin="0,10,0,0" FontSize="10"
                                HorizontalAlignment="Center" Foreground="{StaticResource DimTextBrush}">
@@ -371,8 +379,8 @@
                 </StackPanel>
             </Border>
 
-            <!-- Right panel: properties -->
-            <Border x:Name="PropertiesPanel" Grid.Column="2" Background="{StaticResource PanelBrush}">
+            <!-- Left panel: properties -->
+            <Border x:Name="PropertiesPanel" Grid.Column="1" Background="{StaticResource PanelBrush}">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />

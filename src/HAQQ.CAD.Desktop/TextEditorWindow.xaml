@@ -1,0 +1,65 @@
+<Window x:Class="HAQQ.CAD.Desktop.TextEditorWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="{Binding WindowTitle}"
+        Width="720" Height="460" MinWidth="560" MinHeight="320"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False"
+        Background="{StaticResource PanelBrush}"
+        Foreground="{StaticResource TextBrush}"
+        FontFamily="Segoe UI" FontSize="12"
+        UseLayoutRounding="True">
+    <Grid Margin="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- Font, height and angle -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal">
+            <StackPanel Width="210" Margin="0,0,10,0">
+                <TextBlock Text="Font" Foreground="{StaticResource DimTextBrush}" FontSize="11" Margin="1,0,0,3" />
+                <ComboBox ItemsSource="{Binding Fonts}" SelectedItem="{Binding Font, Mode=TwoWay}" ToolTip="The fonts installed on this computer" />
+            </StackPanel>
+            <StackPanel Width="100" Margin="0,0,10,0">
+                <TextBlock Text="Letter height" Foreground="{StaticResource DimTextBrush}" FontSize="11" Margin="1,0,0,3" />
+                <TextBox Text="{Binding HeightText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                         ToolTip="Height of a capital letter, in drawing units (1/8&quot;, 3, 2.5 ...). On a layout this is the printed height." />
+            </StackPanel>
+            <StackPanel Width="110" Margin="0,0,10,0">
+                <TextBlock Text="Text is" Foreground="{StaticResource DimTextBrush}" FontSize="11" Margin="1,0,0,3" />
+                <ComboBox ItemsSource="{Binding JustifyNames}" SelectedItem="{Binding Justify, Mode=TwoWay}"
+                          ToolTip="Left: the text starts at the point you click. Center: it is centred on it. Right: it ends there." />
+            </StackPanel>
+            <StackPanel Width="80">
+                <TextBlock Text="Angle" Foreground="{StaticResource DimTextBrush}" FontSize="11" Margin="1,0,0,3" />
+                <TextBox Text="{Binding RotationText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                         ToolTip="Degrees, counter-clockwise. 0 reads left to right, 90 reads upwards." />
+            </StackPanel>
+        </StackPanel>
+
+        <!-- Bold, italic, underline -->
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,10,0,8">
+            <CheckBox Content="Bold" FontWeight="Bold" IsChecked="{Binding Bold, Mode=TwoWay}" Margin="0,0,18,0" />
+            <CheckBox Content="Italic" FontStyle="Italic" IsChecked="{Binding Italic, Mode=TwoWay}" Margin="0,0,18,0" />
+            <CheckBox Content="Underline" IsChecked="{Binding Underline, Mode=TwoWay}" />
+            <TextBlock Margin="24,0,0,0" VerticalAlignment="Center" Foreground="{StaticResource DimTextBrush}"
+                       Text="Enter starts a new line. The box shows the font and style, not the real size." />
+        </StackPanel>
+
+        <!-- The words -->
+        <TextBox x:Name="WordsBox" Grid.Row="2" AcceptsReturn="True" TextWrapping="NoWrap" FontSize="18"
+                 VerticalContentAlignment="Top" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"
+                 Text="{Binding Text, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+
+        <TextBlock Grid.Row="3" Margin="0,8,0,0" Foreground="{StaticResource AccentBrush}" TextWrapping="Wrap" Text="{Binding Message}" />
+
+        <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
+            <Button Style="{StaticResource PanelButton}" Content="{Binding CommitLabel}" Click="Commit_Click" />
+            <Button Style="{StaticResource PanelButton}" Content="Cancel" Click="Cancel_Click" />
+        </StackPanel>
+    </Grid>
+</Window>

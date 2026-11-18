@@ -588,9 +588,11 @@ public sealed class ExplodeCommand : SelectionCommandBase
     protected override CommandResult OnSelectionReady()
     {
         var polylines = Session.GetSelectedEntities().OfType<PolylineEntity>().ToList();
+        var blocks = Session.GetSelectedEntities().OfType<BlockReferenceEntity>().ToList();
+        if (blocks.Count > 0) return ExplodeBlocks(blocks, polylines.Count);
         if (polylines.Count == 0)
         {
-            Session.Post("Nothing to explode: select one or more polylines (rectangles are polylines).");
+            Session.Post("Nothing to explode: select polylines (rectangles are polylines) or blocks.");
             return CommandResult.Finished;
         }
 
@@ -620,6 +622,29 @@ public sealed class ExplodeCommand : SelectionCommandBase
         {
             Session.ClearSelection();
             Session.Post($"{polylines.Count} polyline(s) exploded into {parts.Count} object(s).");
+        }
+        return CommandResult.Finished;
+    }
+
+    /// <summary>Blocks back into their objects, on the layer of each block. Polylines in the same selection wait for a second EXPLODE.</summary>
+    private CommandResult ExplodeBlocks(List<BlockReferenceEntity> blocks, int polylinesLeft)
+    {
+        var parts = new List<Entity>();
+        foreach (var block in blocks)
+            foreach (var inner in block.Resolved)
+            {
+                var part = inner.CopyWithNewId();
+                part.LayerId = block.LayerId;
+                part.SpaceId = block.SpaceId;
+                parts.Add(part);
+            }
+
+        if (Session.Execute(new CompositeAction("EXPLODE",
+                new RemoveEntitiesAction("EXPLODE", blocks.Select(b => b.Id).ToList()),
+                new AddEntitiesAction("EXPLODE", parts))))
+        {
+            Session.ClearSelection();
+            Session.Post($"{blocks.Count} block(s) exploded into {parts.Count} object(s)." + (polylinesLeft > 0 ? " The polylines were left: EXPLODE again for those." : ""));
         }
         return CommandResult.Finished;
     }

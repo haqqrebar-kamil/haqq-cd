@@ -370,8 +370,9 @@ public sealed class PropertiesViewModel : ObservableObject
 
         var entity = entities[0];
         Guid id = entity.Id;
-        Header = Capitalize(entity.TypeName);
-        Rows.Add(new PropertyRow("Type", Capitalize(entity.TypeName)));
+        string kind = entity is BlockReferenceEntity ? "Block" : Capitalize(entity.TypeName);
+        Header = kind;
+        Rows.Add(new PropertyRow("Type", kind));
         Rows.Add(LinetypeScaleRow(entities));
 
         switch (entity)
@@ -440,11 +441,83 @@ public sealed class PropertiesViewModel : ObservableObject
                 break;
 
             case TextEntity label:
-                Rows.Add(Editable("Text", label.Text, text =>
-                    _session.ModifyEntities(new[] { id }, e => ((TextEntity)e).Text = text.Trim(), "Edit text")));
+            {
+                bool YesNo(string text, out bool value)
+                {
+                    string t = text.Trim();
+                    value = t.StartsWith("y", StringComparison.OrdinalIgnoreCase) || t == "1" || t.Equals("on", StringComparison.OrdinalIgnoreCase);
+                    bool no = t.StartsWith("n", StringComparison.OrdinalIgnoreCase) || t == "0" || t.Equals("off", StringComparison.OrdinalIgnoreCase);
+                    if (value || no) return true;
+                    _session.Post("Type Yes or No.");
+                    return false;
+                }
+                PropertyRow Flag(string name, bool current, Action<TextEntity, bool> apply) => Editable(name, current ? "Yes" : "No", text =>
+                    YesNo(text, out bool value) && _session.ModifyEntities(new[] { id }, e => apply((TextEntity)e, value), "Edit text"));
+
+                if (label.Lines.Count == 1)
+                    Rows.Add(Editable("Text", label.Text, text =>
+                        _session.ModifyEntities(new[] { id }, e => ((TextEntity)e).Text = text.Trim(), "Edit text")));
+                else
+                    Rows.Add(new PropertyRow("Text", $"{label.Lines.Count} lines (double-click the text to edit)"));
                 Rows.Add(Length("Height", label.Height, id, (e, v) => ((TextEntity)e).Height = v));
+                Rows.Add(Editable("Font", label.Font, text =>
+                    _session.ModifyEntities(new[] { id }, e => ((TextEntity)e).Font = text.Trim(), "Edit text")));
+                Rows.Add(Flag("Bold", label.Bold, (t, v) => t.Bold = v));
+                Rows.Add(Flag("Italic", label.Italic, (t, v) => t.Italic = v));
+                Rows.Add(Flag("Underline", label.Underline, (t, v) => t.Underline = v));
+                Rows.Add(Editable("Justify", label.Justify.ToString(), text =>
+                {
+                    if (Enum.TryParse(text.Trim(), ignoreCase: true, out TextJustify justify) && Enum.IsDefined(justify))
+                        return _session.ModifyEntities(new[] { id }, e => ((TextEntity)e).Justify = justify, "Edit text");
+                    _session.Post("Type Left, Center or Right.");
+                    return false;
+                }));
+                Rows.Add(Editable("Angle", (label.Angle * 180.0 / Math.PI).ToString("0.###", CultureInfo.InvariantCulture), text =>
+                {
+                    if (double.TryParse(text.Trim().TrimEnd('°'), NumberStyles.Float, CultureInfo.InvariantCulture, out double degrees) && double.IsFinite(degrees))
+                        return _session.ModifyEntities(new[] { id }, e => ((TextEntity)e).Angle = degrees * Math.PI / 180.0, "Edit text");
+                    _session.Post("Type the angle in degrees.");
+                    return false;
+                }));
                 Rows.Add(Length("Position X", label.Position.X, id, (e, v) => ((TextEntity)e).Position = new Point2D(v, ((TextEntity)e).Position.Y)));
                 Rows.Add(Length("Position Y", label.Position.Y, id, (e, v) => ((TextEntity)e).Position = new Point2D(((TextEntity)e).Position.X, v)));
+                break;
+            }
+
+            case BlockReferenceEntity block:
+                Rows.Add(new PropertyRow("Block", block.BlockName));
+                if (block.Definition.Description.Length > 0) Rows.Add(new PropertyRow("Is", block.Definition.Description));
+                Rows.Add(Editable("Scale", block.Scale.ToString("0.######", CultureInfo.InvariantCulture), text =>
+                {
+                    if (double.TryParse(text.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out double scale) && scale > 1e-6 && double.IsFinite(scale))
+                        return _session.ModifyEntities(new[] { id }, e => ((BlockReferenceEntity)e).Scale = scale, "Edit block");
+                    _session.Post("The scale must be a number more than 0.");
+                    return false;
+                }));
+                Rows.Add(Editable("Angle", (block.Rotation * 180.0 / Math.PI).ToString("0.###", CultureInfo.InvariantCulture), text =>
+                {
+                    if (double.TryParse(text.Trim().TrimEnd('°'), NumberStyles.Float, CultureInfo.InvariantCulture, out double degrees) && double.IsFinite(degrees))
+                        return _session.ModifyEntities(new[] { id }, e => ((BlockReferenceEntity)e).Rotation = degrees * Math.PI / 180.0, "Edit block");
+                    _session.Post("Type the angle in degrees.");
+                    return false;
+                }));
+                Rows.Add(Length("Position X", block.Position.X, id, (e, v) => ((BlockReferenceEntity)e).Position = new Point2D(v, ((BlockReferenceEntity)e).Position.Y)));
+                Rows.Add(Length("Position Y", block.Position.Y, id, (e, v) => ((BlockReferenceEntity)e).Position = new Point2D(((BlockReferenceEntity)e).Position.X, v)));
+                Rows.Add(new PropertyRow("Objects inside", block.Definition.Entities.Count.ToString(CultureInfo.InvariantCulture)));
+                break;
+
+            case TableEntity table:
+                Rows.Add(new PropertyRow("Size", $"{table.RowCount} rows x {table.ColumnCount} columns"));
+                Rows.Add(new PropertyRow("Cells", "Double-click the table to edit"));
+                Rows.Add(Editable("Title", table.Title, text =>
+                    _session.ModifyEntities(new[] { id }, e => ((TableEntity)e).Title = text.Trim(), "Edit table")));
+                Rows.Add(Length("Text height", table.TextHeight, id, (e, v) => ((TableEntity)e).TextHeight = v));
+                Rows.Add(Editable("Font", table.Font, text =>
+                    _session.ModifyEntities(new[] { id }, e => ((TableEntity)e).Font = text.Trim(), "Edit table")));
+                Rows.Add(new PropertyRow("Width", F(table.Width)));
+                Rows.Add(new PropertyRow("Height", F(table.Height)));
+                Rows.Add(Length("Position X", table.Position.X, id, (e, v) => ((TableEntity)e).Position = new Point2D(v, ((TableEntity)e).Position.Y)));
+                Rows.Add(Length("Position Y", table.Position.Y, id, (e, v) => ((TableEntity)e).Position = new Point2D(((TableEntity)e).Position.X, v)));
                 break;
 
             case DimensionEntity dimension:

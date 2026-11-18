@@ -310,8 +310,8 @@ public class GridLineTests
         Assert.Single(surface.Lines);
         Assert.Equal(2, surface.Circles.Count);
         Assert.Equal(20.0, surface.Circles[0].R, 9);                               // 10 across at 4 pixels per unit
-        Assert.Equal(new[] { "A", "A", "NOTE" }, surface.Texts.Select(t => t.Text).OrderBy(t => t).ToArray());
-        Assert.Equal(20.0, surface.Texts.Single(t => t.Text == "NOTE").Height, 9);
+        Assert.Equal(new[] { "A", "A" }, surface.Texts.Select(t => t.Text).ToArray());
+        Assert.Equal(20.0, surface.StyledTexts.Single(t => t.Text == "NOTE").Height, 9);
     }
 
     [Fact]

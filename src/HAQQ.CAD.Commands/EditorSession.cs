@@ -244,7 +244,7 @@ public sealed class CommandRegistry
         r.Register("EXTEND", "Lengthen an object to meet another", () => new ExtendCommand(), "EX");
         r.Register("FILLET", "Round a corner between two lines", () => new FilletCommand(), "F");
         r.Register("CHAMFER", "Cut a corner between two lines", () => new ChamferCommand(), "CHA");
-        r.Register("EXPLODE", "Break a polyline into lines and arcs", () => new ExplodeCommand(), "X");
+        r.Register("EXPLODE", "Break a polyline into lines and arcs, or a block into its objects", () => new ExplodeCommand(), "X");
         r.Register("JOIN", "Join touching objects into a polyline", () => new JoinCommand(), "J");
         // Dimension
         r.Register("DIM", "Horizontal or vertical dimension", () => new LinearDimensionCommand(aligned: false), "DL", "DIMLIN");
@@ -269,6 +269,15 @@ public sealed class CommandRegistry
         r.Register("ZOOMIN", "Zoom in one step", () => new ZoomCommand("I"), "ZI");
         r.Register("ZOOMOUT", "Zoom out one step", () => new ZoomCommand("O"), "ZO");
         r.Register("PAN", "Move the view by dragging", () => new PanCommand(), "P");
+        // Blocks
+        r.Register("BLOCK", "Make a block from selected objects", () => new BlockCommand(), "B", "BMAKE");
+        r.Register("INSERT", "Block library: place a block of the drawing, of your library or of the HAQQ library", null, "I", "BLOCKS", "LIBRARY");
+        r.Register("-INSERT", "Place a block by typing its name", () => new TypedInsertCommand());
+        // Text and tables
+        r.Register("TEXT", "Text: words in a font, with height, bold, italic, underline and angle", null, "T", "MTEXT", "DTEXT");
+        r.Register("-TEXT", "One line of text typed on the command line", () => new TypedTextCommand());
+        r.Register("TABLE", "Table: rows and columns of text, with a title and a header", null, "TB");
+        r.Register("TEXTEDIT", "Edit a text or a table (also a double-click on it)", () => new EditAnnotationCommand(), "ED", "TABLEDIT");
         // Layouts and plotting
         r.Register("MODEL", "Go to the Model tab", null, "MS");
         r.Register("LAYOUT", "New layout (sheet) with a viewport", null, "LAYOUTNEW", "LO");
@@ -552,6 +561,7 @@ public sealed class EditorSession
         OffsetDistance = null;
         FilletRadius = 0;
         ChamferDistances = (0, 0);
+        _textDefaults = null;
         ActiveViewportId = null;
         _viewportBefore = null;
         LastDimensionId = null;
@@ -854,6 +864,18 @@ public sealed class EditorSession
             case "GRIDLINES":
                 Post("Command: GRIDLINES");
                 ViewCommandRequested?.Invoke("GridLines");
+                return true;
+            case "INSERT":
+                Post("Command: INSERT");
+                ViewCommandRequested?.Invoke("Blocks");
+                return true;
+            case "TEXT":
+                Post("Command: TEXT");
+                ViewCommandRequested?.Invoke("Text");
+                return true;
+            case "TABLE":
+                Post("Command: TABLE");
+                ViewCommandRequested?.Invoke("Table");
                 return true;
             case "MODEL":
                 SwitchSpace(Guid.Empty);
@@ -1231,6 +1253,154 @@ public sealed class EditorSession
 
     /// <summary>The dimension placed last in this session: DIMCHAIN and DIMSTACK carry on from it.</summary>
     public Guid? LastDimensionId { get; set; }
+
+    // ------------------------------------------------------- text and tables
+
+    private TextSettings? _textDefaults;
+
+    /// <summary>
+    /// How the next text is made. Until a text has been placed: the height of the current dimension style's
+    /// text, Arial, plain, starting at the point clicked.
+    /// </summary>
+    public TextSettings TextDefaults
+    {
+        get => _textDefaults ?? new TextSettings(Document.CurrentDimensionStyle.TextHeight, TextMeasure.DefaultFont, false, false, false, TextJustify.Left, 0);
+        set => _textDefaults = value;
+    }
+
+    /// <summary>A text at a point with the given settings.</summary>
+    public static TextEntity MakeText(Point2D position, string text, TextSettings settings) =>
+        new(position, settings.Height, text)
+        {
+            Font = settings.Font,
+            Bold = settings.Bold,
+            Italic = settings.Italic,
+            Underline = settings.Underline,
+            Justify = settings.Justify,
+            Angle = settings.AngleDegrees * Math.PI / 180.0,
+        };
+
+    /// <summary>A text or a table is to be opened for editing (a double-click on it, or TEXTEDIT).</summary>
+    public event Action<Guid>? ObjectEditRequested;
+
+    /// <summary>Asks the shell to open a text or a table for editing. False when it is something else or on a locked layer.</summary>
+    public bool RequestEdit(Guid id)
+    {
+        if (Document.GetEntity(id) is not { } entity || entity is not (TextEntity or TableEntity)) return false;
+        if (entity.SpaceId != Document.ActiveSpaceId) return false;
+        if (Document.GetLayer(entity.LayerId) is not { IsEditable: true }) { Post("That object is on a locked layer."); return false; }
+        ObjectEditRequested?.Invoke(id);
+        return true;
+    }
+
+    /// <summary>Starts placing a text by a click: it follows the cursor until its position is given.</summary>
+    public bool BeginTextPlacement(string text, TextSettings settings)
+    {
+        var sample = MakeText(Point2D.Origin, text, settings);
+        if (!sample.IsValid) { Post("That text cannot be used: it needs some words, a height more than 0 and a font."); return false; }
+        TextDefaults = settings;
+        if (ActiveCommand is not null) Cancel();
+        _lastCommandName = "TEXT";
+        ActiveCommand = new PlaceObjectCommand("TEXT", "Click where the text goes (or type coordinates):", at => MakeText(at, text, settings));
+        Complete(ActiveCommand.Start(this));
+        return true;
+    }
+
+    /// <summary>Changes the words and the look of a text; its position stays. One undo step.</summary>
+    public bool UpdateText(Guid id, string text, TextSettings settings)
+    {
+        if (Document.GetEntity(id) is not TextEntity) { Post("That text is no longer in the drawing."); return false; }
+        var edited = MakeText(Point2D.Origin, text, settings);
+        if (!ModifyEntities(new[] { id }, e => ((TextEntity)e).CopyContentFrom(edited), "Edit text")) return false;
+        TextDefaults = settings;
+        return true;
+    }
+
+    /// <summary>Starts placing a table by a click: its top-left corner follows the cursor.</summary>
+    public bool BeginTablePlacement(TableEntity table)
+    {
+        if (!table.IsValid) { Post("That table cannot be used: sizes must be more than 0."); return false; }
+        if (ActiveCommand is not null) Cancel();
+        _lastCommandName = "TABLE";
+        ActiveCommand = new PlaceObjectCommand("TABLE", "Click where the top-left corner of the table goes (or type coordinates):", at =>
+        {
+            var placed = (TableEntity)table.CopyWithNewId();
+            placed.Position = at;
+            return placed;
+        });
+        Complete(ActiveCommand.Start(this));
+        return true;
+    }
+
+    /// <summary>Replaces the cells, sizes and look of a table; its position stays. One undo step.</summary>
+    public bool UpdateTable(Guid id, TableEntity edited)
+    {
+        if (Document.GetEntity(id) is not TableEntity) { Post("That table is no longer in the drawing."); return false; }
+        return ModifyEntities(new[] { id }, e => ((TableEntity)e).CopyContentFrom(edited), "Edit table");
+    }
+
+    // ----------------------------------------------------------------- blocks
+
+    /// <summary>
+    /// Makes a block from objects of the drawing and puts the block in their place. Blocks among them are taken
+    /// apart first, so a block never holds another. One undo step.
+    /// </summary>
+    public bool CreateBlock(string name, Point2D basePoint, IReadOnlyList<Entity> sources)
+    {
+        name = (name ?? "").Trim();
+        if (!BlockDefinition.IsValidName(name)) { Post("A block name is 1 to 64 characters."); return false; }
+        if (Document.FindBlock(name) is not null) { Post($"There is already a block named \"{name}\". Type another name."); return false; }
+        if (StandardBlocks.All.Any(b => b.Name.Equals(name, StringComparison.OrdinalIgnoreCase))) { Post($"\"{name}\" is the name of a block in the HAQQ library. Type another name."); return false; }
+        var usable = sources.Where(e => e is not ViewportEntity && Document.GetLayer(e.LayerId) is { IsEditable: true }).ToList();
+        if (usable.Count == 0) { Post("Select the objects for the block first (objects on locked layers cannot be used)."); return false; }
+
+        var contents = new List<Entity>();
+        var toBase = Transform2D.Translation(new Vector2D(-basePoint.X, -basePoint.Y));
+        foreach (var source in usable)
+        {
+            foreach (var part in source is BlockReferenceEntity nested ? nested.Resolved : new[] { source })
+            {
+                var copy = part.Clone();
+                copy.Transform(toBase);
+                contents.Add(copy);
+            }
+        }
+        if (contents.Count > BlockDefinition.MaxEntities) { Post($"A block holds at most {BlockDefinition.MaxEntities} objects."); return false; }
+        var block = new BlockDefinition(name, contents);
+        if (!block.IsValid) { Post("Those objects cannot be made into a block."); return false; }
+
+        var reference = new BlockReferenceEntity(block, basePoint) { LayerId = usable[0].LayerId, SpaceId = Document.ActiveSpaceId };
+        if (!Execute(new CompositeAction("BLOCK",
+                new AddBlockAction(block),
+                new RemoveEntitiesAction("BLOCK", usable.Select(e => e.Id).ToList()),
+                new AddEntitiesAction("BLOCK", new Entity[] { reference })))) return false;
+        Selection.Clear();
+        Selection.Add(reference.Id);
+        Post($"Block \"{name}\" made from {contents.Count} object(s). INSERT places more of it.");
+        RaiseStateChanged();
+        return true;
+    }
+
+    /// <summary>Starts placing a block: one from the drawing, or one from a library that is brought in with its first use.</summary>
+    public bool BeginBlockInsert(BlockDefinition block, double scale, double rotationDegrees)
+    {
+        if (!block.IsValid || !(scale > 1e-6) || !double.IsFinite(scale) || !double.IsFinite(rotationDegrees)) { Post("That block cannot be placed."); return false; }
+        if (ActiveCommand is TypedInsertCommand) ActiveCommand = null;           // -INSERT hands over to the placing
+        else if (ActiveCommand is not null) Cancel();
+        _lastCommandName = "INSERT";
+        ActiveCommand = new InsertBlockCommand(block, scale, rotationDegrees);
+        Complete(ActiveCommand.Start(this));
+        return true;
+    }
+
+    /// <summary>Removes a block that is not placed anywhere in the drawing.</summary>
+    public bool DeleteBlock(string name)
+    {
+        if (Document.FindBlock(name) is not { } block) { Post($"There is no block named \"{name}\"."); return false; }
+        int used = Document.CountBlockReferences(block.Name);
+        if (used > 0) { Post($"Block \"{block.Name}\" is placed {used} time(s) in the drawing. Erase or explode those first."); return false; }
+        return Execute(new RemoveBlockAction(block.Name));
+    }
 
     // -------------------------------------------------- layouts and viewports
 

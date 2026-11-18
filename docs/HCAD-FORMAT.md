@@ -16,7 +16,7 @@ The reader and writer live in `src/HAQQ.CAD.Documents/HcadSerializer.cs`.
 ```json
 {
   "format": "HCAD",
-  "schemaVersion": 8,
+  "schemaVersion": 9,
   "minReaderVersion": 1,
   "generator": "HAQQ CAD 0.1.0",
   "recovery": { "originalPath": "C:\\Jobs\\footing.hcad", "savedUtc": "2026-11-14T06:30:00.000Z" },
@@ -220,3 +220,65 @@ Which tab was open is not saved: a drawing always opens on the model.
 Compatibility: a file that has at least one layout is written with `minReaderVersion` 8, because an older reader
 would show the objects of every sheet piled on the model. A file without layouts keeps the lower
 `minReaderVersion` and still opens in older versions. Files of schema 7 and earlier open unchanged.
+
+## Text with fonts, tables and blocks (schema 9)
+
+### Text
+
+Entity type `text` gained optional fields. A file without them (schema 7 and 8) reads as before: Arial, plain, centred.
+
+| Field | Meaning |
+|---|---|
+| `text` | The words. Lines are separated by a line feed (`\n`). At most 4000 characters and 200 lines |
+| `position` | The insertion point: the middle of the first line's height, at the left end, middle or right end of the lines |
+| `height` | Height of a capital letter |
+| `angle` | Radians, counter-clockwise |
+| `font` | Font family name ("Arial"). A reader without that font uses its default |
+| `bold`, `italic`, `underline` | true / false |
+| `justify` | `Left`, `Center` or `Right`: which point of the lines `position` is |
+
+The distance from one line to the next is 1.6 times `height`.
+
+### Table
+
+Entity type `table`. Always upright.
+
+| Field | Meaning |
+|---|---|
+| `position` | Top-left corner |
+| `textHeight` | Height of a capital letter in the cells |
+| `font` | Font family name |
+| `title` | Text across the full width above the columns; empty for none. The title row is 3 x `textHeight` high and its letters 1.25 x `textHeight` |
+| `headerRow` | true: the first row is drawn bold and centred |
+| `justify` | `Left`, `Center` or `Right` for the other cells |
+| `columnWidths` | One number per column (1 to 50) |
+| `rowHeights` | One number per row (1 to 200) |
+| `cells` | An array of rows, each an array of strings (at most 256 characters, one line). Missing cells are empty |
+
+### Blocks
+
+`document.blocks` is an array, always written:
+
+| Field | Meaning |
+|---|---|
+| `name` | 1 to 64 characters, unique without regard to case |
+| `description`, `category` | Free text; the category is the library group a block came from |
+| `entities` | The objects of the block, written like the drawing's entities, about the base point 0,0. Their `layerId` is the empty GUID (the contents take the layer of each place the block is inserted). A block does not contain `insert` or `viewport` entities |
+
+Entity type `insert` places a block:
+
+| Field | Meaning |
+|---|---|
+| `block` | Name of the block |
+| `position` | Where the block's base point is |
+| `scale` | Size against the block as made (same in both directions) |
+| `rotation` | Radians, counter-clockwise, about the base point |
+
+An `insert` whose block is not in the file is kept unmodified with the unsupported objects, with a warning.
+
+Compatibility: a file that has at least one block is written with `minReaderVersion` 9. A file with text or tables
+but no blocks and no layouts keeps the lower `minReaderVersion`: an older reader shows the text without its font
+and keeps the tables unmodified as unsupported objects.
+
+The user's block library is a folder of ordinary HCAD files, each holding one block in `document.blocks` and no
+entities; `units` says what unit the block was drawn in.

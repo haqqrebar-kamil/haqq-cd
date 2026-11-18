@@ -454,6 +454,10 @@ public sealed class CadCanvas : FrameworkElement
                 {
                     _windowStart = null;
                     _gripDown = null;
+                    // A text or a table opens for editing.
+                    var picked = _viewModel.Session.GetSelectedEntities();
+                    if (picked.Count == 1 && picked[0] is HAQQ.CAD.Core.TextEntity or HAQQ.CAD.Core.TableEntity)
+                        _viewModel.Session.RequestEdit(picked[0].Id);
                     break;
                 }
                 // On a layout: a double-click inside a viewport goes into it (the wheel and panning then move

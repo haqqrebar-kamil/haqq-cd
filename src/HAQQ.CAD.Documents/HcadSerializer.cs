@@ -40,7 +40,7 @@ public static class HcadSerializer
     public const string FormatName = "HCAD";
 
     /// <summary>Schema version written by this build.</summary>
-    public const int SchemaVersion = 8;
+    public const int SchemaVersion = 9;
 
     /// <summary>
     /// Oldest reader that can safely open files written by this build. A file whose
@@ -72,7 +72,9 @@ public static class HcadSerializer
         bool needsSchema3 = document.AllEntities.Any(e => e is PolylineEntity p && (p.HasArcs || p.HasWidths));
         // A reader that does not know layouts would show the objects of every sheet piled on the model.
         bool needsSchema8 = document.Layouts.Count > 0;
-        w.WriteNumber("minReaderVersion", needsSchema8 ? 8 : needsSchema3 ? 3 : MinReaderVersion);
+        // Without the block table a reader could not show, or keep, the places where blocks are used.
+        bool needsSchema9 = document.Blocks.Count > 0;
+        w.WriteNumber("minReaderVersion", needsSchema9 ? 9 : needsSchema8 ? 8 : needsSchema3 ? 3 : MinReaderVersion);
         w.WriteString("generator", Generator);
 
         if (recovery is not null)
@@ -167,6 +169,21 @@ public static class HcadSerializer
         }
         w.WriteEndArray();
 
+        // Blocks: each with its objects about the base point 0,0. Placed by entities of type "insert".
+        w.WriteStartArray("blocks");
+        foreach (var block in document.Blocks)
+        {
+            w.WriteStartObject();
+            w.WriteString("name", block.Name);
+            w.WriteString("description", block.Description);
+            w.WriteString("category", block.Category);
+            w.WriteStartArray("entities");
+            foreach (var inner in block.Entities) WriteEntity(w, inner);
+            w.WriteEndArray();
+            w.WriteEndObject();
+        }
+        w.WriteEndArray();
+
         w.WriteStartArray("entities");
         foreach (var entity in document.AllEntitiesOrdered) WriteEntity(w, entity);
         foreach (string raw in document.UnknownEntities) w.WriteRawValue(raw, skipInputValidation: false);
@@ -237,6 +254,39 @@ public static class HcadSerializer
                 w.WriteNumber("height", text.Height);
                 w.WriteNumber("angle", text.Angle);
                 w.WriteString("text", text.Text);
+                w.WriteString("font", text.Font);
+                w.WriteBoolean("bold", text.Bold);
+                w.WriteBoolean("italic", text.Italic);
+                w.WriteBoolean("underline", text.Underline);
+                w.WriteString("justify", text.Justify.ToString());
+                break;
+            case BlockReferenceEntity reference:
+                w.WriteString("block", reference.BlockName);
+                WritePoint(w, "position", reference.Position);
+                w.WriteNumber("scale", reference.Scale);
+                w.WriteNumber("rotation", reference.Rotation);
+                break;
+            case TableEntity table:
+                WritePoint(w, "position", table.Position);
+                w.WriteNumber("textHeight", table.TextHeight);
+                w.WriteString("font", table.Font);
+                w.WriteString("title", table.Title);
+                w.WriteBoolean("headerRow", table.HeaderRow);
+                w.WriteString("justify", table.Justify.ToString());
+                w.WriteStartArray("columnWidths");
+                foreach (double width in table.ColumnWidths) w.WriteNumberValue(width);
+                w.WriteEndArray();
+                w.WriteStartArray("rowHeights");
+                foreach (double height in table.RowHeights) w.WriteNumberValue(height);
+                w.WriteEndArray();
+                w.WriteStartArray("cells");
+                for (int r = 0; r < table.RowCount; r++)
+                {
+                    w.WriteStartArray();
+                    for (int c = 0; c < table.ColumnCount; c++) w.WriteStringValue(table.GetCell(r, c));
+                    w.WriteEndArray();
+                }
+                w.WriteEndArray();
                 break;
             case DimensionEntity dimension:
                 w.WriteString("kind", dimension.Kind.ToString());
@@ -519,6 +569,30 @@ public static class HcadSerializer
             }
         }
 
+        if (doc.TryGetProperty("blocks", out var blocks) && blocks.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var be in blocks.EnumerateArray())
+            {
+                string blockName = be.ValueKind == JsonValueKind.Object ? GetString(be, "name") : "";
+                try
+                {
+                    var contents = new List<Entity>();
+                    int skipped = 0;
+                    foreach (var ie in be.GetProperty("entities").EnumerateArray())
+                    {
+                        var inner = ie.ValueKind == JsonValueKind.Object ? ReadEntity(ie, GetString(ie, "type"), out _) : null;
+                        if (inner is null) skipped++; else contents.Add(inner);
+                    }
+                    if (skipped > 0) warnings.Add($"Block \"{blockName}\": {skipped} object(s) inside it could not be read and were left out.");
+                    document.AddBlock(new BlockDefinition(blockName, contents, GetString(be, "description"), GetString(be, "category")));
+                }
+                catch (Exception ex) when (ex is InvalidOperationException or FormatException or KeyNotFoundException)
+                {
+                    warnings.Add($"Block \"{blockName}\" could not be read and was skipped ({ex.Message})");
+                }
+            }
+        }
+
         // Entities
         if (doc.TryGetProperty("entities", out var entities) && entities.ValueKind == JsonValueKind.Array)
         {
@@ -531,7 +605,26 @@ public static class HcadSerializer
                 string? problem = null;
                 try
                 {
-                    entity = ReadEntity(ee, type, out problem);
+                    if (type == BlockReferenceEntity.Type)
+                    {
+                        // A place where a block is used: it needs the block from the table read above.
+                        if (document.FindBlock(GetString(ee, "block")) is not { } definition) problem = $"block \"{GetString(ee, "block")}\" is not in the file";
+                        else
+                        {
+                            var reference = new BlockReferenceEntity(ReadId(ee), definition, ReadPoint(ee.GetProperty("position")))
+                            {
+                                Scale = ee.TryGetProperty("scale", out var bs) && bs.ValueKind == JsonValueKind.Number ? bs.GetDouble() : 1.0,
+                                Rotation = ee.TryGetProperty("rotation", out var br) && br.ValueKind == JsonValueKind.Number ? br.GetDouble() : 0.0,
+                            };
+                            if (!reference.IsValid) problem = "invalid geometry";
+                            else
+                            {
+                                ReadCommon(ee, reference);
+                                entity = reference;
+                            }
+                        }
+                    }
+                    else entity = ReadEntity(ee, type, out problem);
                     if (entity is not null) entity.Linetype = document.CurrentLinetypeName(entity.Linetype);
                 }
                 catch (Exception ex) when (ex is InvalidOperationException or FormatException or KeyNotFoundException or ArgumentException)
@@ -621,8 +714,47 @@ public static class HcadSerializer
                 entity = new TextEntity(ReadId(e), ReadPoint(e.GetProperty("position")), e.GetProperty("height").GetDouble(), GetString(e, "text"))
                 {
                     Angle = e.TryGetProperty("angle", out var textAngle) && textAngle.ValueKind == JsonValueKind.Number ? textAngle.GetDouble() : 0,
+                    // Text written before schema 9 has no font and is centred on its position.
+                    Font = GetString(e, "font") is { Length: > 0 } textFont ? textFont : TextMeasure.DefaultFont,
+                    Bold = GetBool(e, "bold", false),
+                    Italic = GetBool(e, "italic", false),
+                    Underline = GetBool(e, "underline", false),
+                    Justify = Enum.TryParse(GetString(e, "justify"), ignoreCase: true, out TextJustify textJustify) && Enum.IsDefined(textJustify) ? textJustify : TextJustify.Center,
                 };
                 break;
+            case TableEntity.Type:
+            {
+                var widths = e.GetProperty("columnWidths").EnumerateArray().Select(v => v.GetDouble()).ToList();
+                var heights = e.GetProperty("rowHeights").EnumerateArray().Select(v => v.GetDouble()).ToList();
+                if (widths.Count < 1 || widths.Count > TableEntity.MaxColumns || heights.Count < 1 || heights.Count > TableEntity.MaxRows)
+                    throw new FormatException("a table needs 1 to 200 rows and 1 to 50 columns");
+                var table = new TableEntity(ReadId(e), ReadPoint(e.GetProperty("position")), heights.Count, widths.Count, 1, 1, e.GetProperty("textHeight").GetDouble())
+                {
+                    Font = GetString(e, "font") is { Length: > 0 } tableFont ? tableFont : TextMeasure.DefaultFont,
+                    Title = GetString(e, "title"),
+                    HeaderRow = GetBool(e, "headerRow", true),
+                    Justify = Enum.TryParse(GetString(e, "justify"), ignoreCase: true, out TextJustify tableJustify) && Enum.IsDefined(tableJustify) ? tableJustify : TextJustify.Left,
+                };
+                for (int c = 0; c < widths.Count; c++) table.SetColumnWidth(c, widths[c]);
+                for (int r = 0; r < heights.Count; r++) table.SetRowHeight(r, heights[r]);
+                if (e.TryGetProperty("cells", out var cellRows) && cellRows.ValueKind == JsonValueKind.Array)
+                {
+                    int r = 0;
+                    foreach (var cellRow in cellRows.EnumerateArray())
+                    {
+                        if (r >= heights.Count) break;
+                        int c = 0;
+                        foreach (var cell in cellRow.EnumerateArray())
+                        {
+                            if (c >= widths.Count) break;
+                            table.SetCell(r, c++, cell.ValueKind == JsonValueKind.String ? cell.GetString() : "");
+                        }
+                        r++;
+                    }
+                }
+                entity = table;
+                break;
+            }
             case DimensionEntity.Type:
                 if (!Enum.TryParse(GetString(e, "kind"), ignoreCase: true, out DimensionKind kind) || !Enum.IsDefined(kind))
                     throw new FormatException("unknown kind of dimension");
@@ -669,7 +801,13 @@ public static class HcadSerializer
         }
 
         if (!entity.IsValid) { problem = "invalid geometry"; return null; }
+        ReadCommon(e, entity);
+        return entity;
+    }
 
+    /// <summary>The properties every kind of object has: layer, colour, linetype, lineweight, group, space, custom properties.</summary>
+    private static void ReadCommon(JsonElement e, Entity entity)
+    {
         if (e.TryGetProperty("layerId", out var lid) && lid.TryGetGuid(out var layerId)) entity.LayerId = layerId;
         if (CadColor.TryParse(GetString(e, "color"), out var color)) entity.Color = color;
         string linetype = GetString(e, "linetype");
@@ -681,7 +819,6 @@ public static class HcadSerializer
         entity.SpaceId = e.TryGetProperty("space", out var space) && space.ValueKind == JsonValueKind.String && space.TryGetGuid(out var spaceId) ? spaceId : Guid.Empty;
         if (e.TryGetProperty("groupId", out var gid) && gid.ValueKind == JsonValueKind.String && gid.TryGetGuid(out var groupId)) entity.GroupId = groupId;
         ReadProperties(e, "properties", entity.CustomProperties);
-        return entity;
     }
 
     private static void WriteDimensionStyle(Utf8JsonWriter w, DimensionStyle style)

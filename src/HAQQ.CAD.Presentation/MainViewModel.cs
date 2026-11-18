@@ -72,6 +72,11 @@ public sealed class MainViewModel : ObservableObject
         Session.StateChanged += (_, _) => Refresh();
         Session.DocumentReplaced += (_, _) => ZoomExtentsRequested?.Invoke(this, EventArgs.Empty);
         Session.ViewChangeRequested += change => ViewChangeRequested?.Invoke(change);
+        Session.ObjectEditRequested += id =>
+        {
+            if (Session.Document.GetEntity(id) is TextEntity) TextEditorRequested?.Invoke(id);
+            else if (Session.Document.GetEntity(id) is TableEntity) TableEditorRequested?.Invoke(id);
+        };
         Session.ViewCommandRequested += name =>
         {
             if (name == "ZoomExtents") ZoomExtentsRequested?.Invoke(this, EventArgs.Empty);
@@ -82,6 +87,9 @@ public sealed class MainViewModel : ObservableObject
             if (name == "DimensionStyles") DimensionStylesRequested?.Invoke(this, EventArgs.Empty);
             if (name == "GridLines") GridLinesRequested?.Invoke(this, EventArgs.Empty);
             if (name == "Plot") PlotRequested?.Invoke(this, EventArgs.Empty);
+            if (name == "Blocks") BlockLibraryRequested?.Invoke(this, EventArgs.Empty);
+            if (name == "Text") TextEditorRequested?.Invoke(null);
+            if (name == "Table") TableEditorRequested?.Invoke(null);
         };
 
         RunCommandCommand = new RelayCommand(p => RunCommand(p as string ?? ""));
@@ -129,6 +137,15 @@ public sealed class MainViewModel : ObservableObject
 
     /// <summary>The dimension style strip of the ribbon.</summary>
     public DimensionBarViewModel DimensionBar { get; }
+
+    /// <summary>The INSERT command asked the shell to show the block library.</summary>
+    public event EventHandler? BlockLibraryRequested;
+
+    /// <summary>The Text window is wanted: for a new text (null) or to edit the text with this id.</summary>
+    public event Action<Guid?>? TextEditorRequested;
+
+    /// <summary>The Table window is wanted: for a new table (null) or to edit the table with this id.</summary>
+    public event Action<Guid?>? TableEditorRequested;
 
     /// <summary>The PLOT command asked the shell to show the plot window.</summary>
     public event EventHandler? PlotRequested;

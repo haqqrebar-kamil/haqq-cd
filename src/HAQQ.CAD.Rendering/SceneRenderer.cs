@@ -12,6 +12,9 @@ namespace HAQQ.CAD.Rendering;
 /// </param>
 public readonly record struct RenderStyle(byte R, byte G, byte B, double Width = 1.0, bool Dashed = false, double[]? Pattern = null);
 
+/// <summary>The font of a line of text and which point of it is given: -1 its left end, 0 its middle, 1 its right end.</summary>
+public readonly record struct TextLook(string Font, bool Bold, bool Italic, bool Underline, int Anchor);
+
 /// <summary>
 /// Minimal immediate-mode 2D surface. The CAD renderer only talks to this interface, so the
 /// geometry and scene logic stay independent of WPF (or any other backend such as SkiaSharp).
@@ -34,6 +37,12 @@ public interface IRenderSurface
     /// height of a capital letter in pixels; <paramref name="angle"/> is counter-clockwise in radians (0 = left to right).
     /// </summary>
     void DrawText(string text, double cx, double cy, double height, double angle, in RenderStyle style);
+
+    /// <summary>
+    /// One line of text in a font. (x, y) is the middle of the line's height, at its left end, middle or right
+    /// end according to <see cref="TextLook.Anchor"/>; the angle turns it about that point, counter-clockwise.
+    /// </summary>
+    void DrawStyledText(string text, double x, double y, double height, double angle, in TextLook look, in RenderStyle style);
 
     /// <summary>Everything drawn until the matching <see cref="PopClip"/> is cut off at this rectangle (a viewport's window).</summary>
     void PushClip(double x, double y, double width, double height);
@@ -442,20 +451,93 @@ public sealed class SceneRenderer
 
             case TextEntity text:
             {
-                var at = view.WorldToScreen(text.Position);
-                if (Math.Abs(at.X) > SafeCoordinate || Math.Abs(at.Y) > SafeCoordinate) break;
                 double pixels = text.Height * view.Scale;
                 var plain = style with { Pattern = null, Dashed = false, Width = 1.0 };
-                if (pixels >= MinTextPixels) surface.DrawText(text.Text, at.X, at.Y, pixels, text.Angle, plain);
-                else
+                var look = new TextLook(text.Font, text.Bold, text.Italic, text.Underline, AnchorOf(text.Justify));
+                for (int i = 0; i < text.Lines.Count; i++)
                 {
-                    // Too small to read: a short stroke where the text is.
-                    double half = Math.Max(0.3 * pixels * text.Text.Length, 0.5);
-                    surface.DrawLine(at.X - half * Math.Cos(text.Angle), at.Y + half * Math.Sin(text.Angle),
-                        at.X + half * Math.Cos(text.Angle), at.Y - half * Math.Sin(text.Angle), plain);
+                    string line = text.Lines[i];
+                    if (line.Length == 0) continue;
+                    var at = view.WorldToScreen(text.LineAnchor(i));
+                    if (Math.Abs(at.X) > SafeCoordinate || Math.Abs(at.Y) > SafeCoordinate) continue;
+                    if (pixels >= MinTextPixels) surface.DrawStyledText(line, at.X, at.Y, pixels, text.Angle, look, plain);
+                    else
+                    {
+                        // Too small to read: a stroke as long as the line, where the line is.
+                        double length = Math.Max(TextMeasure.Width(line, text.Font, text.Bold, text.Italic, pixels), 1.0);
+                        double from = look.Anchor < 0 ? 0 : look.Anchor == 0 ? -length / 2 : -length;
+                        double cos = Math.Cos(text.Angle), sin = Math.Sin(text.Angle);
+                        surface.DrawLine(at.X + from * cos, at.Y - from * sin, at.X + (from + length) * cos, at.Y - (from + length) * sin, plain);
+                    }
                 }
                 break;
             }
+
+            case TableEntity table:
+                DrawTable(surface, table, view, style);
+                break;
+
+            case BlockReferenceEntity block:
+                // The contents take the look of the reference (its layer's colour and linetype, or its own).
+                foreach (var inner in block.Resolved) DrawEntity(surface, inner, view, style);
+                break;
+        }
+    }
+
+    private static int AnchorOf(TextJustify justify) => justify switch { TextJustify.Left => -1, TextJustify.Center => 0, _ => 1 };
+
+    /// <summary>The ruled lines of a table and the text of its cells, each cut off at its own cell.</summary>
+    private static void DrawTable(IRenderSurface surface, TableEntity table, ViewTransform view, in RenderStyle style)
+    {
+        var solid = style with { Pattern = null, Dashed = false };
+        var plain = solid with { Width = 1.0 };
+        double left = table.Position.X, right = left + table.Width, top = table.Position.Y, bottom = top - table.Height;
+
+        void Rule(double x1, double y1, double x2, double y2, in RenderStyle ruleStyle) =>
+            DrawSegment(surface, view, view.WorldToScreen(new Point2D(x1, y1)), view.WorldToScreen(new Point2D(x2, y2)), ruleStyle);
+
+        Rule(left, top, right, top, solid);
+        for (int r = 0; r <= table.RowCount; r++) Rule(left, table.RowTop(r), right, table.RowTop(r), solid);
+        // The columns stop under the title, which runs across the whole width.
+        for (int c = 0; c <= table.ColumnCount; c++) Rule(table.ColumnLeft(c), table.RowTop(0), table.ColumnLeft(c), bottom, solid);
+        if (table.TitleHeight > 0)
+        {
+            Rule(left, top, left, table.RowTop(0), solid);
+            Rule(right, top, right, table.RowTop(0), solid);
+        }
+
+        double pixels = table.TextHeight * view.Scale;
+        if (pixels < MinTextPixels) return;                     // only the ruling when the text is too small to read
+        var visible = view.VisibleBounds;
+
+        void Cell(string text, BoundingBox box, double height, bool bold, TextJustify justify)
+        {
+            if (string.IsNullOrWhiteSpace(text) || !box.Intersects(visible)) return;
+            var a = view.WorldToScreen(new Point2D(box.MinX, box.MaxY));
+            var b = view.WorldToScreen(new Point2D(box.MaxX, box.MinY));
+            double x = Math.Max(a.X, -SafeCoordinate), y = Math.Max(a.Y, -SafeCoordinate);
+            double w = Math.Min(b.X, SafeCoordinate) - x, h = Math.Min(b.Y, SafeCoordinate) - y;
+            if (w < 1 || h < 1) return;
+
+            double anchorX = justify switch
+            {
+                TextJustify.Left => box.MinX + table.CellMargin,
+                TextJustify.Center => (box.MinX + box.MaxX) / 2,
+                _ => box.MaxX - table.CellMargin,
+            };
+            var at = view.WorldToScreen(new Point2D(anchorX, (box.MinY + box.MaxY) / 2));
+            surface.PushClip(x, y, w, h);
+            surface.DrawStyledText(text, at.X, at.Y, height * view.Scale, 0, new TextLook(table.Font, bold, false, false, AnchorOf(justify)), plain);
+            surface.PopClip();
+        }
+
+        if (table.TitleHeight > 0)
+            Cell(table.Title, new BoundingBox(left, table.RowTop(0), right, top), table.TitleTextHeight, true, TextJustify.Center);
+        for (int r = 0; r < table.RowCount; r++)
+        {
+            bool header = table.HeaderRow && r == 0;
+            for (int c = 0; c < table.ColumnCount; c++)
+                Cell(table.GetCell(r, c), table.CellBox(r, c), table.TextHeight, header, header ? TextJustify.Center : table.Justify);
         }
     }
 

@@ -243,6 +243,12 @@ public static class SnapEngine
                         : Piece.Segment(polyline.Id, a, b);
                 }
                 break;
+            case BlockReferenceEntity block:
+                // The lines and curves inside a block snap as if they were drawn there.
+                foreach (var inner in block.Resolved)
+                    foreach (var piece in GetPieces(inner))
+                        yield return piece with { EntityId = block.Id };
+                break;
         }
     }
 
@@ -347,6 +353,11 @@ public static class SnapEngine
     {
         switch (entity)
         {
+            case BlockReferenceEntity block:
+                foreach (var inner in block.Resolved)
+                    foreach (var point in GetSnapPoints(inner, modes))
+                        yield return point;
+                break;
             case LineEntity line:
                 if (modes.HasFlag(SnapModes.Endpoint))
                 {

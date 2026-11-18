@@ -36,6 +36,17 @@ public static class EntityGrips
                 return DimensionGrips(dimension);
             case TextEntity text:
                 return new[] { text.Position };
+            case BlockReferenceEntity block:
+                return new[] { block.Position };
+            case TableEntity table:
+            {
+                // The top-left corner moves the table; then the right edge of each column at the top (its width)
+                // and the bottom edge of each row at the left (its height).
+                var grips = new List<Point2D> { table.Position };
+                for (int c = 0; c < table.ColumnCount; c++) grips.Add(new Point2D(table.ColumnLeft(c + 1), table.RowTop(0)));
+                for (int r = 0; r < table.RowCount; r++) grips.Add(new Point2D(table.Position.X, table.RowTop(r + 1)));
+                return grips;
+            }
             case ViewportEntity viewport:
             {
                 // The four corners resize the window; the middle moves it.
@@ -106,6 +117,28 @@ public static class EntityGrips
                 if (gripIndex != 0) return false;
                 text.Position = target;
                 return true;
+            case BlockReferenceEntity block:
+                if (gripIndex != 0) return false;
+                block.Position = target;
+                return true;
+            case TableEntity table:
+            {
+                if (gripIndex == 0) { table.Position = target; return true; }
+                int column = gripIndex - 1;
+                if (column < table.ColumnCount)
+                {
+                    double width = target.X - table.ColumnLeft(column);
+                    if (!(width > table.TextHeight * 0.5)) return false;      // not narrower than half a letter
+                    table.SetColumnWidth(column, width);
+                    return true;
+                }
+                int row = column - table.ColumnCount;
+                if (row >= table.RowCount) return false;
+                double height = table.RowTop(row) - target.Y;
+                if (!(height > table.TextHeight * 1.1)) return false;         // the text has to fit
+                table.SetRowHeight(row, height);
+                return true;
+            }
             case GridLineEntity grid:
                 return StretchGridLine(grid, gripIndex, target);
             case ViewportEntity viewport:

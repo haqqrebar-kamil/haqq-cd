@@ -235,6 +235,60 @@ public sealed class DrawingDocument
         }
     }
 
+    // ---------------------------------------------------------------- blocks
+
+    private readonly List<BlockDefinition> _blocks = new();
+
+    /// <summary>The blocks kept in the drawing, in the order they were made.</summary>
+    public IReadOnlyList<BlockDefinition> Blocks => _blocks;
+
+    public BlockDefinition? FindBlock(string? name) =>
+        name is null ? null : _blocks.FirstOrDefault(b => string.Equals(b.Name, name.Trim(), StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>How many times a block is placed, on the model and on every layout.</summary>
+    public int CountBlockReferences(string name) =>
+        _entities.Values.OfType<BlockReferenceEntity>().Count(r => string.Equals(r.BlockName, name, StringComparison.OrdinalIgnoreCase));
+
+    public void AddBlock(BlockDefinition block, int? index = null)
+    {
+        if (!block.IsValid) throw new InvalidOperationException("The block has no usable name or no objects.");
+        if (FindBlock(block.Name) is not null) throw new InvalidOperationException($"Block \"{block.Name}\" already exists.");
+        if (index is int i && i >= 0 && i <= _blocks.Count) _blocks.Insert(i, block); else _blocks.Add(block);
+        OnChanged(DocumentChangeKind.Settings);
+    }
+
+    /// <summary>Removes a block that is not placed anywhere, and returns its position in the table.</summary>
+    public int RemoveBlock(string name)
+    {
+        int index = _blocks.FindIndex(b => string.Equals(b.Name, name.Trim(), StringComparison.OrdinalIgnoreCase));
+        if (index < 0) throw new InvalidOperationException($"There is no block named \"{name}\".");
+        if (CountBlockReferences(_blocks[index].Name) > 0) throw new InvalidOperationException($"Block \"{_blocks[index].Name}\" is placed in the drawing.");
+        _blocks.RemoveAt(index);
+        OnChanged(DocumentChangeKind.Settings);
+        return index;
+    }
+
+    /// <summary>
+    /// Puts a new definition in place of the one with the same name and shows it in every reference.
+    /// Returns the definition that was replaced.
+    /// </summary>
+    public BlockDefinition ReplaceBlock(BlockDefinition block)
+    {
+        if (!block.IsValid) throw new InvalidOperationException("The block has no usable name or no objects.");
+        int index = _blocks.FindIndex(b => string.Equals(b.Name, block.Name, StringComparison.OrdinalIgnoreCase));
+        if (index < 0) throw new InvalidOperationException($"There is no block named \"{block.Name}\".");
+        var old = _blocks[index];
+        _blocks[index] = block;
+        foreach (var reference in _entities.Values.OfType<BlockReferenceEntity>().Where(r => ReferenceEquals(r.Definition, old)).ToList())
+        {
+            var updated = (BlockReferenceEntity)reference.Clone();
+            updated.SetDefinition(block);
+            ReplaceEntity(updated);
+        }
+        OnChanged(DocumentChangeKind.Settings);
+        return old;
+    }
+
     public void AddDimensionStyle(DimensionStyle style, int? index = null)
     {
         if (style.Problem is { } problem) throw new InvalidOperationException(problem);

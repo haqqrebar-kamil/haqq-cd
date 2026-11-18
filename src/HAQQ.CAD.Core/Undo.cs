@@ -333,6 +333,52 @@ public sealed class ReplaceLinetypeAction : IUndoableAction
     }
 }
 
+public sealed class AddBlockAction : IUndoableAction
+{
+    private readonly BlockDefinition _block;
+    public AddBlockAction(BlockDefinition block) => _block = block;
+    public string Name => "New block";
+    public void Do(DrawingDocument document) => document.AddBlock(_block);
+    public void Undo(DrawingDocument document) => document.RemoveBlock(_block.Name);
+}
+
+public sealed class RemoveBlockAction : IUndoableAction
+{
+    private readonly string _name;
+    private BlockDefinition? _removed;
+    private int _index;
+
+    public RemoveBlockAction(string name) => _name = name;
+    public string Name => "Delete block";
+
+    public void Do(DrawingDocument document)
+    {
+        _removed = document.FindBlock(_name);
+        _index = document.RemoveBlock(_name);
+    }
+
+    public void Undo(DrawingDocument document)
+    {
+        if (_removed is not null) document.AddBlock(_removed, _index);
+    }
+}
+
+/// <summary>Redefines a block: every place it is used shows the new contents.</summary>
+public sealed class ReplaceBlockAction : IUndoableAction
+{
+    private readonly BlockDefinition _block;
+    private BlockDefinition? _old;
+
+    public ReplaceBlockAction(BlockDefinition block) => _block = block;
+    public string Name => "Redefine block";
+    public void Do(DrawingDocument document) => _old = document.ReplaceBlock(_block);
+
+    public void Undo(DrawingDocument document)
+    {
+        if (_old is not null) document.ReplaceBlock(_old);
+    }
+}
+
 public sealed class AddDimensionStyleAction : IUndoableAction
 {
     private readonly DimensionStyle _style;

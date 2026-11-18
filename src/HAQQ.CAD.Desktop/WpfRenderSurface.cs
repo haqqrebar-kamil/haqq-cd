@@ -133,6 +133,63 @@ internal sealed class WpfRenderSurface : IRenderSurface
         if (turned) Target.Pop();
     }
 
+    private readonly Dictionary<(string Font, bool Bold, bool Italic), Typeface> _faces = new();
+
+    private static Typeface CreateFace(string font, bool bold, bool italic)
+    {
+        // A font that is not installed falls back to the system's default face.
+        return new Typeface(new FontFamily(string.IsNullOrWhiteSpace(font) ? "Arial" : font),
+            italic ? FontStyles.Italic : FontStyles.Normal, bold ? FontWeights.Bold : FontWeights.Normal, FontStretches.Normal);
+    }
+
+    public void DrawStyledText(string text, double x, double y, double height, double angle, in TextLook look, in RenderStyle style)
+    {
+        if (Target is null || string.IsNullOrEmpty(text) || !(height > 0)) return;
+        double size = height / CapHeightRatio;
+        if (size > 3000) return;                       // zoomed in so far that one letter is larger than the screen
+
+        var key = (look.Font, look.Bold, look.Italic);
+        if (!_faces.TryGetValue(key, out var face)) _faces[key] = face = CreateFace(look.Font, look.Bold, look.Italic);
+
+        var formatted = new FormattedText(text, System.Globalization.CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
+            face, size, GetFill(style, 255), 1.0);
+        if (look.Underline) formatted.SetTextDecorations(TextDecorations.Underline);
+
+        double width = formatted.WidthIncludingTrailingWhitespace;
+        double left = look.Anchor < 0 ? x : look.Anchor == 0 ? x - width / 2.0 : x - width;
+        bool turned = Math.Abs(angle) > 1e-9;
+        if (turned) Target.PushTransform(new RotateTransform(-angle * 180.0 / Math.PI, x, y));
+        Target.DrawText(formatted, new Point(left, y - formatted.Height / 2.0));
+        if (turned) Target.Pop();
+    }
+
+    /// <summary>
+    /// For <see cref="HAQQ.CAD.Core.TextMeasure"/>: the width of a line of text whose capital letters are 1 high,
+    /// so that selecting and zooming go by the size the text is really drawn at.
+    /// </summary>
+    public static double MeasureWidthPerHeight(string text, string font, bool bold, bool italic)
+    {
+        const double size = 100.0;
+        try
+        {
+            Typeface face;
+            lock (MeasureFaces)
+            {
+                var key = (font, bold, italic);
+                if (!MeasureFaces.TryGetValue(key, out face!)) MeasureFaces[key] = face = CreateFace(font, bold, italic);
+            }
+            var formatted = new FormattedText(text, System.Globalization.CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
+                face, size, Brushes.Black, 1.0);
+            return formatted.WidthIncludingTrailingWhitespace / (size * CapHeightRatio);
+        }
+        catch (Exception)
+        {
+            return -1;                                 // the engine then falls back to its own estimate
+        }
+    }
+
+    private static readonly Dictionary<(string, bool, bool), Typeface> MeasureFaces = new();
+
     public void PushClip(double x, double y, double width, double height)
     {
         if (Target is null || width < 0 || height < 0) { _skippedClips++; return; }
